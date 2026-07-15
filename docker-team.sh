@@ -18,7 +18,6 @@ PROJECT_DIR="${PROJECT_DIR:-$HOME/project}"
 #     echo "   export ANTHROPIC_API_KEY='sk-ant-...'"
 #     exit 1
 # fi
-
 # echo -e "${GREEN}✅ API 키 확인 완료${NC}"
 
 # ── 이미지 빌드 ─────────────────────────────────────────────
