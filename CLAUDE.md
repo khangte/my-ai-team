@@ -41,6 +41,9 @@ tmux capture-pane -t team:0.{N} -p | tail -5
 
 ## Skill routing
 
+Below skills are provided by [gstack](https://github.com/garrytan/gstack), installed at
+`~/.claude/skills/gstack` by `setup-team.sh` (runtime, since it lives in the `claude-home` volume).
+
 When the user's request matches an available skill, invoke it via the Skill tool. When in doubt, invoke the skill.
 
 Key routing rules:
