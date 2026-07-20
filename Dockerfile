@@ -1,3 +1,18 @@
+# Dockerfile — Claude 멀티에이전트 팀 환경용 베이스 이미지
+#
+# 목적:
+#   docker-team.sh가 빌드하는 이미지. Ubuntu 22.04 위에 Node.js, claude,
+#   rtk, bun, tmux 등 setup-team.sh 실행에 필요한 도구를 설치한다.
+#
+# 주의:
+#   /home/user는 컨테이너 기동 시 named volume(claude-home)으로 덮어씌워지므로,
+#   여기서 /home/user 하위에 설치한 파일(npm/rtk/bun 등)은 사라진다.
+#   그래서 NPM_CONFIG_PREFIX, RTK_INSTALL_DIR, BUN_INSTALL을 모두
+#   /opt 이하 별도 경로로 지정한다.
+#
+# 사용:
+#   docker build -t claude-team .  (docker-team.sh가 자동 실행)
+
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive

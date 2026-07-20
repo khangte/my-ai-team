@@ -1,5 +1,22 @@
 #!/bin/bash
+#
 # setup-team.sh — 컨테이너 내부 Claude 멀티에이전트 팀 환경 자동 구성
+#
+# docker-team.sh가 컨테이너 기동 후 `docker exec`로 호출한다(직접 실행도 가능).
+# 단계:
+#   [0] tmux/claude/rtk/bun 등 사전 요구사항 및 claude 로그인 여부 확인
+#       (미로그인 시 claude를 실행해 /login을 안내하고 완료를 대기)
+#   [1] rtk 훅을 전역(-g) 초기화
+#   [1.5] gstack 스킬(~/.claude/skills/gstack)을 clone/pull 및 setup
+#         (CLAUDE.md의 "Skill routing"이 참조하는 /office-hours 등 슬래시 커맨드 제공)
+#   [2] 기존 tmux 세션("team1") 정리
+#   [3] MEMBER_NAMES/MEMBER_MODELS 배열 기준으로 파인을 분할하고 이름 부여
+#   [4] 각 파인에서 지정된 모델로 claude를 실행(최초 로그인 시 trust/terms 다이얼로그 자동 처리)
+#   [4.5] tmux가 파인 타이틀을 스피너로 덮어쓰는 문제를 막기 위해 백그라운드에서 주기적으로 타이틀 재설정
+#
+# 사용:
+#   ./setup-team.sh
+#   (팀원 구성을 바꾸려면 MEMBER_NAMES/MEMBER_MODELS 배열만 수정하면 됨)
 
 set -e
 
@@ -50,9 +67,13 @@ start_claude_in_pane() {
     local pane="$1" model="${2:-claude-sonnet-4-6}"
     local claude_bin; claude_bin="$(command -v claude)"
 
+    # C-c로 파인에 떠 있을 수 있는 이전 프로세스를 중단하고, C-u로 입력 줄을 비워
+    # 아래 send-keys가 이전 입력 잔여물과 섞이지 않게 한다.
     tmux send-keys -t "$pane" C-c 2>/dev/null; sleep 0.3
     tmux send-keys -t "$pane" C-u 2>/dev/null; sleep 0.2
 
+    # unset CLAUDECODE: 이 스크립트 자신이 Claude Code 세션 안에서 실행 중일 경우
+    # 남아있는 CLAUDECODE 환경변수가 파인 내부의 claude 실행에 영향을 주지 않도록 제거한다.
     tmux send-keys -t "$pane" \
         "cd /workspace && unset CLAUDECODE && $claude_bin --model $model --dangerously-skip-permissions" Enter
 
@@ -189,6 +210,8 @@ tmux has-session -t "$SESSION" 2>/dev/null && {
 # ── [3/5] TMUX 세션 & 레이아웃 구성 ────────────────────────
 echo -e "\n${YELLOW}[3/5] TMUX 세션 & 레이아웃 구성...${NC}"
 
+# -x 220 -y 50: main-vertical 레이아웃에서 파인 6개가 각각 읽을 만한 너비를
+# 확보하기 위한 최소 터미널 크기.
 tmux new-session -d -s "$SESSION" -x 220 -y 50
 
 # 파인을 PANE_COUNT개가 될 때까지 분할 (0번 파인은 new-session이 이미 생성)
@@ -197,6 +220,8 @@ for ((i = 0; i < PANE_COUNT - 1; i++)); do
 done
 
 # main-vertical 레이아웃 (팀장 왼쪽 넓게)
+# even-horizontal을 먼저 적용해 파인 크기를 고르게 맞춘 뒤 main-vertical로 전환해야
+# tmux가 비정상적으로 좁은 파인을 만들지 않는다.
 tmux select-layout -t "$SESSION:0" even-horizontal
 tmux select-layout -t "$SESSION:0" main-vertical
 tmux set-option -t "$SESSION" main-pane-width 110
