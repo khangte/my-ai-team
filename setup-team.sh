@@ -5,10 +5,10 @@ set -e
 
 # ── PATH 보강 ─────────────────────────────────────────────
 # ./setup-team.sh 처럼 스크립트로 직접 실행하면 non-interactive 셸이라
-# ~/.bashrc가 자동으로 로드되지 않는다. rtk/claude가 어디 설치되어 있든
-# (~/.local/bin, /opt/rtk-bin, /opt/npm-global/bin 등) 찾을 수 있도록
+# ~/.bashrc가 자동으로 로드되지 않는다. rtk/claude/bun이 어디 설치되어 있든
+# (~/.local/bin, /opt/rtk-bin, /opt/npm-global/bin, /opt/bun/bin 등) 찾을 수 있도록
 # 여기서 명시적으로 PATH에 추가한다.
-export PATH="$HOME/.local/bin:/opt/rtk-bin:/opt/npm-global/bin:$PATH"
+export PATH="$HOME/.local/bin:/opt/rtk-bin:/opt/npm-global/bin:/opt/bun/bin:$PATH"
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -93,6 +93,7 @@ MISSING=()
 command -v tmux   &>/dev/null || MISSING+=("tmux (apt-get install -y tmux)")
 command -v claude &>/dev/null || MISSING+=("claude (npm install -g @anthropic-ai/claude-code)")
 command -v rtk    &>/dev/null || MISSING+=("rtk (curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh)")
+command -v bun    &>/dev/null || MISSING+=("bun (curl -fsSL https://bun.sh/install | bash)")
 
 if [ ${#MISSING[@]} -gt 0 ]; then
     echo -e "${RED}❌ 누락된 의존성:${NC}"
@@ -103,6 +104,7 @@ fi
 echo "  ✅ tmux $(tmux -V | awk '{print $2}')"
 echo "  ✅ claude $(claude --version 2>/dev/null | head -1)"
 echo "  ✅ rtk $(rtk --version 2>/dev/null | head -1)"
+echo "  ✅ bun $(bun --version 2>/dev/null | head -1)"
 
 # if [ -z "$ANTHROPIC_API_KEY" ]; then
 #     echo -e "${RED}❌ ANTHROPIC_API_KEY 환경변수가 없습니다.${NC}"
@@ -154,6 +156,26 @@ if printf 'n\n' | RTK_TELEMETRY_DISABLED=1 timeout 15 rtk init -g --auto-patch; 
 else
     echo -e "${YELLOW}⚠️  rtk init 실패 또는 timeout (이미 설정되어 있거나 수동 확인 필요)${NC}"
     echo -e "${YELLOW}   확인: rtk init --show${NC}"
+fi
+
+# ── [1.5/5] gstack 스킬 설치 ─────────────────────────────────
+# CLAUDE.md의 "Skill routing"이 참조하는 /office-hours, /plan-ceo-review 등은
+# gstack(https://github.com/garrytan/gstack) 패키지가 제공한다.
+# ~/.claude 는 volume(claude-home) 안에 있어 컨테이너를 새로 만들면 사라지므로
+# 이미지 빌드 시점이 아니라 여기(런타임)에서 매번 최신 상태로 맞춘다.
+echo -e "\n${YELLOW}[1.5/5] gstack 스킬 설치...${NC}"
+
+GSTACK_DIR="$HOME/.claude/skills/gstack"
+if [ -d "$GSTACK_DIR/.git" ]; then
+    git -C "$GSTACK_DIR" pull --ff-only -q
+else
+    git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git "$GSTACK_DIR" -q
+fi
+
+if (cd "$GSTACK_DIR" && timeout 60 ./setup >/dev/null); then
+    echo -e "${GREEN}✅ gstack 스킬 설치 완료${NC}"
+else
+    echo -e "${YELLOW}⚠️  gstack setup 실패 또는 timeout (수동 확인 필요: cd $GSTACK_DIR && ./setup)${NC}"
 fi
 
 # ── [2/5] 기존 세션 정리 ────────────────────────────────────
