@@ -1,5 +1,18 @@
 #!/bin/bash
-# docker-team.sh — Docker 기반 팀 환경 구성 (호스트 실행)
+#
+# docker-team.sh — Docker 기반 Claude 멀티에이전트 팀 환경 구성 (호스트에서 실행)
+#
+# 동작:
+#   1. Dockerfile로 이미지(claude-team)를 빌드
+#   2. 기존 컨테이너(claude-env)가 있으면 제거 후 재생성
+#   3. PROJECT_DIR를 /workspace로, named volume claude-home을 /home/user로 마운트하여 컨테이너 기동
+#      (claude-home은 로그인 세션·rtk·gstack 스킬 등을 컨테이너 재생성 후에도 보존하기 위한 영속 볼륨)
+#   4. 컨테이너 내부에서 setup-team.sh를 실행해 tmux 기반 팀 세션을 구성
+#
+# 사용:
+#   PROJECT_DIR=/path/to/project ./docker-team.sh   (PROJECT_DIR 생략 시 $HOME/project)
+#
+# 사전 요구사항: Docker
 
 set -e
 
@@ -39,6 +52,8 @@ mkdir -p "$PROJECT_DIR"
 docker volume inspect claude-home >/dev/null 2>&1 || \
 docker volume create claude-home >/dev/null
 
+# sleep infinity로 컨테이너를 계속 살려두고, 실제 작업은 아래 docker exec로 진행한다
+# (컨테이너 자체의 CMD를 대화형 셸로 만들지 않는 이유).
 docker run -d --name "$CONTAINER" \
   -v "$PROJECT_DIR":/workspace \
   -v claude-home:/home/user \
@@ -51,5 +66,6 @@ echo -e "${GREEN}✅ 컨테이너 기동 완료 ($CONTAINER)${NC}"
 # ── 컨테이너 내에서 팀 셋업 스크립트 실행 ────────────────────
 echo -e "\n${YELLOW}팀 환경 구성 중 (컨테이너 내부)...${NC}"
 
-# setup-team.sh를 컨테이너로 실행
+# -it: setup-team.sh 내부의 claude 최초 로그인(/login) 프롬프트에 응답하려면
+# 대화형 TTY가 필요하다.
 docker exec -it "$CONTAINER" bash /workspace/setup-team.sh
