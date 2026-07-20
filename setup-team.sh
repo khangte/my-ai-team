@@ -3,6 +3,13 @@
 
 set -e
 
+# ── PATH 보강 ─────────────────────────────────────────────
+# ./setup-team.sh 처럼 스크립트로 직접 실행하면 non-interactive 셸이라
+# ~/.bashrc가 자동으로 로드되지 않는다. rtk/claude가 어디 설치되어 있든
+# (~/.local/bin, /opt/rtk-bin, /opt/npm-global/bin 등) 찾을 수 있도록
+# 여기서 명시적으로 PATH에 추가한다.
+export PATH="$HOME/.local/bin:/opt/rtk-bin:/opt/npm-global/bin:$PATH"
+
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
@@ -79,12 +86,13 @@ check_login() {
     claude auth status >/dev/null 2>&1
 }
 
-# ── [0/4] 사전 요구사항 확인 ────────────────────────────────
-echo -e "${YELLOW}[0/4] 사전 요구사항 확인...${NC}"
+# ── [0/5] 사전 요구사항 확인 ────────────────────────────────
+echo -e "${YELLOW}[0/5] 사전 요구사항 확인...${NC}"
 
 MISSING=()
 command -v tmux   &>/dev/null || MISSING+=("tmux (apt-get install -y tmux)")
 command -v claude &>/dev/null || MISSING+=("claude (npm install -g @anthropic-ai/claude-code)")
+command -v rtk    &>/dev/null || MISSING+=("rtk (curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh)")
 
 if [ ${#MISSING[@]} -gt 0 ]; then
     echo -e "${RED}❌ 누락된 의존성:${NC}"
@@ -94,6 +102,7 @@ fi
 
 echo "  ✅ tmux $(tmux -V | awk '{print $2}')"
 echo "  ✅ claude $(claude --version 2>/dev/null | head -1)"
+echo "  ✅ rtk $(rtk --version 2>/dev/null | head -1)"
 
 # if [ -z "$ANTHROPIC_API_KEY" ]; then
 #     echo -e "${RED}❌ ANTHROPIC_API_KEY 환경변수가 없습니다.${NC}"
@@ -130,16 +139,33 @@ else
     echo -e "${GREEN}✅ 로그인 확인 완료${NC}"
 fi
 
-# ── [1/4] 기존 세션 정리 ────────────────────────────────────
-echo -e "\n${YELLOW}[1/4] 기존 세션 초기화...${NC}"
+# ── [1/5] rtk 훅 초기화 ────────────────────────────────────
+# ~/.claude 는 로그인 후 생성되고 volume(claude-home) 안에 있으므로
+# 이미지 빌드 시점이 아니라 여기(런타임)에서 1회 등록한다.
+# --auto-patch: settings.json patch 여부를 묻지 않고 자동 진행
+# RTK_TELEMETRY_DISABLED=1 + timeout: v0.36.0+ 에서 non-interactive 환경일 때
+# telemetry 동의 프롬프트가 무한 대기하는 알려진 버그(rtk-ai/rtk#1307)에 대한 안전장치
+# printf 'n\n': 위 telemetry 동의 프롬프트에 대한 응답(비동의)이며,
+# RTK_TELEMETRY_DISABLED가 무시될 경우를 대비한 이중 안전장치
+echo -e "\n${YELLOW}[1/5] rtk 훅 초기화...${NC}"
+
+if printf 'n\n' | RTK_TELEMETRY_DISABLED=1 timeout 15 rtk init -g --auto-patch; then
+    echo -e "${GREEN}✅ rtk 훅 등록 완료${NC}"
+else
+    echo -e "${YELLOW}⚠️  rtk init 실패 또는 timeout (이미 설정되어 있거나 수동 확인 필요)${NC}"
+    echo -e "${YELLOW}   확인: rtk init --show${NC}"
+fi
+
+# ── [2/5] 기존 세션 정리 ────────────────────────────────────
+echo -e "\n${YELLOW}[2/5] 기존 세션 초기화...${NC}"
 
 tmux has-session -t "$SESSION" 2>/dev/null && {
     tmux kill-session -t "$SESSION"
     echo "  기존 '$SESSION' 세션 종료"
 }
 
-# ── [2/4] TMUX 세션 & 레이아웃 구성 ────────────────────────
-echo -e "\n${YELLOW}[2/4] TMUX 세션 & 레이아웃 구성...${NC}"
+# ── [3/5] TMUX 세션 & 레이아웃 구성 ────────────────────────
+echo -e "\n${YELLOW}[3/5] TMUX 세션 & 레이아웃 구성...${NC}"
 
 tmux new-session -d -s "$SESSION" -x 220 -y 50
 
@@ -165,8 +191,8 @@ tmux set-option -t "$SESSION" allow-rename off
 
 echo "  ✅ 레이아웃 구성 완료 (6 panes)"
 
-# ── [3/4] Claude 자동 실행 ──────────────────────────────────
-echo -e "\n${YELLOW}[3/4] Claude 실행 중... (파인당 최대 1분)${NC}"
+# ── [4/5] Claude 자동 실행 ──────────────────────────────────
+echo -e "\n${YELLOW}[4/5] Claude 실행 중... (파인당 최대 1분)${NC}"
 
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
     echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}): "
@@ -175,7 +201,7 @@ for ((pane = 0; pane < PANE_COUNT; pane++)); do
     echo -e "${GREEN}✅ 실행 완료${NC}"
 done
 
-# ── [3.5/4] 파인 타이틀 워처 ──────────────────────────────────
+# ── [4.5/5] 파인 타이틀 워처 ──────────────────────────────────
 # Claude Code가 스피너 표시용 OSC 이스케이프 시퀀스로 파인 타이틀을
 # 계속 덮어쓰기 때문에 (2026-07 기준 공식 비활성화 옵션 없음,
 # 관련 이슈: anthropics/claude-code#31107, #21677),
@@ -191,12 +217,13 @@ done
 disown
 echo "  ✅ 파인 타이틀 워처 시작 (PID: $!)"
 
-# ── [4/4] 완료 ──────────────────────────────────────────────
+# ── [5/5] 완료 ──────────────────────────────────────────────
 echo -e "\n${GREEN}"
 echo "  ╔══════════════════════════════════════╗"
 echo "  ║   ✅ 팀 환경 구성 완료!              ║"
 echo "  ╚══════════════════════════════════════╝"
 echo -e "${NC}"
+echo "tmux attach -t $SESSION 으로 접속하세요."
 
 # 터미널에서 직접 실행한 경우 자동 attach
-[ -t 1 ] && tmux attach -t "$SESSION"
+# [ -t 1 ] && tmux attach -t "$SESSION"
