@@ -39,15 +39,19 @@ SESSION="team1"
 PROJECT_DIR="${1:-${PROJECT_DIR:-$HOME/project}}"
 PROJECT_DIR="$(realpath "$PROJECT_DIR")"
 
+# team/{role}.md 지침 파일 위치. 이 스크립트(ai-setup 리포) 기준이므로 PROJECT_DIR과 무관하다.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEAM_DIR="$SCRIPT_DIR/team"
+
 # ── 팀 멤버 정보 (기본값. $PROJECT_DIR/team.config.sh가 있으면 그쪽 값으로 대체됨) ──
-declare -a MEMBER_NAMES=("쭌" "민준 아키텍트" "지훈 리서쳐" "수아 UI/UX디자이너" "서연 개발자" "태양 QA·리뷰어")
+declare -a MEMBER_NAMES=("lead" "architect" "researcher" "designer" "developer" "reviewer")
 declare -a MEMBER_MODELS=(
-    "claude-opus-4-8"   # 쭌 (팀장 — 판단·조율 중심)
-    "claude-opus-4-8"   # 민준 (PM — 설계·추론 중심)
-    "claude-sonnet-5"   # 지훈
-    "claude-sonnet-5"   # 수아
-    "claude-sonnet-5"   # 서연
-    "claude-sonnet-5"   # 태양
+    "claude-opus-4-8"   # lead (팀장 — 판단·조율 중심)
+    "claude-opus-4-8"   # architect (PM — 설계·추론 중심)
+    "claude-sonnet-5"   # researcher
+    "claude-sonnet-5"   # designer
+    "claude-sonnet-5"   # developer
+    "claude-sonnet-5"   # reviewer
 )
 
 # 프로젝트별로 팀 구성을 다르게 하고 싶으면 $PROJECT_DIR/team.config.sh에
@@ -78,7 +82,7 @@ wait_for_pane() {
 
 # ── 유틸: Claude 실행 + 다이얼로그 자동 처리 ────────────────
 start_claude_in_pane() {
-    local pane="$1" model="${2:-claude-sonnet-4-6}"
+    local pane="$1" model="${2:-claude-sonnet-4-6}" role="${3:-}"
     local claude_bin; claude_bin="$(command -v claude)"
 
     # C-c로 파인에 떠 있을 수 있는 이전 프로세스를 중단하고, C-u로 입력 줄을 비워
@@ -86,10 +90,20 @@ start_claude_in_pane() {
     tmux send-keys -t "$pane" C-c 2>/dev/null; sleep 0.3
     tmux send-keys -t "$pane" C-u 2>/dev/null; sleep 0.2
 
+    # 역할별 지침(team/{role}.md)이 있으면 --append-system-prompt로 주입한다.
+    # base64 왕복: send-keys에 지침 원문을 그대로 넘기면 따옴표·개행이 셸 파싱과 충돌하므로,
+    # 인코딩된 문자열만 커맨드에 실어 보내고 파인 내부 셸에서 디코딩한다.
+    local role_file="$TEAM_DIR/${role}.md"
+    local system_prompt_arg=""
+    if [ -n "$role" ] && [ -f "$role_file" ]; then
+        local role_b64; role_b64="$(base64 -w0 "$role_file")"
+        system_prompt_arg="--append-system-prompt \"\$(echo '$role_b64' | base64 -d)\""
+    fi
+
     # unset CLAUDECODE: 이 스크립트 자신이 Claude Code 세션 안에서 실행 중일 경우
     # 남아있는 CLAUDECODE 환경변수가 파인 내부의 claude 실행에 영향을 주지 않도록 제거한다.
     tmux send-keys -t "$pane" \
-        "cd '$PROJECT_DIR' && unset CLAUDECODE && $claude_bin --model $model --dangerously-skip-permissions" Enter
+        "cd '$PROJECT_DIR' && unset CLAUDECODE && $claude_bin --model $model --dangerously-skip-permissions $system_prompt_arg" Enter
 
     if [ "$NEED_FIRST_LOGIN" = true ]; then
 
@@ -241,8 +255,9 @@ tmux select-layout -t "$SESSION:0" main-vertical
 tmux set-option -t "$SESSION" main-pane-width 110
 
 #  파인 이름 설정 (레이아웃 설정 후, Claude 실행 전)
+# 파인 타이틀은 시각적 강조를 위해 대문자로 표시 (데이터 자체는 소문자 유지)
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
-    tmux select-pane -t "$SESSION:0.$pane" -T "${MEMBER_NAMES[$pane]}"
+    tmux select-pane -t "$SESSION:0.$pane" -T "${MEMBER_NAMES[$pane]^^}"
 done
 
 # 파인 제목 표시 설정
@@ -257,7 +272,7 @@ echo -e "\n${YELLOW}[4/5] Claude 실행 중... (파인당 최대 1분)${NC}"
 
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
     echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}): "
-    start_claude_in_pane "$SESSION:0.$pane" "${MEMBER_MODELS[$pane]}"
+    start_claude_in_pane "$SESSION:0.$pane" "${MEMBER_MODELS[$pane]}" "${MEMBER_NAMES[$pane]}"
 
     echo -e "${GREEN}✅ 실행 완료${NC}"
 done
@@ -270,7 +285,7 @@ done
 (
     while tmux has-session -t "$SESSION" 2>/dev/null; do
         for ((pane = 0; pane < PANE_COUNT; pane++)); do
-            tmux select-pane -t "$SESSION:0.$pane" -T "${MEMBER_NAMES[$pane]}" 2>/dev/null
+            tmux select-pane -t "$SESSION:0.$pane" -T "${MEMBER_NAMES[$pane]^^}" 2>/dev/null
         done
         sleep 1
     done
