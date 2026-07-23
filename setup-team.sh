@@ -15,8 +15,10 @@
 #   [4.5] tmux가 파인 타이틀을 스피너로 덮어쓰는 문제를 막기 위해 백그라운드에서 주기적으로 타이틀 재설정
 #
 # 사용:
-#   ./setup-team.sh
-#   (팀원 구성을 바꾸려면 MEMBER_NAMES/MEMBER_MODELS 배열만 수정하면 됨)
+#   ./setup-team.sh [프로젝트_경로]
+#   프로젝트_경로 생략 시 $PROJECT_DIR(기본 ~/project) 사용.
+#   (팀원 구성을 바꾸려면 MEMBER_NAMES/MEMBER_MODELS 배열만 수정하거나
+#    프로젝트 루트에 team.config.sh를 두면 됨)
 
 set -e
 
@@ -25,7 +27,7 @@ set -e
 # ~/.bashrc가 자동으로 로드되지 않는다. rtk/claude/bun이 어디 설치되어 있든
 # (~/.local/bin, /opt/rtk-bin, /opt/npm-global/bin, /opt/bun/bin 등) 찾을 수 있도록
 # 여기서 명시적으로 PATH에 추가한다.
-export PATH="$HOME/.local/bin:/opt/rtk-bin:/opt/npm-global/bin:/opt/bun/bin:$PATH"
+export PATH="$HOME/.local/bin:/opt/rtk-bin:/opt/npm-global/bin:/opt/bun/bin:$HOME/.bun/bin:$PATH"
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -34,8 +36,10 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 SESSION="team1"
+PROJECT_DIR="${1:-${PROJECT_DIR:-$HOME/project}}"
+PROJECT_DIR="$(realpath "$PROJECT_DIR")"
 
-# ── 팀 멤버 정보 (여기서만 수정하면 파인 개수가 자동으로 맞춰짐) ──
+# ── 팀 멤버 정보 (기본값. $PROJECT_DIR/team.config.sh가 있으면 그쪽 값으로 대체됨) ──
 declare -a MEMBER_NAMES=("쭌" "민준 아키텍트" "지훈 리서쳐" "수아 UI/UX디자이너" "서연 개발자" "태양 QA·리뷰어")
 declare -a MEMBER_MODELS=(
     "claude-opus-4-8"   # 쭌 (팀장 — 판단·조율 중심)
@@ -45,6 +49,16 @@ declare -a MEMBER_MODELS=(
     "claude-sonnet-5"   # 서연
     "claude-sonnet-5"   # 태양
 )
+
+# 프로젝트별로 팀 구성을 다르게 하고 싶으면 $PROJECT_DIR/team.config.sh에
+# 위와 동일한 형식으로 MEMBER_NAMES/MEMBER_MODELS를 재선언하면 된다.
+if [ -f "$PROJECT_DIR/team.config.sh" ]; then
+    echo -e "${YELLOW}team.config.sh 발견 → 프로젝트별 팀 구성 사용: $PROJECT_DIR/team.config.sh${NC}"
+    source "$PROJECT_DIR/team.config.sh"
+else
+    echo -e "${CYAN}team.config.sh 없음 → 기본 팀 구성 사용${NC}"
+fi
+
 PANE_COUNT=${#MEMBER_NAMES[@]}
 
 if [ "${#MEMBER_MODELS[@]}" -ne "$PANE_COUNT" ]; then
@@ -75,7 +89,7 @@ start_claude_in_pane() {
     # unset CLAUDECODE: 이 스크립트 자신이 Claude Code 세션 안에서 실행 중일 경우
     # 남아있는 CLAUDECODE 환경변수가 파인 내부의 claude 실행에 영향을 주지 않도록 제거한다.
     tmux send-keys -t "$pane" \
-        "cd /workspace && unset CLAUDECODE && $claude_bin --model $model --dangerously-skip-permissions" Enter
+        "cd '$PROJECT_DIR' && unset CLAUDECODE && $claude_bin --model $model --dangerously-skip-permissions" Enter
 
     if [ "$NEED_FIRST_LOGIN" = true ]; then
 
@@ -236,7 +250,7 @@ tmux set-option -t "$SESSION" pane-border-status top
 tmux set-option -t "$SESSION" pane-border-format " #{pane_title} "
 tmux set-option -t "$SESSION" allow-rename off
 
-echo "  ✅ 레이아웃 구성 완료 (6 panes)"
+echo "  ✅ 레이아웃 구성 완료 (${PANE_COUNT} panes)"
 
 # ── [4/5] Claude 자동 실행 ──────────────────────────────────
 echo -e "\n${YELLOW}[4/5] Claude 실행 중... (파인당 최대 1분)${NC}"
