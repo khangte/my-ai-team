@@ -6,7 +6,7 @@ declare -a MEMBER_NAMES=("lead" "architect" "researcher" "designer" "developer" 
 declare -a MEMBER_MODELS=(
     "claude-opus-4-8"   # lead (팀장 — 판단·조율 중심)
     "claude-opus-4-8"   # architect (PM — 설계·추론 중심)
-    "claude-sonnet-5"   # researcher
+    "claude-haiku-4-5"   # researcher
     "claude-sonnet-5"   # designer
     "claude-sonnet-5"   # developer
     "claude-sonnet-5"   # reviewer
