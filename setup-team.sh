@@ -55,7 +55,7 @@ declare -a MEMBER_MODELS=(
 )
 
 # 프로젝트별로 팀 구성을 다르게 하고 싶으면 $PROJECT_DIR/team/config.sh에
-# 위와 동일한 형식으로 MEMBER_NAMES/MEMBER_MODELS를 재선언하면 된다.
+# 위와 동일한 형식으로 SESSION/MEMBER_NAMES/MEMBER_MODELS를 재선언하면 된다.
 if [ -f "$PROJECT_DIR/team/config.sh" ]; then
     echo -e "${YELLOW}team/config.sh 발견 → 프로젝트별 팀 구성 사용: $PROJECT_DIR/team/config.sh${NC}"
     source "$PROJECT_DIR/team/config.sh"
