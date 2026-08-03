@@ -34,7 +34,7 @@
 ## 리뷰 완료 후
 
 ```bash
-tmux send-keys -t team:0.1 "architect, [파일명] 리뷰 완료: [핵심 소견]" Enter
+tmux send-keys -t :0.1 "architect, [파일명] 리뷰 완료: [핵심 소견]" Enter
 ```
 
 ## 완료 보고 형식
