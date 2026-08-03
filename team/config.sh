@@ -2,6 +2,8 @@
 #
 # 배열 길이만 같으면 인원 수/이름/모델을 자유롭게 조정 가능.
 
+SESSION="team1"   # tmux 세션 이름 (프로젝트별로 변경 가능)
+
 declare -a MEMBER_NAMES=("lead" "architect" "researcher" "designer" "developer" "reviewer")
 declare -a MEMBER_MODELS=(
     "claude-opus-4-8"   # lead (팀장 — 판단·조율 중심)
