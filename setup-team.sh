@@ -93,7 +93,10 @@ start_claude_in_pane() {
     # 역할별 지침(team/{role}.md)이 있으면 --append-system-prompt로 주입한다.
     # base64 왕복: send-keys에 지침 원문을 그대로 넘기면 따옴표·개행이 셸 파싱과 충돌하므로,
     # 인코딩된 문자열만 커맨드에 실어 보내고 파인 내부 셸에서 디코딩한다.
-    local role_file="$TEAM_DIR/${role}.md"
+    # team.config.sh와 동일한 오버라이드 규칙: 프로젝트 루트에 team/{role}.md가
+    # 있으면 그쪽을 우선 사용하고, 없으면 이 저장소의 기본값으로 폴백한다.
+    local role_file="$PROJECT_DIR/team/${role}.md"
+    [ -f "$role_file" ] || role_file="$TEAM_DIR/${role}.md"
     local system_prompt_arg=""
     if [ -n "$role" ] && [ -f "$role_file" ]; then
         local role_b64; role_b64="$(base64 -w0 "$role_file")"

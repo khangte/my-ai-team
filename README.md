@@ -99,14 +99,17 @@ declare -a MEMBER_MODELS=(
    여기에 넣지 않는다 — 그러면 architect·developer 등 다른 파인도 같은
    내용을 받아버린다.
 
-2. **역할별 지침 — 이 저장소의 `team/{역할}.md`**
+2. **역할별 지침 — `team/{역할}.md`**
    `setup-team.sh`가 각 파인에서 `claude`를 실행할 때, `MEMBER_NAMES`의
-   각 이름에 대응하는 **이 저장소**(`$PROJECT_DIR`가 아님) 안의
-   `team/{이름}.md`를 읽어 `--append-system-prompt`로 주입한다. 예:
-   lead 파인은 `team/lead.md`, architect 파인은 `team/architect.md`.
-   대응하는 파일이 없으면 시스템 프롬프트 추가 없이 그냥 실행된다
-   (커스텀 `team.config.sh`로 낯선 이름을 쓸 때의 안전한 기본 동작).
+   각 이름에 대응하는 `team/{이름}.md`를 읽어 `--append-system-prompt`로
+   주입한다. 예: lead 파인은 `team/lead.md`, architect 파인은
+   `team/architect.md`. 대응하는 파일이 없으면 시스템 프롬프트 추가 없이
+   그냥 실행된다(커스텀 `team.config.sh`로 낯선 이름을 쓸 때의 안전한
+   기본 동작).
 
-`team/*.md`를 프로젝트마다 다르게 가져가고 싶다면, 이 저장소를 프로젝트별로
-포크하거나 `team/` 안의 파일을 직접 수정하면 된다 — 대상 프로젝트로
-복사되거나 프로젝트별 오버라이드를 자동 병합하는 기능은 없다.
+   `team.config.sh`와 동일한 오버라이드 규칙이 적용된다: **대상 프로젝트
+   루트**(`$PROJECT_DIR/team/{이름}.md`)에 파일이 있으면 그쪽을 우선
+   사용하고, 없으면 **이 저장소**(`team/{이름}.md`)의 기본값으로
+   폴백한다. 즉 대부분의 프로젝트는 기본 지침을 그대로 쓰고, 특정
+   프로젝트에서 특정 역할의 지침만 다르게 하고 싶으면 그 프로젝트 루트에
+   `team/{역할}.md` 한 파일만 두면 된다.
