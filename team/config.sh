@@ -1,4 +1,4 @@
-# team.config.sh — 프로젝트 전용 팀 구성 (setup-team.sh가 있으면 자동 로드)
+# team/config.sh — 프로젝트 전용 팀 구성 (setup-team.sh가 있으면 자동 로드)
 #
 # 배열 길이만 같으면 인원 수/이름/모델을 자유롭게 조정 가능.
 

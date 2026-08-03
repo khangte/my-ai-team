@@ -7,9 +7,10 @@ Claude Code 인스턴스 여러 개를 tmux 파인에 띄워, 팀장 1명 + 팀�
 
 ```
 CLAUDE.md          팀장(lead) 역할 정의 + gstack 스킬 라우팅 규칙
-team/              파인별 역할 지시서 (architect/researcher/designer/developer/reviewer/lead, --append-system-prompt로 주입)
+team/              파인별 역할 지시서 + 팀 구성 (--append-system-prompt로 주입, 프로젝트별 오버라이드 가능)
+  ├ config.sh        팀 구성 기본값 템플릿 (인원/모델)
+  └ {역할}.md         역할별 지침 (architect/researcher/designer/developer/reviewer/lead)
 setup-team.sh      tmux 세션 구성 + 각 파인에서 claude 실행 (핵심 스크립트)
-team.config.sh     팀 구성 기본값 템플릿 (인원/모델)
 setup-native.sh    WSL 등 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
 Dockerfile         팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
 docker-team.sh     Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
@@ -70,11 +71,11 @@ tmux kill-session -t team1        # 세션 종료
 
 기본 팀 구성(lead/architect/researcher/designer/developer/reviewer, 6인)은 `setup-team.sh`에 내장되어
 있다. 프로젝트마다 인원 수나 모델 배정을 다르게 하고 싶으면, **대상
-프로젝트 루트**에 `team.config.sh`를 두면 자동으로 로드되어 기본값을
+프로젝트 루트**에 `team/config.sh`를 두면 자동으로 로드되어 기본값을
 덮어쓴다.
 
 ```bash
-# <프로젝트_경로>/team.config.sh
+# <프로젝트_경로>/team/config.sh
 declare -a MEMBER_NAMES=("팀장" "백엔드" "프론트")
 declare -a MEMBER_MODELS=(
     "claude-opus-4-8"
@@ -84,7 +85,7 @@ declare -a MEMBER_MODELS=(
 ```
 
 `MEMBER_NAMES`와 `MEMBER_MODELS`는 배열 길이가 같아야 하며, 파인 개수는
-배열 길이로 자동 계산된다. 이 저장소 루트의 `team.config.sh`는 기본값과
+배열 길이로 자동 계산된다. 이 저장소의 `team/config.sh`는 기본값과
 동일한 내용의 템플릿이다.
 
 ## CLAUDE.md와 team/ — 지침이 파인에 로딩되는 방식
@@ -104,10 +105,10 @@ declare -a MEMBER_MODELS=(
    각 이름에 대응하는 `team/{이름}.md`를 읽어 `--append-system-prompt`로
    주입한다. 예: lead 파인은 `team/lead.md`, architect 파인은
    `team/architect.md`. 대응하는 파일이 없으면 시스템 프롬프트 추가 없이
-   그냥 실행된다(커스텀 `team.config.sh`로 낯선 이름을 쓸 때의 안전한
+   그냥 실행된다(커스텀 `team/config.sh`로 낯선 이름을 쓸 때의 안전한
    기본 동작).
 
-   `team.config.sh`와 동일한 오버라이드 규칙이 적용된다: **대상 프로젝트
+   `team/config.sh`와 동일한 오버라이드 규칙이 적용된다: **대상 프로젝트
    루트**(`$PROJECT_DIR/team/{이름}.md`)에 파일이 있으면 그쪽을 우선
    사용하고, 없으면 **이 저장소**(`team/{이름}.md`)의 기본값으로
    폴백한다. 즉 대부분의 프로젝트는 기본 지침을 그대로 쓰고, 특정
