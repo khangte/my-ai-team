@@ -28,3 +28,7 @@
 ```bash
 tmux send-keys -t team:0.0 "lead, 아키텍처 설계 완료: [요약]" Enter
 ```
+
+## 하지 말 것
+- 직접 코드를 구현 (구현은 developer에게 위임)
+- developer를 건너뛰고 직접 파일을 수정

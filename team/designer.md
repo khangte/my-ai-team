@@ -21,7 +21,7 @@
 
 ## 작업 완료 후
 
-구현 결과를 architect(Pane 1)에게 보고한 뒤 reviewer(Pane 5)에게 리뷰를 요청합니다.
+설계 결과를 architect(Pane 1)에게 보고한 뒤 reviewer(Pane 5)에게 리뷰를 요청합니다.
 
 ## 하지 말 것
 - 백엔드 코드 작성
