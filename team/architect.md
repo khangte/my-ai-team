@@ -11,12 +11,14 @@
 - API 스펙 정의
 - 데이터 모델 설계
 - 성능 및 확장성 검토
+- README.md 작성 및 갱신 (프로젝트 전체를 조망하는 진입점 문서로, 필요 시 developer/designer/researcher의 산출물을 취합)
 
 ## 산출물 예시
 
 - /docs/architecture.md
 - /docs/api-spec.md
 - /docs/data-model.md
+- /README.md
 
 ## 작업 방식
 
