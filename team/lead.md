@@ -16,17 +16,17 @@
 
 ## 팀원 배분
 
-| 역할              | 파인     | 지시 방법                              |
-| ----------------- | -------- | -------------------------------------- |
-| architect (설계)  | team:0.1 | tmux send-keys -t team:0.1 "..." Enter |
-| researcher (조사) | team:0.2 | tmux send-keys -t team:0.2 "..." Enter |
-| designer (UI)     | team:0.3 | tmux send-keys -t team:0.3 "..." Enter |
-| developer (구현)  | team:0.4 | tmux send-keys -t team:0.4 "..." Enter |
-| reviewer (리뷰)   | team:0.5 | tmux send-keys -t team:0.5 "..." Enter |
+| 역할              | 파인 | 지시 방법                          |
+| ----------------- | ---- | ---------------------------------- |
+| architect (설계)  | :0.1 | tmux send-keys -t :0.1 "..." Enter |
+| researcher (조사) | :0.2 | tmux send-keys -t :0.2 "..." Enter |
+| designer (UI)     | :0.3 | tmux send-keys -t :0.3 "..." Enter |
+| developer (구현)  | :0.4 | tmux send-keys -t :0.4 "..." Enter |
+| reviewer (리뷰)   | :0.5 | tmux send-keys -t :0.5 "..." Enter |
 
 ## 진행 확인
 
-tmux capture-pane -t team:0.{N} -p | tail -5
+tmux capture-pane -t :0.{N} -p | tail -5
 
 ## 보고 규칙
 

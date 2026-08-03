@@ -30,7 +30,7 @@
 설계 결과를 팀장(lead)에게 보고합니다.
 
 ```bash
-tmux send-keys -t team:0.0 "lead, 아키텍처 설계 완료: [요약]" Enter
+tmux send-keys -t :0.0 "lead, 아키텍처 설계 완료: [요약]" Enter
 ```
 
 ## 하지 말 것
