@@ -15,14 +15,13 @@ setup-team.sh      tmux 세션 구성 + 각 파인에서 claude 실행 (핵심 �
 setup-native.sh    WSL 등 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
 Dockerfile         팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
 setup-docker.sh    Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
-workflows/         팀 파인에 작업 지시를 보내는 보조 스크립트 (예: feature-dev.sh)
 ```
 
 이 저장소 자체는 개발 대상이 아니라 **팀 오케스트레이션 엔진**이다. 실제로
 개발할 프로젝트는 별도 폴더에 있고, `setup-team.sh`가 그 폴더를 인자로 받아
 그 안에서 claude 인스턴스들을 실행한다.
 
-## 실행 방식 두 가지
+## 실행 방식 및 사용법
 
 |               | WSL 네이티브                        | Docker                                           |
 | ------------- | ----------------------------------- | ------------------------------------------------ |
@@ -30,48 +29,66 @@ workflows/         팀 파인에 작업 지시를 보내는 보조 스크립트 
 | 적합한 경우   | 혼자 개발, 빠른 반복                | 팀 배포, 환경 재현성 필요                        |
 | 진입 스크립트 | `setup-native.sh` → `setup-team.sh` | `setup-docker.sh` (내부에서 `setup-team.sh` 실행) |
 
-### WSL 네이티브
+### 진입
+
+먼저 이 저장소를 clone한다(아래 예시는 `~/ai-setup` 기준):
 
 ```bash
+git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
+```
+
+모든 스크립트가 프로젝트 경로를 `realpath`로 해석하므로, `ai-setup/` 안에서
+상대경로로 실행하든 대상 프로젝트(작업 디렉터리)에서 `ai-setup/` 스크립트를
+가리켜 실행하든 동작은 같다.
+
+**WSL 네이티브**
+
+```bash
+# ai-setup/ 안에서 실행
 ./setup-native.sh                       # 최초 1회: tmux/claude/rtk/bun 등 의존성 설치
 ./setup-team.sh /path/to/project        # 지정한 프로젝트로 팀 세션 실행
+
+# 작업 디렉터리(프로젝트 루트)에서 실행
+~/ai-setup/setup-native.sh              # 최초 1회
+~/ai-setup/setup-team.sh .              # 현재 디렉터리를 프로젝트로 지정
 ```
 
-### Docker
+**Docker**
 
 ```bash
-./setup-docker.sh /path/to/project
+# ai-setup/ 안에서 실행
+./setup-docker.sh /path/to/project      # 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
+
+# 작업 디렉터리(프로젝트 루트)에서 실행
+~/ai-setup/setup-docker.sh .            # 현재 디렉터리를 프로젝트로 지정
 ```
+
+> `setup-team.sh`는 인자를 생략하면 `$PROJECT_DIR` 또는 `~/project`를 쓰고,
+> 상대/절대 경로 모두 받는다. 세션 이름은 기본 `team1`이며 `team/config.sh`의
+> `SESSION=` 값으로 바꿀 수 있다(아래 "프로젝트별 팀 구성 커스터마이징" 참고).
 
 `Dockerfile`은 컨테이너 재생성 시 `/home/user`가 named volume(`claude-home`)으로
 덮어써지는 것을 고려해 npm/rtk/bun을 `/opt` 하위 경로에 설치한다. WSL
-네이티브는 이 제약이 없어 기본 경로를 그대로 쓴다.
+네이티브는 이 제약이 없어 기본 경로를 그대로 쓴다. Docker 컨테이너 이름은
+`claude-env`로 고정이며 `sleep infinity`로 계속 떠 있으므로, 세션에서 빠져나온
+뒤 재접속할 때 `setup-docker.sh`를 다시 실행할 필요 없다(재접속 방법은 아래).
 
-## 사용법
+### setup-team.sh 실행되면
 
-> `config.sh` `SESSION=세션명` 지정 가능
-> 아래 예시로는 'team1' 사용
-
-```bash
-./setup-team.sh                         # 인자 없으면 $PROJECT_DIR 또는 ~/project 사용
-./setup-team.sh ../projects/PROJECT     # 상대/절대 경로 모두 가능
-```
-
-실행되면:
-
-1. tmux/claude/rtk/bun 설치 여부 확인, claude 로그인 여부 확인(미로그인 시 안내)
+1. tmux/claude/rtk/bun 설치 여부 확인, `claude auth status`로 로그인 여부 확인(미로그인 시 `/login` 안내 후 대기)
 2. rtk 훅 초기화, gstack 스킬(`/office-hours`, `/review` 등 슬래시 커맨드) 설치
 3. tmux 세션을 열고 팀 인원 수만큼 파인 분할, 파인 타이틀은 대문자로 표시(예: `LEAD`, `ARCHITECT`)
 4. 각 파인에서 지정된 모델로 `claude --dangerously-skip-permissions` 실행
 5. 완료 후 `tmux attach -t [세션명]`으로 접속 안내
 
-세션 확인 및 종료:
+### 세션 확인 및 종료
 
 ```bash
 # team1: 세션명 예시
-tmux attach -t team1              # 접속
+tmux attach -t team1                          # 접속 (WSL 네이티브)
+docker exec -it claude-env bash -lc "tmux attach -t team1"   # 접속 (Docker — 컨테이너 재진입 후 attach)
 tmux capture-pane -t team1:0.N -p | tail -5   # N번 파인 진행 상황만 확인
-tmux kill-session -t team1        # 세션 종료
+tmux kill-session -t team1                    # 세션 종료
 ```
 
 ## 프로젝트별 팀 구성 커스터마이징
@@ -111,7 +128,7 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 Enter가 도착해 무시되는 경우도 함께 막는다.
 
 파인 밖(호스트 셸)에서 호출할 때는 PATH에 없으므로 경로와 세션명을 함께 준다 —
-`./team/say team1:0.4 "..."` (`workflows/feature-dev.sh`가 이 방식을 쓴다).
+`./team/say team1:0.4 "..."`.
 
 ## CLAUDE.md와 team/ — 지침이 파인에 로딩되는 방식
 
