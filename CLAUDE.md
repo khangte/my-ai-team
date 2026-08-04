@@ -1,30 +1,42 @@
 # CLAUDE.md
 
-이 프로젝트에서 tmux 멀티에이전트 팀으로 작업할 때, 파인별 역할 지침은
-`team/{역할}.md`가 `setup-team.sh`에 의해 `--append-system-prompt`로 주입된다.
-(역할별 지침 원본: `team/lead.md`, `team/architect.md` 등)
+## 팀 구성
 
-아래 내용은 역할과 무관하게 모든 파인에 공통으로 적용된다.
+`setup-team.sh`는 tmux 세션 하나에 파인 6개를 띄우고, 각 파인에서 서로 다른 모델로
+`claude`를 실행한다. 파인별 역할 지침(`team/{역할}.md`)은 `--append-system-prompt`로
+주입되므로, 각 파인은 자기 역할 문서만 시스템 프롬프트로 갖는다.
 
-## Skill routing
+| 파인 | 역할       | 담당                                   |
+| ---- | ---------- | -------------------------------------- |
+| :0.0 | lead       | 지시 수령·작업 배분·결과 통합·git 커밋 |
+| :0.1 | architect  | 설계·기술 문서·설계 이탈 판단          |
+| :0.2 | researcher | 기술 조사·비교 분석                    |
+| :0.3 | designer   | UI/UX 설계·스펙                        |
+| :0.4 | developer  | 구현·테스트·버그 수정                  |
+| :0.5 | reviewer   | 코드 리뷰·보안·설계 정합성 검증        |
 
-Below skills are provided by [gstack](https://github.com/garrytan/gstack), installed at
-`~/.claude/skills/gstack` by `setup-team.sh` (runtime, since it lives in the `claude-home` volume).
+팀 구성(인원·이름·모델·세션명)은 `team/config.sh`로 프로젝트마다 재정의할 수 있고,
+역할 지침도 프로젝트 루트의 `team/{역할}.md`가 있으면 그쪽이 우선한다.
 
-When the user's request matches an available skill, invoke it via the Skill tool. When in doubt, invoke the skill.
+## 파인 간 통신
 
-Key routing rules:
+파인끼리는 `tmux send-keys -t :0.{N} "메시지" Enter`로만 소통한다.
+**응답 텍스트에 "완료했습니다"라고 쓰는 것은 보고가 아니다** — 그 텍스트는 자기 파인 밖으로
+나가지 않으므로, 보고하려면 반드시 위 명령을 실제로 실행해야 한다.
 
-- Product ideas/brainstorming → invoke /office-hours
-- Strategy/scope → invoke /plan-ceo-review
-- Architecture → invoke /plan-eng-review
-- Design system/plan review → invoke /design-consultation or /plan-design-review
-- Full review pipeline → invoke /autoplan
-- Bugs/errors → invoke /investigate
-- QA/testing site behavior → invoke /qa or /qa-only
-- Code review/diff check → invoke /review
-- Visual polish → invoke /design-review
-- Ship/deploy/PR → invoke /ship or /land-and-deploy
-- Save progress → invoke /context-save
-- Resume context → invoke /context-restore
-- Author a backlog-ready spec/issue → invoke /spec
+보고 경로는 평상시 1홉(각 파인 → lead), 설계 판단이 필요한 건만 architect를 경유한다.
+
+- 일반 완료 보고: 각 파인 → lead(:0.0)
+- 설계 이탈(developer/designer): 파인 → architect(:0.1) 판단 → lead
+- 리뷰 결과: reviewer(:0.5) → architect(:0.1) 판정 → lead
+
+lead는 보고를 기다리기만 하지 않고, 미완료 파인을 `tmux capture-pane`으로 주기적으로
+확인한다(자세한 규칙은 `team/lead.md`).
+
+## 스킬
+
+[gstack](https://github.com/garrytan/gstack) 스킬을 `setup-team.sh`가
+`~/.claude/skills/gstack`에 설치한다. `~/.claude`는 `claude-home` 볼륨 안에 있어
+컨테이너를 새로 만들면 사라지므로, 이미지 빌드 시점이 아니라 런타임에 매번 설치한다.
+
+유저 전역 경로라 프로젝트와 무관하게 모든 파인에서 사용할 수 있다.
