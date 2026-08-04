@@ -2,7 +2,7 @@
 #
 # setup-team.sh — 컨테이너 내부 Claude 멀티에이전트 팀 환경 자동 구성
 #
-# docker-team.sh가 컨테이너 기동 후 `docker exec`로 호출한다(직접 실행도 가능).
+# setup-docker.sh가 컨테이너 기동 후 `docker exec`로 호출한다(직접 실행도 가능).
 # 단계:
 #   [0] tmux/claude/rtk/bun 등 사전 요구사항 및 claude 로그인 여부 확인
 #       (미로그인 시 claude를 실행해 /login을 안내하고 완료를 대기)
@@ -36,7 +36,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 SESSION="team1"
-PROJECT_DIR="${1:-${PROJECT_DIR:-$HOME/project}}"
+PROJECT_DIR="${1:-${PROJECT_DIR:-$(pwd)}}"
 PROJECT_DIR="$(realpath "$PROJECT_DIR")"
 
 # team/{role}.md 지침 파일 위치. 이 스크립트(ai-setup 리포) 기준이므로 PROJECT_DIR과 무관하다.

@@ -1,0 +1,12 @@
+# 빌드 컨텍스트 전송량 축소용. Dockerfile의 COPY는 setup-team.sh와 team/만
+# 명시적으로 가져가므로, 여기 항목을 빼도 이미지 내용은 달라지지 않는다.
+.git
+.github
+.claude
+.claudeignore
+.gitignore
+README.md
+CLAUDE.md
+setup-docker.sh
+setup-native.sh
+workflows
