@@ -2,7 +2,7 @@
 #
 # setup-native.sh — WSL 호스트에 Claude 멀티에이전트 팀 환경 직접 구성
 #
-# Dockerfile + docker-team.sh가 컨테이너 안에서 하던 의존성 설치를
+# Dockerfile + setup-docker.sh가 컨테이너 안에서 하던 의존성 설치를
 # WSL에 그대로 설치한다(격리 없이). volume 덮어쓰기 문제가 없으므로
 # /opt 우회 경로 없이 기본 경로(~/.local, ~/.bun 등)에 설치한다.
 # 설치 후 setup-team.sh를 그대로 실행해 tmux 팀 세션을 구성한다.
@@ -52,4 +52,5 @@ command -v bun &>/dev/null || curl -fsSL https://bun.sh/install | bash
 echo "  ✅ bun $(bun --version 2>/dev/null)"
 
 echo -e "\n${GREEN}✅ 의존성 설치 완료. setup-team.sh를 실행해 팀 세션을 구성하세요:${NC}"
-echo "   ./setup-team.sh"
+echo "   cd <프로젝트_경로> && $(cd "$(dirname "$0")" && pwd)/setup-team.sh ."
+echo "   또는: $(cd "$(dirname "$0")" && pwd)/setup-team.sh <프로젝트_경로>"

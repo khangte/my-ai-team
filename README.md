@@ -1,4 +1,4 @@
-# my-ai-team
+# My AI team
 
 Claude Code 인스턴스 여러 개를 tmux 파인에 띄워, 팀장 1명 + 팀원 5명 구성의
 멀티에이전트 팀으로 다른 프로젝트를 개발하는 오케스트레이션 셋업.
@@ -14,7 +14,7 @@ team/              파인별 역할 지시서 + 팀 구성 (--append-system-prom
 setup-team.sh      tmux 세션 구성 + 각 파인에서 claude 실행 (핵심 스크립트)
 setup-native.sh    WSL 등 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
 Dockerfile         팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
-docker-team.sh     Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
+setup-docker.sh    Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
 workflows/         팀 파인에 작업 지시를 보내는 보조 스크립트 (예: feature-dev.sh)
 ```
 
@@ -28,7 +28,7 @@ workflows/         팀 파인에 작업 지시를 보내는 보조 스크립트 
 | ------------- | ----------------------------------- | ------------------------------------------------ |
 | 격리          | 없음 (호스트에 직접 설치)           | 컨테이너로 격리                                  |
 | 적합한 경우   | 혼자 개발, 빠른 반복                | 팀 배포, 환경 재현성 필요                        |
-| 진입 스크립트 | `setup-native.sh` → `setup-team.sh` | `docker-team.sh` (내부에서 `setup-team.sh` 실행) |
+| 진입 스크립트 | `setup-native.sh` → `setup-team.sh` | `setup-docker.sh` (내부에서 `setup-team.sh` 실행) |
 
 ### WSL 네이티브
 
@@ -40,7 +40,7 @@ workflows/         팀 파인에 작업 지시를 보내는 보조 스크립트 
 ### Docker
 
 ```bash
-PROJECT_DIR=/path/to/project ./docker-team.sh
+./setup-docker.sh /path/to/project
 ```
 
 `Dockerfile`은 컨테이너 재생성 시 `/home/user`가 named volume(`claude-home`)으로
