@@ -1,0 +1,39 @@
+#!/bin/bash
+# say <파인|역할> <메시지...> — 파인 간 메시지 전송.
+#
+# tmux send-keys를 직접 쓰면 Enter가 별개 인자라 자주 누락되고, 그러면 메시지가
+# 상대 파인 입력창에 남은 채 전송되지 않는다. 이 래퍼는 Enter를 항상 붙인다.
+#
+#   say :0.4 "[lead] 로그인 기능 구현해줘"
+#   say developer "[lead] 로그인 기능 구현해줘"   # 파인 타이틀로도 지정 가능
+set -e
+
+[ $# -ge 2 ] || { echo "usage: say <pane|role> <message...>" >&2; exit 1; }
+
+target="${1#:}"; shift
+
+# "team1:0.0"처럼 세션이 앞에 붙어 오면 분리해 둔다(훅 등 파인 밖에서 호출하는 경우).
+session=""
+case "$target" in
+    *:*) session="${target%%:*}"; target="${target#*:}" ;;
+esac
+
+# 역할 이름이면 파인 타이틀에서 인덱스를 찾는다. 숫자면 그대로 쓴다.
+case "$target" in
+    *[!0-9.]*)
+        idx="$(tmux list-panes -t "$session:0" -F '#{pane_index} #{pane_title}' \
+                | awk -v r="${target^^}" '$2==r {print $1; exit}')"
+        [ -n "$idx" ] || { echo "say: unknown role '$target'" >&2; exit 1; }
+        target="0.$idx"
+        ;;
+    *.*) ;;                   # "0.3" 형태는 그대로
+    *)   target="0.$target" ;; # "3" → "0.3"
+esac
+
+pane="$session:$target"
+
+# -l: 메시지를 리터럴로 보내 "Enter" 같은 단어가 키 이름으로 해석되지 않게 한다.
+tmux send-keys -t "$pane" -l -- "$*"
+# Claude Code 입력창이 텍스트를 반영하기 전에 Enter가 도착하면 무시되므로 한 박자 쉰다.
+sleep 0.3
+tmux send-keys -t "$pane" Enter

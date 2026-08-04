@@ -12,22 +12,22 @@
 
 1. 사용자의 요청을 분석
 2. 적절한 팀원을 선택
-3. tmux send-keys로 지시 전달
+3. `say`로 지시 전달
 4. 결과를 수집하여 사용자에게 보고
 
 ## 팀원 배분
 
 | 역할              | 파인 | 지시 방법                          |
 | ----------------- | ---- | ---------------------------------- |
-| architect (설계)  | :0.1 | tmux send-keys -t :0.1 "..." Enter |
-| researcher (조사) | :0.2 | tmux send-keys -t :0.2 "..." Enter |
-| designer (UI)     | :0.3 | tmux send-keys -t :0.3 "..." Enter |
-| developer (구현)  | :0.4 | tmux send-keys -t :0.4 "..." Enter |
-| reviewer (리뷰)   | :0.5 | tmux send-keys -t :0.5 "..." Enter |
+| architect (설계)  | :0.1 | say :0.1 "..." |
+| researcher (조사) | :0.2 | say :0.2 "..." |
+| designer (UI)     | :0.3 | say :0.3 "..." |
+| developer (구현)  | :0.4 | say :0.4 "..." |
+| reviewer (리뷰)   | :0.5 | say :0.5 "..." |
 
 ## 보고 수신 체계
 
-팀원은 작업이 끝나면 `tmux send-keys -t :0.0`으로 나에게 직접 보고한다.
+팀원은 작업이 끝나면 `say :0.0 "..."`으로 나에게 직접 보고한다.
 
 | 보고 종류                      | 경로                             |
 | ------------------------------ | -------------------------------- |
@@ -68,7 +68,7 @@ tmux capture-pane -t :0.{N} -p | tail -20
 5. 작업이 끝났는데 보고를 누락한 것이면 독촉한다
 
 ```bash
-tmux send-keys -t :0.{N} "작업 상태를 lead(:0.0)에 보고하세요" Enter
+say :0.{N} "작업 상태를 lead(:0.0)에 보고하세요"
 ```
 
 6. 미완료 목록이 비면 결과를 통합해 사용자에게 보고한다

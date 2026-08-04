@@ -112,7 +112,7 @@ start_claude_in_pane() {
     if [ -n "$role" ] && [ "$role" != "lead" ]; then
         # JSON 문자열로 들어가므로 큰따옴표는 \" 로 이스케이프한다(작은따옴표는 JSON에서 무해).
         # 훅 커맨드는 이 스크립트가 만드는 고정 문자열이라 이스케이프 대상이 이것뿐이다.
-        local hook_cmd="tmux send-keys -t ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :0.\$(tmux display-message -p '#{pane_index}') 응답 종료 — 미보고 시 확인 필요\\\" Enter"
+        local hook_cmd="${TEAM_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :0.\$(tmux display-message -p '#{pane_index}') 응답 종료 — 미보고 시 확인 필요\\\""
         local settings_json="{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}]}}"
         local settings_b64; settings_b64="$(printf '%s' "$settings_json" | base64 -w0)"
         settings_arg="--settings \"\$(echo '$settings_b64' | base64 -d)\""
@@ -120,8 +120,9 @@ start_claude_in_pane() {
 
     # unset CLAUDECODE: 이 스크립트 자신이 Claude Code 세션 안에서 실행 중일 경우
     # 남아있는 CLAUDECODE 환경변수가 파인 내부의 claude 실행에 영향을 주지 않도록 제거한다.
+    # PATH에 TEAM_DIR: 파인들이 `say`를 경로 없이 호출할 수 있게 한다.
     tmux send-keys -t "$pane" \
-        "cd '$PROJECT_DIR' && unset CLAUDECODE && $claude_bin --model $model --dangerously-skip-permissions $system_prompt_arg $settings_arg" Enter
+        "cd '$PROJECT_DIR' && unset CLAUDECODE && export PATH='$TEAM_DIR':\$PATH && $claude_bin --model $model --dangerously-skip-permissions $system_prompt_arg $settings_arg" Enter
 
     if [ "$NEED_FIRST_LOGIN" = true ]; then
 

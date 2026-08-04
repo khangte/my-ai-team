@@ -30,11 +30,11 @@
 
 설계 결과를 팀장(Pane 0)에게 보고합니다.
 
-**보고는 tmux send-keys를 실제로 실행해야 전달된다.**
+**보고는 `say` 명령을 실제로 실행해야 전달된다.**
 응답 텍스트에 "완료했습니다"라고 쓰는 것만으로는 보고가 아니다 — 그 텍스트는 이 파인 밖으로 나가지 않는다.
 
 ```bash
-tmux send-keys -t :0.0 "[architect] {설계명} 설계 완료. {파일 경로}" Enter
+say :0.0 "[architect] {설계명} 설계 완료. {파일 경로}"
 ```
 
 ## 수신 보고 처리 (중요)
@@ -50,8 +50,8 @@ tmux send-keys -t :0.0 "[architect] {설계명} 설계 완료. {파일 경로}" 
 3. **팀장에게 그 판단을 보고한다**
 
 ```bash
-tmux send-keys -t :0.4 "[architect] {기능명} 이탈 {승인/반려}. 사유: {판단 근거}" Enter
-tmux send-keys -t :0.0 "[architect] {기능명} 설계 이탈 건 {승인/반려}. {한 줄 근거}" Enter
+say :0.4 "[architect] {기능명} 이탈 {승인/반려}. 사유: {판단 근거}"
+say :0.0 "[architect] {기능명} 설계 이탈 건 {승인/반려}. {한 줄 근거}"
 ```
 
 반려 시에는 developer가 무엇을 어떻게 고쳐야 하는지 구체적으로 지시한다.
@@ -63,8 +63,8 @@ tmux send-keys -t :0.0 "[architect] {기능명} 설계 이탈 건 {승인/반려
 3. **팀장에게 리뷰 판정을 보고한다**
 
 ```bash
-tmux send-keys -t :0.4 "[architect] {기능명} 수정 요청: {항목}" Enter
-tmux send-keys -t :0.0 "[architect] {기능명} 리뷰 판정: {승인/수정필요}. {항목 수}건" Enter
+say :0.4 "[architect] {기능명} 수정 요청: {항목}"
+say :0.0 "[architect] {기능명} 리뷰 판정: {승인/수정필요}. {항목 수}건"
 ```
 
 ## 하지 말 것

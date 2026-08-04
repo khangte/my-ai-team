@@ -24,13 +24,13 @@
 
 ## 작업 완료 후
 
-**보고는 tmux send-keys를 실제로 실행해야 전달된다.**
+**보고는 `say` 명령을 실제로 실행해야 전달된다.**
 응답 텍스트에 "완료했습니다"라고 쓰는 것만으로는 보고가 아니다 — 그 텍스트는 이 파인 밖으로 나가지 않는다.
 
 ### 아키텍처 스펙대로 설계한 경우 → 팀장에게 직접 보고
 
 ```bash
-tmux send-keys -t :0.0 "[designer] {화면명} UI 설계 완료. {파일 경로}" Enter
+say :0.0 "[designer] {화면명} UI 설계 완료. {파일 경로}"
 ```
 
 ### 아키텍처 스펙과 다르게 설계한 경우 → architect 승인을 먼저 받는다
@@ -39,19 +39,19 @@ tmux send-keys -t :0.0 "[designer] {화면명} UI 설계 완료. {파일 경로}
 팀장에게 완료 보고를 하기 **전에** architect(Pane 1)의 판단을 받는다.
 
 ```bash
-tmux send-keys -t :0.1 "[designer] {화면명} 스펙 이탈. 사유: {왜}. 대안: {무엇}. 판단 요청" Enter
+say :0.1 "[designer] {화면명} 스펙 이탈. 사유: {왜}. 대안: {무엇}. 판단 요청"
 ```
 
 승인/반려를 받은 뒤, 그 판단을 포함해 팀장에게 보고한다.
 
 ```bash
-tmux send-keys -t :0.0 "[designer] {화면명} UI 설계 완료(스펙 이탈, architect {승인/반려}). {파일 경로}" Enter
+say :0.0 "[designer] {화면명} UI 설계 완료(스펙 이탈, architect {승인/반려}). {파일 경로}"
 ```
 
 ### 리뷰가 필요하면
 
 ```bash
-tmux send-keys -t :0.5 "[designer] {화면명} 리뷰 요청. {파일 경로}" Enter
+say :0.5 "[designer] {화면명} 리뷰 요청. {파일 경로}"
 ```
 
 ## 하지 말 것
