@@ -33,9 +33,11 @@
 | ------------------------------ | -------------------------------- |
 | 일반 완료 보고                 | 각 파인 → lead 직접              |
 | 설계 이탈 (developer/designer) | 파인 → architect 판단 → lead     |
-| 리뷰 결과                      | reviewer → architect 판정 → lead |
+| 리뷰 결과 — 승인               | reviewer → lead 직접             |
+| 리뷰 결과 — 수정요청/설계이탈  | reviewer → architect 판정 → lead |
 
 즉 평상시엔 1홉이고, 설계 판단이 필요한 건만 architect를 경유해 2홉이 된다.
+리뷰 승인처럼 판단할 사안이 없는 건은 architect를 태우지 않는다.
 
 ## 진행 확인 (이벤트 기반)
 

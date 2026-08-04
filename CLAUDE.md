@@ -32,7 +32,8 @@
 
 - 일반 완료 보고: 각 파인 → lead(:0.0)
 - 설계 이탈(developer/designer): 파인 → architect(:0.1) 판단 → lead
-- 리뷰 결과: reviewer(:0.5) → architect(:0.1) 판정 → lead
+- 리뷰 결과(승인): reviewer(:0.5) → lead
+- 리뷰 결과(수정요청·설계이탈): reviewer(:0.5) → architect(:0.1) 판정 → lead
 
 파인이 보고를 잊는 경우에 대비해, `setup-team.sh`는 lead를 제외한 각 파인에 Stop 훅을
 `--settings`로 주입한다. 파인이 응답을 마치면 "응답 종료" 신호가 lead에 자동 전달되므로,
