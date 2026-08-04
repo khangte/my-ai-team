@@ -103,10 +103,25 @@ start_claude_in_pane() {
         system_prompt_arg="--append-system-prompt \"\$(echo '$role_b64' | base64 -d)\""
     fi
 
+    # Stop 훅으로 "작업 종료" 신호를 lead에 자동 전송한다(lead 자신은 제외).
+    # 파인이 send-keys 실행을 잊어도 훅은 harness가 실행하므로 신호가 반드시 나간다.
+    # lead는 이 신호를 받은 파인만 capture-pane으로 확인하면 되므로 주기적 폴링이 필요 없다.
+    # 신호는 "종료됐다"는 사실만 전달하고, 작업 내용은 파인이 보내는 본 보고가 담당한다.
+    # 훅 커맨드 안에서 pane_index를 조회하므로 파인 번호를 하드코딩하지 않는다.
+    local settings_arg=""
+    if [ -n "$role" ] && [ "$role" != "lead" ]; then
+        # JSON 문자열로 들어가므로 큰따옴표는 \" 로 이스케이프한다(작은따옴표는 JSON에서 무해).
+        # 훅 커맨드는 이 스크립트가 만드는 고정 문자열이라 이스케이프 대상이 이것뿐이다.
+        local hook_cmd="tmux send-keys -t ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :0.\$(tmux display-message -p '#{pane_index}') 응답 종료 — 미보고 시 확인 필요\\\" Enter"
+        local settings_json="{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}]}}"
+        local settings_b64; settings_b64="$(printf '%s' "$settings_json" | base64 -w0)"
+        settings_arg="--settings \"\$(echo '$settings_b64' | base64 -d)\""
+    fi
+
     # unset CLAUDECODE: 이 스크립트 자신이 Claude Code 세션 안에서 실행 중일 경우
     # 남아있는 CLAUDECODE 환경변수가 파인 내부의 claude 실행에 영향을 주지 않도록 제거한다.
     tmux send-keys -t "$pane" \
-        "cd '$PROJECT_DIR' && unset CLAUDECODE && $claude_bin --model $model --dangerously-skip-permissions $system_prompt_arg" Enter
+        "cd '$PROJECT_DIR' && unset CLAUDECODE && $claude_bin --model $model --dangerously-skip-permissions $system_prompt_arg $settings_arg" Enter
 
     if [ "$NEED_FIRST_LOGIN" = true ]; then
 

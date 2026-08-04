@@ -30,8 +30,9 @@
 - 설계 이탈(developer/designer): 파인 → architect(:0.1) 판단 → lead
 - 리뷰 결과: reviewer(:0.5) → architect(:0.1) 판정 → lead
 
-lead는 보고를 기다리기만 하지 않고, 미완료 파인을 `tmux capture-pane`으로 주기적으로
-확인한다(자세한 규칙은 `team/lead.md`).
+파인이 보고를 잊는 경우에 대비해, `setup-team.sh`는 lead를 제외한 각 파인에 Stop 훅을
+`--settings`로 주입한다. 파인이 응답을 마치면 "응답 종료" 신호가 lead에 자동 전달되므로,
+lead는 주기적 폴링 없이 그 신호를 받은 파인만 확인하면 된다(자세한 규칙은 `team/lead.md`).
 
 ## 스킬
 
