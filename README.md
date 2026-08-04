@@ -15,6 +15,7 @@ setup-team.sh      tmux 세션 구성 + 각 파인에서 claude 실행 (핵심 �
 setup-native.sh    WSL 등 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
 Dockerfile         팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
 docker-team.sh     Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
+workflows/         팀 파인에 작업 지시를 보내는 보조 스크립트 (예: feature-dev.sh)
 ```
 
 이 저장소 자체는 개발 대상이 아니라 **팀 오케스트레이션 엔진**이다. 실제로
