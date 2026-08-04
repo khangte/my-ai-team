@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y \
     git \
     tmux \
     vim \
+    unzip \
     locales \
     fonts-noto-cjk \
     && locale-gen ko_KR.UTF-8 \
