@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# GitHub
+.github/
+
+# Claude
+.claude/
+.claudeignore
