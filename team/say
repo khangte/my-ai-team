@@ -37,3 +37,16 @@ tmux send-keys -t "$pane" -l -- "$*"
 # Claude Code 입력창이 텍스트를 반영하기 전에 Enter가 도착하면 무시되므로 한 박자 쉰다.
 sleep 0.3
 tmux send-keys -t "$pane" Enter
+
+# 발신 파인의 본 보고 시각을 남긴다. Stop 훅이 이걸 보고, 방금 본 보고를 보낸
+# 파인이면 중복 종료 신호를 생략한다(lead 턴 낭비 방지).
+# TMUX_PANE이 있는 파인 안에서 호출된 경우에만 기록한다 — 훅 자신이 부른 say는
+# TMUX_PANE이 없으므로 기록되지 않고, 따라서 신호가 자기 자신을 억제하지 않는다.
+# 키는 "0.4" 같은 파인 인덱스로, 훅 쪽 가드와 동일한 형식을 쓴다.
+if [ -n "${TMUX_PANE:-}" ]; then
+    sender="$(tmux display-message -p -t "$TMUX_PANE" '#{window_index}.#{pane_index}' 2>/dev/null || true)"
+    if [ -n "$sender" ]; then
+        mkdir -p /tmp/team-say
+        : > "/tmp/team-say/$sender"
+    fi
+fi
