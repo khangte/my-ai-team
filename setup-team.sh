@@ -107,12 +107,20 @@ start_claude_in_pane() {
     # 파인이 send-keys 실행을 잊어도 훅은 harness가 실행하므로 신호가 반드시 나간다.
     # lead는 이 신호를 받은 파인만 capture-pane으로 확인하면 되므로 주기적 폴링이 필요 없다.
     # 신호는 "종료됐다"는 사실만 전달하고, 작업 내용은 파인이 보내는 본 보고가 담당한다.
-    # 훅 커맨드 안에서 pane_index를 조회하므로 파인 번호를 하드코딩하지 않는다.
+    # 파인 번호는 호출 시점의 $pane에서 그대로 가져온다. 훅 커맨드 안에서
+    # `tmux display-message -p '#{pane_index}'`를 쓰면 안 된다 — 훅 프로세스에는
+    # TMUX_PANE이 전달되지 않아 자기 파인이 아니라 그 시점의 활성 파인 번호가
+    # 잡히고, 결국 모든 파인이 lead 자신인 :0.0을 보고하게 된다.
     local settings_arg=""
     if [ -n "$role" ] && [ "$role" != "lead" ]; then
+        local pane_id="${pane##*:}"   # "team1:0.4" → "0.4"
+        # 중복 신호 가드: 이 파인이 방금 say로 본 보고를 보냈다면 종료 신호를 생략한다.
+        # 본 보고에 이미 작업 내용이 담겨 있어 신호는 lead 턴만 한 번 더 태우기 때문이다.
+        # say가 남긴 마커를 소비(삭제)하므로, 보고 없이 끝난 응답에서는 신호가 정상 발송된다.
+        local marker="/tmp/team-say/${pane_id}"
         # JSON 문자열로 들어가므로 큰따옴표는 \" 로 이스케이프한다(작은따옴표는 JSON에서 무해).
         # 훅 커맨드는 이 스크립트가 만드는 고정 문자열이라 이스케이프 대상이 이것뿐이다.
-        local hook_cmd="${TEAM_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :0.\$(tmux display-message -p '#{pane_index}') 응답 종료 — 미보고 시 확인 필요\\\""
+        local hook_cmd="if [ -f '${marker}' ]; then rm -f '${marker}'; else ${TEAM_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\\\"; fi"
         local settings_json="{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}]}}"
         local settings_b64; settings_b64="$(printf '%s' "$settings_json" | base64 -w0)"
         settings_arg="--settings \"\$(echo '$settings_b64' | base64 -d)\""
