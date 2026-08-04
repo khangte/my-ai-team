@@ -104,6 +104,10 @@ start_claude_in_pane() {
     if [ -n "$role" ] && [ -f "$role_file" ]; then
         local role_b64; role_b64="$(base64 -w0 "$role_file")"
         system_prompt_arg="--append-system-prompt \"\$(echo '$role_b64' | base64 -d)\""
+    elif [ -n "$role" ]; then
+        # MEMBER_NAMES에 오타가 있으면 role_file이 조용히 없는 채로 넘어가
+        # 해당 파인이 역할 지침 없이 뜬다. 눈에 띄게 경고해 즉시 알아채도록 한다.
+        echo -e "${RED}⚠️  team/${role}.md 없음 → 이 파인은 역할 지침 없이 실행됩니다 (MEMBER_NAMES 오타 확인)${NC}" >&2
     fi
 
     # Stop 훅으로 "작업 종료" 신호를 lead에 자동 전송한다(lead 자신은 제외).
@@ -124,7 +128,11 @@ start_claude_in_pane() {
         # JSON 문자열로 들어가므로 큰따옴표는 \" 로 이스케이프한다(작은따옴표는 JSON에서 무해).
         # 훅 커맨드는 이 스크립트가 만드는 고정 문자열이라 이스케이프 대상이 이것뿐이다.
         local hook_cmd="if [ -f '${marker}' ]; then rm -f '${marker}'; else ${TEAM_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\\\"; fi"
-        local settings_json="{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}]}}"
+        # --settings는 글로벌 settings.json을 병합이 아니라 대체하므로, 여기서 Stop 훅만
+        # 넣으면 글로벌 PreToolUse(rtk hook claude)가 이 파인에서 통째로 사라진다.
+        # rtk 재작성이 계속 걸리도록 PreToolUse도 함께 명시해야 한다.
+        # cat 차단 훅도 lead와 동일하게 팀 파인에 적용해 cat 대신 serena를 쓰도록 유도한다.
+        local settings_json="{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/block-cat-use-serena.sh\"},{\"type\":\"command\",\"command\":\"rtk hook claude\"}]}]}}"
         local settings_b64; settings_b64="$(printf '%s' "$settings_json" | base64 -w0)"
         settings_arg="--settings \"\$(echo '$settings_b64' | base64 -d)\""
     fi
