@@ -102,7 +102,17 @@ start_claude_in_pane() {
     [ -f "$role_file" ] || role_file="$TEAM_DIR/${role}.md"
     local system_prompt_arg=""
     if [ -n "$role" ] && [ -f "$role_file" ]; then
-        local role_b64; role_b64="$(base64 -w0 "$role_file")"
+        local role_content; role_content="$(cat "$role_file")"
+        # lead에는 MEMBER_NAMES 배열 기준 배분 표를 실행 시점에 동적 생성해 이어붙인다.
+        # config.sh만 바꾸면 lead.md를 손대지 않아도 배분 표가 항상 일치하게 하기 위함.
+        if [ "$role" = "lead" ]; then
+            local team_table="## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 파인 | 지시 방법 |"$'\n'"| --- | --- | --- |"
+            for ((m = 1; m < ${#MEMBER_NAMES[@]}; m++)); do
+                team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | :0.$m | say :0.$m \"...\" |"
+            done
+            role_content="${role_content}"$'\n\n'"${team_table}"
+        fi
+        local role_b64; role_b64="$(printf '%s' "$role_content" | base64 -w0)"
         system_prompt_arg="--append-system-prompt \"\$(echo '$role_b64' | base64 -d)\""
     elif [ -n "$role" ]; then
         # MEMBER_NAMES에 오타가 있으면 role_file이 조용히 없는 채로 넘어가
