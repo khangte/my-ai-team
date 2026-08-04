@@ -11,10 +11,10 @@ team/              파인별 역할 지시서 + 팀 구성 (--append-system-prom
   ├ config.sh        팀 구성 기본값 템플릿 (인원/모델)
   ├ say              파인 간 메시지 전송 래퍼 (setup-team.sh가 각 파인 PATH에 등록)
   └ {역할}.md         역할별 지침 (architect/researcher/designer/developer/reviewer/lead)
-setup-team.sh      tmux 세션 구성 + 각 파인에서 claude 실행 (핵심 스크립트)
-setup-native.sh    WSL 등 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
 Dockerfile         팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
 setup-docker.sh    Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
+setup-native.sh    WSL 등 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
+setup-team.sh      tmux 세션 구성 + 각 파인에서 claude 실행 (핵심 스크립트)
 ```
 
 이 저장소 자체는 개발 대상이 아니라 **팀 오케스트레이션 엔진**이다. 실제로
@@ -23,10 +23,10 @@ setup-docker.sh    Docker로 이미지 빌드 + 컨테이너 기동 + setup-team
 
 ## 실행 방식 및 사용법
 
-|               | WSL 네이티브                        | Docker                                           |
-| ------------- | ----------------------------------- | ------------------------------------------------ |
-| 격리          | 없음 (호스트에 직접 설치)           | 컨테이너로 격리                                  |
-| 적합한 경우   | 혼자 개발, 빠른 반복                | 팀 배포, 환경 재현성 필요                        |
+|               | WSL 네이티브                        | Docker                                            |
+| ------------- | ----------------------------------- | ------------------------------------------------- |
+| 격리          | 없음 (호스트에 직접 설치)           | 컨테이너로 격리                                   |
+| 적합한 경우   | 혼자 개발, 빠른 반복                | 팀 배포, 환경 재현성 필요                         |
 | 진입 스크립트 | `setup-native.sh` → `setup-team.sh` | `setup-docker.sh` (내부에서 `setup-team.sh` 실행) |
 
 ### 진입
@@ -41,7 +41,7 @@ git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
 상대경로로 실행하든 대상 프로젝트(작업 디렉터리)에서 `ai-setup/` 스크립트를
 가리켜 실행하든 동작은 같다.
 
-**WSL 네이티브**
+#### WSL 네이티브
 
 ```bash
 # ai-setup/ 안에서 실행
@@ -53,7 +53,7 @@ git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
 ~/ai-setup/setup-team.sh .              # 현재 디렉터리를 프로젝트로 지정
 ```
 
-**Docker**
+#### Docker
 
 ```bash
 # ai-setup/ 안에서 실행
