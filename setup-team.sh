@@ -46,7 +46,10 @@ TEAM_DIR="$SCRIPT_DIR/team"
 # ── 팀 멤버 정보 (기본값. $PROJECT_DIR/team/config.sh가 있으면 그쪽 값으로 대체됨) ──
 declare -a MEMBER_NAMES=("lead" "architect" "researcher" "designer" "developer" "reviewer")
 declare -a MEMBER_MODELS=(
-    "claude-opus-4-8"   # lead (팀장 — 판단·조율 중심)
+    # lead는 직접 작업하지 않고 배분·수합만 하지만 모든 보고가 모여 컨텍스트가
+    # 가장 빨리 불어나는 파인이다. 비싼 모델 × 최장 컨텍스트 조합을 피해 Sonnet을 쓴다.
+    # 깊은 판단이 필요한 쪽은 architect이므로 그쪽만 Opus로 둔다.
+    "claude-sonnet-5"   # lead (팀장 — 배분·수합 중심)
     "claude-opus-4-8"   # architect (PM — 설계·추론 중심)
     "claude-haiku-4-5"   # researcher
     "claude-sonnet-5"   # designer
