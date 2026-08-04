@@ -1,16 +1,18 @@
 #!/bin/bash
 #
-# docker-team.sh — Docker 기반 Claude 멀티에이전트 팀 환경 구성 (호스트에서 실행)
+# setup-docker.sh — Docker 기반 Claude 멀티에이전트 팀 환경 구성 (호스트에서 실행)
 #
 # 동작:
 #   1. Dockerfile로 이미지(claude-team)를 빌드
 #   2. 기존 컨테이너(claude-env)가 있으면 제거 후 재생성
-#   3. PROJECT_DIR를 /workspace로, named volume claude-home을 /home/user로 마운트하여 컨테이너 기동
+#   3. 입력받은 프로젝트 루트를 컨테이너 내부 /workspace로 마운트
+#      setup-team.sh는 /workspace를 실제 작업 프로젝트 루트로 사용
+#      named volume claude-home을 /home/user로 마운트하여 컨테이너 기동
 #      (claude-home은 로그인 세션·rtk·gstack 스킬 등을 컨테이너 재생성 후에도 보존하기 위한 영속 볼륨)
 #   4. 컨테이너 내부에서 setup-team.sh를 실행해 tmux 기반 팀 세션을 구성
 #
 # 사용:
-#   PROJECT_DIR=/path/to/project ./docker-team.sh   (PROJECT_DIR 생략 시 $HOME/project)
+#   ./setup-docker.sh /path/to/project
 #
 # 사전 요구사항: Docker
 
@@ -23,7 +25,9 @@ NC='\033[0m'
 
 IMAGE="claude-team"
 CONTAINER="claude-env"
-PROJECT_DIR="${PROJECT_DIR:-$HOME/project}"
+# PROJECT_DIR="${PROJECT_DIR:-$HOME/project}"
+PROJECT_DIR="${1:?사용법: ./setup-docker.sh <project-path>}"
+PROJECT_DIR="$(realpath "$PROJECT_DIR")"
 
 # # ── API 키 확인 ──────────────────────────────────────────────
 # if [ -z "$ANTHROPIC_API_KEY" ]; then
@@ -68,4 +72,6 @@ echo -e "\n${YELLOW}팀 환경 구성 중 (컨테이너 내부)...${NC}"
 
 # -it: setup-team.sh 내부의 claude 최초 로그인(/login) 프롬프트에 응답하려면
 # 대화형 TTY가 필요하다.
-docker exec -it "$CONTAINER" bash /workspace/setup-team.sh
+# docker exec -it "$CONTAINER" bash /workspace/setup-team.sh
+docker exec -it "$CONTAINER" \
+bash /opt/ai-setup/setup-team.sh /workspace
