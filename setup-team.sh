@@ -102,9 +102,11 @@ start_claude_in_pane() {
     # team/config.sh와 동일한 오버라이드 규칙: 프로젝트 루트에 team/{role}.md가
     # 있으면 그쪽을 우선 사용하고, 없으면 이 저장소의 기본값으로 폴백한다.
     # 역할별 스킬 제한([1.6/5])이 만든 디렉터리가 있으면 그곳을 cwd로 삼고
-    # 유저 전역 스킬을 차단한다. 프로젝트 스킬 탐색은 상위로 거슬러 올라가므로
+    # 유저 전역·플러그인 스킬을 차단한다(빌트인 스킬은 남는다 — [1.6/5] 주석 참조).
+    # 프로젝트 스킬 탐색은 상위로 거슬러 올라가므로
     # $PROJECT_DIR/.claude/skills 의 공용 스킬은 그대로 상속된다.
-    # SKILL_SETS에 없는 역할(lead)은 $PROJECT_DIR에서 전체 스킬로 그대로 뜬다.
+    # SKILL_SETS에 없는 역할은 $PROJECT_DIR에서 전체 스킬로 그대로 뜬다
+    # (현재 SKILL_SETS는 6개 역할을 모두 포함하므로 해당 없음).
     local work_dir="$PROJECT_DIR" skills_arg=""
     if [ -n "$role" ] && [ -d "$TEAM_SKILLS_ROOT/$role/.claude/skills" ]; then
         work_dir="$TEAM_SKILLS_ROOT/$role"
@@ -323,7 +325,9 @@ fi
 # ~/.claude/skills는 유저 전역이라 파인별로 다르게 만들 수 없다. 그래서
 #   1) 파인마다 $PROJECT_DIR/.team/{역할}/.claude/skills 를 만들어 필요한 스킬만 넣고
 #   2) 그 디렉터리를 cwd로 claude를 띄우되 --setting-sources project 로
-#      유저 전역 스킬 56개를 통째로 차단한다
+#      유저 전역 스킬 56개와 플러그인 스킬을 차단한다
+# claude에 빌트인된 스킬(dataviz, init, security-review 등 약 15개)은 설정 소스와
+# 무관하게 항상 로드되므로 이 방식으로 제거되지 않는다.
 # 프로젝트 스킬 탐색은 상위 디렉터리로 거슬러 올라가므로, cwd가 프로젝트 안이면
 # $PROJECT_DIR/.claude/skills 의 공용 스킬은 모든 파인이 그대로 상속한다.
 # cwd가 프로젝트 밖이 아니라 안이라서 git·상대경로도 평소대로 동작한다.
@@ -344,7 +348,8 @@ echo -e "\n${YELLOW}[1.6/5] 역할별 스킬 제한...${NC}"
 # 키 자체가 없으면 제한하지 않는다(전역 스킬 전체 유지).
 #
 # lead는 코드를 직접 쓰지 않고 배분·수합·git 커밋만 하므로 gstack 스킬이 필요 없다.
-# 빈 값을 줘서 디렉터리는 만들되(→ --setting-sources project 적용) 스킬은 0개로 둔다.
+# 빈 값을 줘서 디렉터리는 만들되(→ --setting-sources project 적용) gstack 스킬은
+# 하나도 주지 않는다(빌트인 스킬은 위 주석대로 남는다).
 declare -A SKILL_SETS=(
     [lead]=""
     [architect]="spec diagram document-generate health plan-eng-review"
