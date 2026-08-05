@@ -156,3 +156,49 @@ Enter가 도착해 무시되는 경우도 함께 막는다.
    폴백한다. 즉 대부분의 프로젝트는 기본 지침을 그대로 쓰고, 특정
    프로젝트에서 특정 역할의 지침만 다르게 하고 싶으면 그 프로젝트 루트에
    `team/{역할}.md` 한 파일만 두면 된다.
+
+## Remote Control — 폰으로 lead 파인 제어
+
+Claude Code CLI 자체 기능인 **Remote Control**을 lead 파인(`:0.0`)에
+연결하면, 폰이나 다른 기기의 브라우저에서 lead 세션을 보고 조작할 수 있다.
+이 저장소의 tmux 팀 구조와는 무관한, `claude` 프로세스 단위의 기능이다.
+
+### 연결 방법
+
+두 가지 방법이 있다. 어느 쪽이든 `setup-team.sh` 스크립트 자체는 건드리지
+않고, lead 파인에 붙은 뒤 그 자리에서 적용한다.
+
+**방법 1 — 세션 도중 `/remote-control` 슬래시 커맨드 (재시작 없이 바로 적용)**
+
+```bash
+tmux attach -t team1                # lead 파인(:0.0)으로 이동
+# 이미 떠 있는 claude 세션 안에서:
+/remote-control
+```
+
+lead가 이미 작업 중인 세션을 끊지 않고 그대로 Remote Control을 켤 수 있다.
+
+**방법 2 — `--remote-control` 플래그로 재시작**
+
+```bash
+tmux attach -t team1                # lead 파인(:0.0)으로 이동
+# 기존 claude 프로세스 종료(Ctrl-C 등) 후 같은 파인에서:
+claude --dangerously-skip-permissions --remote-control
+# 이름을 지정하고 싶으면:
+claude --dangerously-skip-permissions --remote-control "lead"
+```
+
+기존 세션을 끊고 새로 시작하므로, 아직 세션을 열지 않았거나 처음부터
+Remote Control을 켠 채로 시작하고 싶을 때 적합하다.
+
+둘 중 어느 방법이든, 켜지면 터미널에 접속 링크(또는 QR)가 표시된다.
+claude.ai 계정으로 로그인된 기기(폰 브라우저 등)에서 그 링크를 열면 lead
+세션에 붙는다.
+
+### 제약사항
+
+- claude.ai 구독 계정 로그인이 필요하다(조직 정책으로 막혀 있을 수 있음).
+- 세션당 Remote Control 연결은 하나만 유지된다 — architect/developer 등
+  나머지 파인에도 각각 걸고 싶으면 파인별로 동일하게 재실행해야 한다.
+- Docker로 띄운 경우 컨테이너 밖 네트워크에서 접속 가능한지는 별도 확인이
+  필요하다(포트/네트워크 설정에 따라 다름).
