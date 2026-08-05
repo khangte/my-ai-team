@@ -300,10 +300,13 @@ done
 # even-horizontal을 먼저 적용해 파인 크기를 고르게 맞춘 뒤 main-vertical로 전환해야
 # tmux가 비정상적으로 좁은 파인을 만들지 않는다.
 tmux select-layout -t "$SESSION:0" even-horizontal
-tmux select-layout -t "$SESSION:0" main-vertical
+# main-pane-width는 select-layout main-vertical이 레이아웃을 계산할 때 참조하는
+# 값이라 반드시 그 호출 전에 설정해야 한다 — 순서가 바뀌면(set-option을 나중에
+# 호출) 이미 그려진 레이아웃에는 반영되지 않아 55%가 무시된다.
 # 절대값(컬럼 수) 대신 %로 지정 — 실제 터미널 창 폭이 좁을 때도
 # lead 파인이 나머지 파인 대비 상대적으로 넓게 유지된다.
 tmux set-option -t "$SESSION" main-pane-width '55%'
+tmux select-layout -t "$SESSION:0" main-vertical
 
 #  파인 이름 설정 (레이아웃 설정 후, Claude 실행 전)
 # 파인 타이틀은 시각적 강조를 위해 대문자로 표시 (데이터 자체는 소문자 유지)
