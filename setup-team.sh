@@ -438,6 +438,8 @@ done
 tmux set-option -t "$SESSION" pane-border-status top
 tmux set-option -t "$SESSION" pane-border-format " #{pane_title} "
 tmux set-option -t "$SESSION" allow-rename off
+# 마우스 휠 스크롤·파인 클릭 전환 (tmux 기본값이 off라 켜주지 않으면 스크롤이 안 먹는다)
+tmux set-option -t "$SESSION" mouse on
 
 echo "  ✅ 레이아웃 구성 완료 (${PANE_COUNT} panes)"
 
