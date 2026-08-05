@@ -93,16 +93,38 @@ start_claude_in_pane() {
     tmux send-keys -t "$pane" C-c 2>/dev/null; sleep 0.3
     tmux send-keys -t "$pane" C-u 2>/dev/null; sleep 0.2
 
-    # 역할별 지침(team/{role}.md)이 있으면 --append-system-prompt로 주입한다.
-    # base64 왕복: send-keys에 지침 원문을 그대로 넘기면 따옴표·개행이 셸 파싱과 충돌하므로,
-    # 인코딩된 문자열만 커맨드에 실어 보내고 파인 내부 셸에서 디코딩한다.
+    # 역할별 지침(team/{role}.md)이 있으면 --append-system-prompt-file로 주입한다.
+    # 지침을 조립해 파일로 쓰고 그 경로만 커맨드에 싣는다. 예전에는 base64로
+    # 인코딩해 커맨드에 통째로 실었는데, 역할 지침에 전역 규칙까지 붙으면서
+    # reviewer의 인코딩 결과가 18KB를 넘어 tmux send-keys가 "command too long"으로
+    # 거부했다. 파일 경로는 길이가 일정하므로 지침이 아무리 커져도 문제가 없고,
+    # 따옴표·개행이 셸 파싱과 충돌하는 문제도 함께 사라진다.
     # team/config.sh와 동일한 오버라이드 규칙: 프로젝트 루트에 team/{role}.md가
     # 있으면 그쪽을 우선 사용하고, 없으면 이 저장소의 기본값으로 폴백한다.
+    # 역할별 스킬 제한([1.6/5])이 만든 디렉터리가 있으면 그곳을 cwd로 삼고
+    # 유저 전역 스킬을 차단한다. 프로젝트 스킬 탐색은 상위로 거슬러 올라가므로
+    # $PROJECT_DIR/.claude/skills 의 공용 스킬은 그대로 상속된다.
+    # SKILL_SETS에 없는 역할(lead)은 $PROJECT_DIR에서 전체 스킬로 그대로 뜬다.
+    local work_dir="$PROJECT_DIR" skills_arg=""
+    if [ -n "$role" ] && [ -d "$TEAM_SKILLS_ROOT/$role/.claude/skills" ]; then
+        work_dir="$TEAM_SKILLS_ROOT/$role"
+        skills_arg="--setting-sources project"
+    fi
+
     local role_file="$PROJECT_DIR/team/${role}.md"
     [ -f "$role_file" ] || role_file="$TEAM_DIR/${role}.md"
     local system_prompt_arg=""
     if [ -n "$role" ] && [ -f "$role_file" ]; then
         local role_content; role_content="$(cat "$role_file")"
+        # cwd가 .team/{역할}/ 인 파인에는 실제 작업 대상이 프로젝트 루트임을 알린다.
+        # 이 안내가 없으면 파인이 자기 스킬 디렉터리를 프로젝트로 오인한다.
+        if [ "$work_dir" != "$PROJECT_DIR" ]; then
+            role_content="${role_content}"$'\n\n'"## 작업 경로
+
+현재 셸의 cwd는 역할별 스킬 격리용 디렉터리(\`$work_dir\`)이며 작업 대상이 아니다.
+**실제 프로젝트 루트는 \`$PROJECT_DIR\` 이다.** 파일을 읽고 쓰거나 git을 다룰 때는
+그 경로를 기준으로 하고, 셸 작업이 필요하면 먼저 \`cd '$PROJECT_DIR'\` 한다."
+        fi
         # lead에는 MEMBER_NAMES 배열 기준 배분 표를 실행 시점에 동적 생성해 이어붙인다.
         # config.sh만 바꾸면 lead.md를 손대지 않아도 배분 표가 항상 일치하게 하기 위함.
         if [ "$role" = "lead" ]; then
@@ -112,8 +134,12 @@ start_claude_in_pane() {
             done
             role_content="${role_content}"$'\n\n'"${team_table}"
         fi
-        local role_b64; role_b64="$(printf '%s' "$role_content" | base64 -w0)"
-        system_prompt_arg="--append-system-prompt \"\$(echo '$role_b64' | base64 -d)\""
+        # 조립된 지침을 파일로 쓰고 경로만 넘긴다. 파인이 재시작해도 읽을 수 있도록
+        # /tmp가 아니라 스킬 격리 디렉터리(.team/{역할}/) 옆에 둔다.
+        local prompt_file="$RUNTIME_DIR/${role}.prompt.md"
+        mkdir -p "$RUNTIME_DIR"
+        printf '%s' "$role_content" > "$prompt_file"
+        system_prompt_arg="--append-system-prompt-file '$prompt_file'"
     elif [ -n "$role" ]; then
         # MEMBER_NAMES에 오타가 있으면 role_file이 조용히 없는 채로 넘어가
         # 해당 파인이 역할 지침 없이 뜬다. 눈에 띄게 경고해 즉시 알아채도록 한다.
@@ -128,8 +154,23 @@ start_claude_in_pane() {
     # `tmux display-message -p '#{pane_index}'`를 쓰면 안 된다 — 훅 프로세스에는
     # TMUX_PANE이 전달되지 않아 자기 파인이 아니라 그 시점의 활성 파인 번호가
     # 잡히고, 결국 모든 파인이 lead 자신인 :0.0을 보고하게 된다.
+    # PreToolUse는 역할과 무관하게 모든 파인에 필요하다. --settings가 글로벌
+    # settings.json을 병합이 아니라 '대체'하므로, --settings를 쓰는 순간 글로벌
+    # 훅(rtk 재작성·cat 차단)이 그 파인에서 통째로 사라지기 때문이다.
+    # lead도 --setting-sources project로 전역 설정을 끄므로 동일하게 명시 주입한다.
+    local pretooluse_json="\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/block-cat-use-serena.sh\"},{\"type\":\"command\",\"command\":\"rtk hook claude\"}]}]"
+
     local settings_arg=""
-    if [ -n "$role" ] && [ "$role" != "lead" ]; then
+    if [ "$role" = "lead" ]; then
+        # lead는 Stop 훅을 받으면 안 된다 — 종료 신호의 수신처가 lead 자신(:0.0)이라
+        # 자기 응답이 끝날 때마다 스스로에게 신호를 보내 무한 루프가 된다.
+        # 따라서 PreToolUse만 넣는다.
+        local lead_settings_json="{\"hooks\":{${pretooluse_json}}}"
+        local lead_settings_file="$RUNTIME_DIR/${role}.settings.json"
+        mkdir -p "$RUNTIME_DIR"
+        printf '%s' "$lead_settings_json" > "$lead_settings_file"
+        settings_arg="--settings '$lead_settings_file'"
+    elif [ -n "$role" ]; then
         local pane_id="${pane##*:}"   # "team1:0.4" → "0.4"
         # 중복 신호 가드: 이 파인이 방금 say로 본 보고를 보냈다면 종료 신호를 생략한다.
         # 본 보고에 이미 작업 내용이 담겨 있어 신호는 lead 턴만 한 번 더 태우기 때문이다.
@@ -138,20 +179,18 @@ start_claude_in_pane() {
         # JSON 문자열로 들어가므로 큰따옴표는 \" 로 이스케이프한다(작은따옴표는 JSON에서 무해).
         # 훅 커맨드는 이 스크립트가 만드는 고정 문자열이라 이스케이프 대상이 이것뿐이다.
         local hook_cmd="if [ -f '${marker}' ]; then rm -f '${marker}'; else ${TEAM_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\\\"; fi"
-        # --settings는 글로벌 settings.json을 병합이 아니라 대체하므로, 여기서 Stop 훅만
-        # 넣으면 글로벌 PreToolUse(rtk hook claude)가 이 파인에서 통째로 사라진다.
-        # rtk 재작성이 계속 걸리도록 PreToolUse도 함께 명시해야 한다.
-        # cat 차단 훅도 lead와 동일하게 팀 파인에 적용해 cat 대신 serena를 쓰도록 유도한다.
-        local settings_json="{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/block-cat-use-serena.sh\"},{\"type\":\"command\",\"command\":\"rtk hook claude\"}]}]}}"
-        local settings_b64; settings_b64="$(printf '%s' "$settings_json" | base64 -w0)"
-        settings_arg="--settings \"\$(echo '$settings_b64' | base64 -d)\""
+        local settings_json="{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json}}}"
+        local settings_file="$RUNTIME_DIR/${role}.settings.json"
+        mkdir -p "$RUNTIME_DIR"
+        printf '%s' "$settings_json" > "$settings_file"
+        settings_arg="--settings '$settings_file'"
     fi
 
     # unset CLAUDECODE: 이 스크립트 자신이 Claude Code 세션 안에서 실행 중일 경우
     # 남아있는 CLAUDECODE 환경변수가 파인 내부의 claude 실행에 영향을 주지 않도록 제거한다.
     # PATH에 TEAM_DIR: 파인들이 `say`를 경로 없이 호출할 수 있게 한다.
     tmux send-keys -t "$pane" \
-        "cd '$PROJECT_DIR' && unset CLAUDECODE && export PATH='$TEAM_DIR':\$PATH && $claude_bin --model $model --dangerously-skip-permissions $system_prompt_arg $settings_arg" Enter
+        "cd '$work_dir' && unset CLAUDECODE && export PATH='$TEAM_DIR':\$PATH && $claude_bin --model $model --dangerously-skip-permissions $skills_arg $system_prompt_arg $settings_arg" Enter
 
     if [ "$NEED_FIRST_LOGIN" = true ]; then
 
@@ -274,6 +313,82 @@ if (cd "$GSTACK_DIR" && timeout 60 ./setup >/dev/null); then
 else
     echo -e "${YELLOW}⚠️  gstack setup 실패 또는 timeout (수동 확인 필요: cd $GSTACK_DIR && ./setup)${NC}"
 fi
+
+# ── [1.6/5] 역할별 스킬 제한 ─────────────────────────────────
+# gstack setup은 스킬 56개를 ~/.claude/skills/ 아래 전부 깔고, 그 frontmatter
+# (약 22.8KB ≈ 5.7K 토큰)는 파인이 뜰 때마다 시스템 프롬프트로 들어간다.
+# 파인 6개 × 매 턴이므로 고정비가 크다. 실제로는 researcher가 /ios-qa를,
+# reviewer가 /design-shotgun을 쓸 일이 없다.
+#
+# ~/.claude/skills는 유저 전역이라 파인별로 다르게 만들 수 없다. 그래서
+#   1) 파인마다 $PROJECT_DIR/.team/{역할}/.claude/skills 를 만들어 필요한 스킬만 넣고
+#   2) 그 디렉터리를 cwd로 claude를 띄우되 --setting-sources project 로
+#      유저 전역 스킬 56개를 통째로 차단한다
+# 프로젝트 스킬 탐색은 상위 디렉터리로 거슬러 올라가므로, cwd가 프로젝트 안이면
+# $PROJECT_DIR/.claude/skills 의 공용 스킬은 모든 파인이 그대로 상속한다.
+# cwd가 프로젝트 밖이 아니라 안이라서 git·상대경로도 평소대로 동작한다.
+# 스킬은 gstack 원본 SKILL.md를 심볼릭 링크하므로 중복 사본이 생기지 않는다.
+#
+# 주의: --setting-sources project는 유저 settings.json(훅)도 함께 끄므로,
+# 아래 start_claude_in_pane이 PreToolUse(rtk·cat 차단)를 --settings로 명시
+# 주입한다. lead도 마찬가지지만 Stop 훅만은 제외한다(자기 자신에게 종료 신호를
+# 보내 무한 루프가 되기 때문).
+#
+# 반면 ~/.claude/rules/ 와 ~/.claude/CLAUDE.md 는 이 플래그로 꺼지지 않는다 —
+# cwd가 홈 디렉터리 아래이면 그대로 로드된다(실측). 파인 cwd는 항상
+# $PROJECT_DIR/.team/{역할} 이므로 전역 규칙은 계속 들어온다.
+# 즉 여기서 줄어드는 것은 gstack 스킬 frontmatter와 플러그인·에이전트 정의다.
+echo -e "\n${YELLOW}[1.6/5] 역할별 스킬 제한...${NC}"
+
+# 역할 → 허용 스킬 목록. 값이 비면 gstack 스킬을 하나도 주지 않는다는 뜻이고,
+# 키 자체가 없으면 제한하지 않는다(전역 스킬 전체 유지).
+#
+# lead는 코드를 직접 쓰지 않고 배분·수합·git 커밋만 하므로 gstack 스킬이 필요 없다.
+# 빈 값을 줘서 디렉터리는 만들되(→ --setting-sources project 적용) 스킬은 0개로 둔다.
+declare -A SKILL_SETS=(
+    [lead]=""
+    [architect]="spec diagram document-generate health plan-eng-review"
+    [researcher]="scrape browse investigate"
+    [designer]="design-consultation design-review design-html diagram"
+    [developer]="investigate health codex learn"
+    [reviewer]="review qa health investigate"
+)
+
+# 전역 규칙(~/.claude/rules/)과 ~/.claude/CLAUDE.md는 따로 주입하지 않는다.
+# --setting-sources project가 이것들까지 끌 거라 보고 역할별로 골라 주입했었지만,
+# 실측해보니 cwd가 홈 디렉터리 아래이면 그대로 로드된다(파인 cwd는 항상
+# $PROJECT_DIR/.team/{역할} 이고 이 리포는 ~/ai-setup 이므로 해당된다).
+# 따라서 주입은 같은 내용을 두 번 넣는 중복일 뿐이라 제거했다.
+# 규칙까지 줄이려면 ~/.claude/rules/를 홈 밖으로 옮겨야 하는데, 그건 이 리포
+# 밖의 다른 Claude Code 세션에도 영향을 주므로 하지 않는다.
+
+TEAM_SKILLS_ROOT="$PROJECT_DIR/.team"
+# 조립된 역할 지침(.prompt.md)과 훅 설정(.settings.json)을 두는 곳.
+# 커맨드에 내용을 싣지 않고 이 경로만 넘긴다(tmux send-keys 길이 제한 회피).
+RUNTIME_DIR="$TEAM_SKILLS_ROOT/_runtime"
+rm -rf "$TEAM_SKILLS_ROOT"
+
+for role in "${!SKILL_SETS[@]}"; do
+    role_skills_dir="$TEAM_SKILLS_ROOT/$role/.claude/skills"
+    mkdir -p "$role_skills_dir"
+    granted=()
+    for skill in ${SKILL_SETS[$role]}; do
+        # gstack setup이 만든 래퍼(~/.claude/skills/{skill}/SKILL.md)를 그대로 링크한다.
+        # 래퍼의 SKILL.md 자체가 이미 gstack 리포를 가리키는 심볼릭 링크다.
+        src="$HOME/.claude/skills/$skill/SKILL.md"
+        [ -e "$src" ] || { echo -e "${YELLOW}  ⚠️  $role: '$skill' 없음 (스킬명 확인)${NC}" >&2; continue; }
+        mkdir -p "$role_skills_dir/$skill"
+        ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill/SKILL.md"
+        # 일부 스킬은 런타임에 sections/ 를 읽으므로 함께 링크한다.
+        if [ -d "$HOME/.claude/skills/$skill/sections" ]; then
+            ln -sfn "$(realpath "$HOME/.claude/skills/$skill/sections")" "$role_skills_dir/$skill/sections"
+        fi
+        granted+=("$skill")
+    done
+    echo "  $role: ${granted[*]:-(gstack 스킬 없음)}"
+done
+
+echo -e "${GREEN}✅ 역할별 스킬 제한 완료${NC}"
 
 # ── [2/5] 기존 세션 정리 ────────────────────────────────────
 echo -e "\n${YELLOW}[2/5] 기존 세션 초기화...${NC}"
