@@ -358,4 +358,4 @@ echo -e "${NC}"
 echo "tmux attach -t $SESSION 으로 접속하세요."
 
 # 터미널에서 직접 실행한 경우 자동 attach
-# [ -t 1 ] && tmux attach -t "$SESSION"
+[ -t 1 ] && tmux attach -t "$SESSION"
