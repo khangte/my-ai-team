@@ -47,3 +47,19 @@ lead는 주기적 폴링 없이 그 신호를 받은 파인만 확인하면 된�
 컨테이너를 새로 만들면 사라지므로, 이미지 빌드 시점이 아니라 런타임에 매번 설치한다.
 
 유저 전역 경로라 프로젝트와 무관하게 모든 파인에서 사용할 수 있다.
+
+## rtk
+
+[rtk](https://github.com/rtk-ai/rtk)는 개발 명령 출력을 압축해 토큰을 절약하는 CLI 프록시다.
+`setup-team.sh`가 설치하고 `rtk init -g --auto-patch`로 훅을 등록하므로, 평범한
+`git status`·`ls`·`cat` 등은 harness가 알아서 `rtk git status` 형태로 재작성한다.
+따라서 명령 앞에 `rtk`를 직접 붙일 필요는 없다.
+
+다만 아래 메타 커맨드는 재작성 대상이 아니라 직접 실행해야 한다.
+
+```bash
+rtk gain              # 누적 토큰 절약량
+rtk gain --history    # 명령별 절약 내역
+rtk discover          # 놓친 절약 기회 분석
+rtk proxy <cmd>       # 재작성 없이 원본 명령 실행(디버깅용)
+```

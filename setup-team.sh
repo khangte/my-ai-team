@@ -156,9 +156,9 @@ start_claude_in_pane() {
     # 잡히고, 결국 모든 파인이 lead 자신인 :0.0을 보고하게 된다.
     # PreToolUse는 역할과 무관하게 모든 파인에 필요하다. --settings가 글로벌
     # settings.json을 병합이 아니라 '대체'하므로, --settings를 쓰는 순간 글로벌
-    # 훅(rtk 재작성·cat 차단)이 그 파인에서 통째로 사라지기 때문이다.
+    # rtk 재작성 훅이 그 파인에서 통째로 사라지기 때문이다.
     # lead도 --setting-sources project로 전역 설정을 끄므로 동일하게 명시 주입한다.
-    local pretooluse_json="\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/block-cat-use-serena.sh\"},{\"type\":\"command\",\"command\":\"rtk hook claude\"}]}]"
+    local pretooluse_json="\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"rtk hook claude\"}]}]"
 
     local settings_arg=""
     if [ "$role" = "lead" ]; then
@@ -330,7 +330,7 @@ fi
 # 스킬은 gstack 원본 SKILL.md를 심볼릭 링크하므로 중복 사본이 생기지 않는다.
 #
 # 주의: --setting-sources project는 유저 settings.json(훅)도 함께 끄므로,
-# 아래 start_claude_in_pane이 PreToolUse(rtk·cat 차단)를 --settings로 명시
+# 아래 start_claude_in_pane이 PreToolUse(rtk 재작성)를 --settings로 명시
 # 주입한다. lead도 마찬가지지만 Stop 훅만은 제외한다(자기 자신에게 종료 신호를
 # 보내 무한 루프가 되기 때문).
 #
