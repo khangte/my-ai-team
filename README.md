@@ -17,6 +17,11 @@ setup-native.sh    WSL 등 호스트에 직접 의존성 설치 (Docker 없이 �
 setup-team.sh      tmux 세션 구성 + 각 파인에서 claude 실행 (핵심 스크립트)
 ```
 
+`setup-team.sh`는 실행할 때마다 **대상 프로젝트 루트**에 `.team/`을 새로 만든다
+(역할별 스킬 심볼릭 링크 + `_runtime/`의 조립된 역할 지침·훅 설정). 매 실행마다
+지워지고 다시 생성되는 산출물이므로, 대상 프로젝트의 `.gitignore`에 `.team/`을
+넣어두면 좋다.
+
 이 저장소 자체는 개발 대상이 아니라 **팀 오케스트레이션 엔진**이다. 실제로
 개발할 프로젝트는 별도 폴더에 있고, `setup-team.sh`가 그 폴더를 인자로 받아
 그 안에서 claude 인스턴스들을 실행한다.
@@ -77,9 +82,10 @@ git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
 
 1. tmux/claude/rtk/bun 설치 여부 확인, `claude auth status`로 로그인 여부 확인(미로그인 시 `/login` 안내 후 대기)
 2. rtk 훅 초기화, gstack 스킬(`/office-hours`, `/review` 등 슬래시 커맨드) 설치
-3. tmux 세션을 열고 팀 인원 수만큼 파인 분할, 파인 타이틀은 대문자로 표시(예: `LEAD`, `ARCHITECT`)
-4. 각 파인에서 지정된 모델로 `claude --dangerously-skip-permissions` 실행
-5. 완료 후 `tmux attach -t [세션명]`으로 접속 안내
+3. 역할별 스킬 제한 — `.team/{역할}/.claude/skills`에 그 역할이 쓸 스킬만 링크
+4. tmux 세션을 열고 팀 인원 수만큼 파인 분할, 파인 타이틀은 대문자로 표시(예: `LEAD`, `ARCHITECT`)
+5. 각 파인에서 지정된 모델로 `claude --dangerously-skip-permissions` 실행 (역할 지침·훅 설정 주입)
+6. 완료 후 `tmux attach -t [세션명]`으로 접속 안내
 
 ### 세션 확인 및 종료
 
@@ -130,6 +136,53 @@ Enter가 도착해 무시되는 경우도 함께 막는다.
 파인 밖(호스트 셸)에서 호출할 때는 PATH에 없으므로 경로와 세션명을 함께 준다 —
 `./team/say team1:0.4 "..."`.
 
+### 보고 경로
+
+평상시 1홉(각 파인 → lead)이고, 설계 판단이 필요한 건만 architect를 경유한다.
+
+| 상황                            | 경로                                    |
+| ------------------------------- | --------------------------------------- |
+| 일반 완료 보고                  | 각 파인 → lead                          |
+| 설계 이탈 (developer/designer)  | 파인 → architect → lead                 |
+| 리뷰 승인                       | reviewer → lead                         |
+| 리뷰 — 코드 품질 수정요청       | reviewer → developer (직행)             |
+| 리뷰 — 설계 판단 필요           | reviewer → architect → lead             |
+
+### Stop 훅 — 보고 누락 방지
+
+파인이 `say` 실행을 잊으면 lead는 그 파인이 끝났는지 알 수 없다. 그래서
+`setup-team.sh`가 lead를 뺀 각 파인에 Stop 훅을 `--settings`로 주입한다. 파인이
+응답을 마치면 harness가 훅을 실행해 "응답 종료" 신호를 lead에 자동 전달하므로,
+lead는 주기적 폴링 없이 신호가 온 파인만 확인하면 된다.
+
+방금 `say`로 본 보고를 보낸 경우엔 신호를 생략한다(본 보고에 이미 내용이 있어
+lead 턴을 한 번 더 태울 이유가 없다). lead 자신은 훅 대상에서 제외된다 — 신호
+수신처가 lead(`:0.0`)라 자기 응답마다 스스로에게 신호를 보내 무한 루프가 된다.
+
+## 역할별 스킬 제한
+
+gstack setup은 스킬 수십 개를 `~/.claude/skills/`에 전부 설치하고, 그 frontmatter는
+파인이 뜰 때마다 시스템 프롬프트로 들어간다. 파인 6개 × 매 턴이라 고정비가 크고,
+실제로 researcher가 `/ios-qa`를, reviewer가 `/design-shotgun`을 쓸 일은 없다.
+
+`~/.claude/skills`는 유저 전역이라 파인별로 다르게 만들 수 없으므로,
+`setup-team.sh`는 파인마다 `.team/{역할}/.claude/skills`에 **필요한 스킬만 심볼릭
+링크**하고 그 디렉터리를 cwd로 claude를 띄운다. 이때 `--setting-sources project`로
+유저 전역 스킬과 플러그인 스킬을 차단한다.
+
+| 역할       | 허용 스킬                                                 |
+| ---------- | --------------------------------------------------------- |
+| lead       | (없음 — 배분·수합·git 커밋만 하므로 gstack 스킬 불필요)   |
+| architect  | `spec` `diagram` `document-generate` `health` `plan-eng-review` |
+| researcher | `scrape` `browse` `investigate`                           |
+| designer   | `design-consultation` `design-review` `design-html` `diagram` |
+| developer  | `investigate` `health` `codex` `learn`                    |
+| reviewer   | `review` `qa` `health` `investigate`                      |
+
+claude 빌트인 스킬과 `$PROJECT_DIR/.claude/skills`의 공용 스킬은 이 방식과
+무관하게 모든 파인이 그대로 쓴다. 자세한 근거와 예외는 `setup-team.sh`의
+`[1.6/5]` 섹션 주석 참조.
+
 ## CLAUDE.md와 team/ — 지침이 파인에 로딩되는 방식
 
 파인마다 지침은 두 층으로 구성된다.
@@ -159,46 +212,11 @@ Enter가 도착해 무시되는 경우도 함께 막는다.
 
 ## Remote Control — 폰으로 lead 파인 제어
 
-Claude Code CLI 자체 기능인 **Remote Control**을 lead 파인(`:0.0`)에
-연결하면, 폰이나 다른 기기의 브라우저에서 lead 세션을 보고 조작할 수 있다.
-이 저장소의 tmux 팀 구조와는 무관한, `claude` 프로세스 단위의 기능이다.
-
-### 연결 방법
-
-두 가지 방법이 있다. 어느 쪽이든 `setup-team.sh` 스크립트 자체는 건드리지
-않고, lead 파인에 붙은 뒤 그 자리에서 적용한다.
-
-**방법 1 — 세션 도중 `/remote-control` 슬래시 커맨드 (재시작 없이 바로 적용)**
-
-```bash
-tmux attach -t team1                # lead 파인(:0.0)으로 이동
-# 이미 떠 있는 claude 세션 안에서:
-/remote-control
-```
-
-lead가 이미 작업 중인 세션을 끊지 않고 그대로 Remote Control을 켤 수 있다.
-
-**방법 2 — `--remote-control` 플래그로 재시작**
-
-```bash
-tmux attach -t team1                # lead 파인(:0.0)으로 이동
-# 기존 claude 프로세스 종료(Ctrl-C 등) 후 같은 파인에서:
-claude --dangerously-skip-permissions --remote-control
-# 이름을 지정하고 싶으면:
-claude --dangerously-skip-permissions --remote-control "lead"
-```
-
-기존 세션을 끊고 새로 시작하므로, 아직 세션을 열지 않았거나 처음부터
-Remote Control을 켠 채로 시작하고 싶을 때 적합하다.
-
-둘 중 어느 방법이든, 켜지면 터미널에 접속 링크(또는 QR)가 표시된다.
-claude.ai 계정으로 로그인된 기기(폰 브라우저 등)에서 그 링크를 열면 lead
-세션에 붙는다.
-
-### 제약사항
+Claude Code CLI 자체 기능이라 이 저장소 구조와는 무관하다. lead 파인에 붙어
+`/remote-control`을 실행하면 접속 링크(또는 QR)가 뜨고, claude.ai 계정으로
+로그인된 기기에서 그 링크를 열면 lead 세션에 붙는다. 작업 중인 세션을 끊지
+않는다.
 
 - claude.ai 구독 계정 로그인이 필요하다(조직 정책으로 막혀 있을 수 있음).
-- 세션당 Remote Control 연결은 하나만 유지된다 — architect/developer 등
-  나머지 파인에도 각각 걸고 싶으면 파인별로 동일하게 재실행해야 한다.
-- Docker로 띄운 경우 컨테이너 밖 네트워크에서 접속 가능한지는 별도 확인이
-  필요하다(포트/네트워크 설정에 따라 다름).
+- 세션당 연결은 하나만 유지된다 — 다른 파인에도 걸려면 파인별로 각각 실행한다.
+- Docker로 띄운 경우 컨테이너 밖에서 접속 가능한지는 포트/네트워크 설정에 따라 다르다.
