@@ -333,10 +333,15 @@ done
 # 계속 덮어쓰기 때문에 (2026-07 기준 공식 비활성화 옵션 없음,
 # 관련 이슈: anthropics/claude-code#31107, #21677),
 # 세션 종료 시까지 주기적으로 원하는 이름으로 재설정한다.
+# select-pane -T는 호출될 때마다 파인 테두리를 다시 그려 tmux가 화면을
+# 재렌더링하므로, 매초 무조건 호출하면 그 순간 한글 IME 조합 중이던 입력이
+# 씹히는 경우가 있다. 그래서 현재 타이틀이 원하는 값과 실제로 다를 때만 호출한다.
 (
     while tmux has-session -t "$SESSION" 2>/dev/null; do
         for ((pane = 0; pane < PANE_COUNT; pane++)); do
-            tmux select-pane -t "$SESSION:0.$pane" -T "${MEMBER_NAMES[$pane]^^}" 2>/dev/null
+            want="${MEMBER_NAMES[$pane]^^}"
+            current="$(tmux display-message -p -t "$SESSION:0.$pane" '#{pane_title}' 2>/dev/null)"
+            [ "$current" = "$want" ] || tmux select-pane -t "$SESSION:0.$pane" -T "$want" 2>/dev/null
         done
         sleep 1
     done
