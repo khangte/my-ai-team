@@ -287,7 +287,8 @@ tmux has-session -t "$SESSION" 2>/dev/null && {
 echo -e "\n${YELLOW}[3/5] TMUX 세션 & 레이아웃 구성...${NC}"
 
 # -x 220 -y 50: main-vertical 레이아웃에서 파인 6개가 각각 읽을 만한 너비를
-# 확보하기 위한 최소 터미널 크기.
+# 확보하기 위한 최소 터미널 크기. tmux는 접속 클라이언트 크기로 윈도우를 다시
+# 맞추므로, 이 값을 키워도 실제 터미널 창보다 커질 수는 없다.
 tmux new-session -d -s "$SESSION" -x 220 -y 50
 
 # 파인을 PANE_COUNT개가 될 때까지 분할 (0번 파인은 new-session이 이미 생성)
@@ -300,7 +301,9 @@ done
 # tmux가 비정상적으로 좁은 파인을 만들지 않는다.
 tmux select-layout -t "$SESSION:0" even-horizontal
 tmux select-layout -t "$SESSION:0" main-vertical
-tmux set-option -t "$SESSION" main-pane-width 110
+# 절대값(컬럼 수) 대신 %로 지정 — 실제 터미널 창 폭이 좁을 때도
+# lead 파인이 나머지 파인 대비 상대적으로 넓게 유지된다.
+tmux set-option -t "$SESSION" main-pane-width '55%'
 
 #  파인 이름 설정 (레이아웃 설정 후, Claude 실행 전)
 # 파인 타이틀은 시각적 강조를 위해 대문자로 표시 (데이터 자체는 소문자 유지)
