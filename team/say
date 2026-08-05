@@ -86,8 +86,12 @@ record_marker() {
 # Claude Code는 응답을 생성하거나 도구를 실행하는 동안 하단 상태줄에
 # "esc to interrupt"를 띄운다. 유휴(입력 대기)일 때는 이 문구가 없다.
 # 스피너 텍스트("Discombobulating…" 등)는 무작위로 바뀌지만 이 문구는 고정이다.
+#
+# 화면 전체가 아니라 하단 몇 줄만 본다. 전체를 훑으면 이 문구가 본문 텍스트로
+# 노출된 것만으로(say 동작을 설명하는 로그·인용 등) 유휴인 파인을 작업 중으로
+# 오판하고, 그 문구가 화면에 남아있는 동안 아래 대기 루프가 계속 돈다.
 is_busy() {
-    tmux capture-pane -t "$pane" -p 2>/dev/null | grep -q 'esc to interrupt'
+    tmux capture-pane -t "$pane" -p 2>/dev/null | tail -5 | grep -q 'esc to interrupt'
 }
 
 # 실제 전송 + 검증. 유휴를 확인한 뒤에만 호출한다.
@@ -150,7 +154,13 @@ if mkdir "$lock_file" 2>/dev/null; then
         trap 'rmdir "$lock_file" 2>/dev/null' EXIT
         # 큐가 빌 때까지: 유휴를 기다렸다가 한 건씩 꺼내 보낸다.
         while [ -s "$queue_file" ]; do
-            while is_busy; do sleep 3; done
+            # 상한을 둔다. 상태 문구 감지가 어떤 이유로든 계속 참이면
+            # 무한 대기로 메시지가 영영 전달되지 않는다 — 늦게라도 보내는 편이 낫다.
+            waited=0
+            while is_busy && [ "$waited" -lt 600 ]; do
+                sleep 3
+                waited=$((waited + 1))
+            done
             # 첫 줄을 꺼내고 나머지를 되쓴다.
             msg="$(head -n 1 "$queue_file")"
             tail -n +2 "$queue_file" > "$queue_file.tmp" && mv "$queue_file.tmp" "$queue_file"
