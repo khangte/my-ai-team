@@ -32,20 +32,36 @@ esac
 
 pane="$session:$target"
 
-# -l: 메시지를 리터럴로 보내 "Enter" 같은 단어가 키 이름으로 해석되지 않게 한다.
-tmux send-keys -t "$pane" -l -- "$*"
-# Claude Code 입력창이 텍스트를 반영하기 전에 Enter가 도착하면 무시되므로 한 박자 쉰다.
-sleep 0.3
-tmux send-keys -t "$pane" Enter
+# ── 줄바꿈 처리 ──────────────────────────────────────────────
+# send-keys -l은 줄바꿈 문자를 그대로 밀어넣는데, Claude Code 입력창은 그것을
+# Enter(전송)로 해석한다. 그래서 여러 줄 메시지를 그냥 보내면 줄 수만큼 별도
+# 턴으로 쪼개져 도착한다 — 받는 쪽은 첫 줄만 보고 작업을 시작하고, 나머지 줄은
+# 그 작업 도중에 끼어드는 중간 입력이 된다. 홉 수도 줄 수만큼 배로 늘어난다.
+#
+# 그래서 전송 전에 줄바꿈을 " / "로 치환해 항상 한 번에 보낸다.
+msg="$*"
 
-# 전송 검증: 화면 갱신을 기다린 뒤 대상 파인 입력창에 방금 보낸 메시지가
-# 그대로 남아있으면 Enter가 무시됐거나 대상 파인 지정이 잘못된 것이다.
-# 메시지가 길면 입력창에서 줄바꿈되므로 앞부분만 잘라 검사한다.
-sleep 0.2
-probe="${*:0:40}"
-if [ -n "$probe" ] && tmux capture-pane -t "$pane" -p | tail -5 | grep -qF -- "$probe"; then
-    echo "say: WARNING - '$pane'에 메시지가 전달되지 않고 입력창에 남아있는 것으로 보입니다: $probe..." >&2
-    exit 1
+# 탭은 줄바꿈 여부와 무관하게 항상 공백으로 바꾼다 — 입력창에서 자동완성으로
+# 해석되어 엉뚱한 문자열이 끼어들 수 있다.
+case "$msg" in
+    *$'\t'*) msg="$(printf '%s' "$msg" | tr '\t' ' ')" ;;
+esac
+
+if [ "$msg" != "${msg%$'\n'*}" ] || [ "$msg" != "${msg#*$'\n'}" ]; then
+    line_count=$(printf '%s\n' "$msg" | grep -c '')
+    # 줄바꿈은 " / "로 바꿔 항목 경계를 남긴다 — 공백으로만 합치면
+    # "에러 수정" + "테스트 추가"가 "에러 수정 테스트 추가"로 뭉개진다.
+    # 빈 줄이 만든 연속 구분자(" / / ")와 앞뒤 구분자는 정리한다.
+    msg="$(printf '%s' "$msg" | sed ':a;N;$!ba;s/\n/ \/ /g' \
+        | sed 's|\( */ *\)\{2,\}| / |g; s|^ */ *||; s| */ *$||; s/  */ /g')"
+    # 치환으로 의미가 뭉개질 만큼 긴 목록은 파일로 넘기는 편이 낫다.
+    # 여기서 중단하지는 않는다 — 메시지는 이미 한 줄로 정상 전송되고,
+    # 경고는 다음 번에 더 나은 방법을 쓰라는 안내다.
+    if [ "$line_count" -gt 5 ]; then
+        echo "say: NOTE - ${line_count}줄 메시지를 한 줄로 합쳐 보냈습니다." >&2
+        echo "      긴 목록은 파일로 쓰고 경로만 넘기는 편이 읽기 쉽습니다:" >&2
+        echo "      say $target \"[역할] 작업 목록: /tmp/tasks.md 참조. N건\"" >&2
+    fi
 fi
 
 # 발신 파인의 본 보고 시각을 남긴다. Stop 훅이 이걸 보고, 방금 본 보고를 보낸
@@ -53,10 +69,98 @@ fi
 # TMUX_PANE이 있는 파인 안에서 호출된 경우에만 기록한다 — 훅 자신이 부른 say는
 # TMUX_PANE이 없으므로 기록되지 않고, 따라서 신호가 자기 자신을 억제하지 않는다.
 # 키는 "0.4" 같은 파인 인덱스로, 훅 쪽 가드와 동일한 형식을 쓴다.
-if [ -n "${TMUX_PANE:-}" ]; then
+#
+# 큐에 들어간 경우에도 여기서 바로 기록한다 — 실제 전송은 나중이지만,
+# "이 파인이 보고를 했다"는 사실은 지금 확정됐기 때문이다. 전송을 기다렸다
+# 기록하면 그 사이 Stop 훅이 돌아 불필요한 종료 신호가 나간다.
+record_marker() {
+    [ -n "${TMUX_PANE:-}" ] || return 0
+    local sender
     sender="$(tmux display-message -p -t "$TMUX_PANE" '#{window_index}.#{pane_index}' 2>/dev/null || true)"
-    if [ -n "$sender" ]; then
-        mkdir -p /tmp/team-say
-        : > "/tmp/team-say/$sender"
+    [ -n "$sender" ] || return 0
+    mkdir -p /tmp/team-say
+    : > "/tmp/team-say/$sender"
+}
+
+# 대상 파인이 지금 작업 중인가.
+# Claude Code는 응답을 생성하거나 도구를 실행하는 동안 하단 상태줄에
+# "esc to interrupt"를 띄운다. 유휴(입력 대기)일 때는 이 문구가 없다.
+# 스피너 텍스트("Discombobulating…" 등)는 무작위로 바뀌지만 이 문구는 고정이다.
+is_busy() {
+    tmux capture-pane -t "$pane" -p 2>/dev/null | grep -q 'esc to interrupt'
+}
+
+# 실제 전송 + 검증. 유휴를 확인한 뒤에만 호출한다.
+deliver() {
+    # -l: 메시지를 리터럴로 보내 "Enter" 같은 단어가 키 이름으로 해석되지 않게 한다.
+    tmux send-keys -t "$pane" -l -- "$msg"
+    # Claude Code 입력창이 텍스트를 반영하기 전에 Enter가 도착하면 무시되므로 한 박자 쉰다.
+    sleep 0.3
+    tmux send-keys -t "$pane" Enter
+
+    # 전송 검증: 화면 갱신을 기다린 뒤 대상 파인 입력창에 방금 보낸 메시지가
+    # 그대로 남아있으면 Enter가 무시됐거나 대상 파인 지정이 잘못된 것이다.
+    # 메시지가 길면 입력창에서 줄바꿈되므로 앞부분만 잘라 검사한다.
+    sleep 0.2
+    probe="${msg:0:40}"
+    if [ -n "$probe" ] && tmux capture-pane -t "$pane" -p | tail -5 | grep -qF -- "$probe"; then
+        echo "say: WARNING - '$pane'에 메시지가 전달되지 않고 입력창에 남아있는 것으로 보입니다: $probe..." >&2
+        return 1
+    fi
+    return 0
+}
+
+# ── 유휴 대기 (백그라운드 큐) ────────────────────────────────
+# 상대 파인이 작업 중일 때 보내면 그 작업 도중의 중간 입력으로 끼어든다.
+# 위 전송 검증은 "입력창에 남아있는지"만 보므로 이 경우를 잡지 못한다 —
+# 검증은 통과하는데 실제로는 엉뚱한 맥락에 꽂힌 상태가 된다.
+#
+# 그렇다고 여기서 붙들고 기다리면 발신 파인이 그동안 아무 일도 못 한다.
+# 실제 작업은 수 분씩 걸리므로 전경 대기는 현실적이지 않다.
+# 그래서 상대가 바쁘면 대기를 백그라운드 프로세스에 넘기고 즉시 반환한다.
+#
+# 큐 파일은 파인별로 하나. 같은 파인에 여러 메시지가 몰려도 순서대로 나가고,
+# 먼저 대기 중인 프로세스가 뒤엣것까지 처리하므로 감시 프로세스는 파인당 1개뿐이다.
+#
+# SAY_NOWAIT=1 이면 큐를 거치지 않고 즉시 보낸다 — 작업을 중단시키려는
+# 의도적 개입(예: lead의 긴급 중지 지시)에는 기다리는 쪽이 오히려 방해다.
+QUEUE_DIR="/tmp/team-say-queue"
+queue_file="$QUEUE_DIR/${pane//[^0-9A-Za-z]/_}"
+lock_file="$queue_file.lock"
+
+if [ -n "${SAY_NOWAIT:-}" ] || ! is_busy; then
+    # 유휴이고 큐도 비어 있으면 곧바로 보낸다(가장 흔한 경로).
+    # 큐에 밀린 메시지가 있으면 순서가 뒤집히므로 큐에 넣는다.
+    if [ -n "${SAY_NOWAIT:-}" ] || [ ! -s "$queue_file" ]; then
+        deliver || exit 1
+        record_marker
+        exit 0
     fi
 fi
+
+# 여기부터: 상대가 작업 중이거나, 앞서 밀린 메시지가 있다.
+mkdir -p "$QUEUE_DIR"
+printf '%s\n' "$msg" >> "$queue_file"
+record_marker
+echo "say: '$pane'이 작업 중 — 큐에 넣고 유휴가 되면 전송합니다(대기 $(grep -c '' "$queue_file")건)." >&2
+
+# 감시 프로세스는 파인당 하나만 띄운다. mkdir은 원자적이라 락으로 쓴다.
+if mkdir "$lock_file" 2>/dev/null; then
+    (
+        trap 'rmdir "$lock_file" 2>/dev/null' EXIT
+        # 큐가 빌 때까지: 유휴를 기다렸다가 한 건씩 꺼내 보낸다.
+        while [ -s "$queue_file" ]; do
+            while is_busy; do sleep 3; done
+            # 첫 줄을 꺼내고 나머지를 되쓴다.
+            msg="$(head -n 1 "$queue_file")"
+            tail -n +2 "$queue_file" > "$queue_file.tmp" && mv "$queue_file.tmp" "$queue_file"
+            [ -n "$msg" ] || continue
+            deliver || true
+            # 연속 전송 시 입력창이 따라오도록 간격을 준다.
+            sleep 1
+        done
+        rm -f "$queue_file"
+    ) </dev/null >/dev/null 2>&1 &
+    disown 2>/dev/null || true
+fi
+exit 0
