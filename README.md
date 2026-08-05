@@ -183,6 +183,9 @@ claude 빌트인 스킬과 `$PROJECT_DIR/.claude/skills`의 공용 스킬은 이
 무관하게 모든 파인이 그대로 쓴다. 자세한 근거와 예외는 `setup-team.sh`의
 `[1.6/5]` 섹션 주석 참조.
 
+이 제한이 실제로 얼마나 줄이는지, 그리고 토큰 비용이 어디서 발생하는지는
+[docs/token-cost.md](docs/token-cost.md) 참조.
+
 ## CLAUDE.md와 team/ — 지침이 파인에 로딩되는 방식
 
 파인마다 지침은 두 층으로 구성된다.
