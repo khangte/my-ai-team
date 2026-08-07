@@ -3,6 +3,8 @@
 # 목적:
 #   setup-docker.sh가 빌드하는 이미지. Ubuntu 22.04 위에 Node.js, claude,
 #   rtk, bun, tmux 등 setup-team.sh 실행에 필요한 도구를 설치한다.
+#   python3는 team/log-hook(프롬프트·툴 로깅)이 쓴다. ubuntu:22.04에 기본
+#   포함되어 있지만, 베이스 이미지가 바뀌면 조용히 깨지므로 명시해 둔다.
 #
 # 주의:
 #   /home/user는 컨테이너 기동 시 named volume(claude-home)으로 덮어씌워지므로,
@@ -26,6 +28,7 @@ RUN apt-get update && apt-get install -y \
     unzip \
     locales \
     fonts-noto-cjk \
+    python3 \
     && locale-gen ko_KR.UTF-8 \
     && update-locale LANG=ko_KR.UTF-8 \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
