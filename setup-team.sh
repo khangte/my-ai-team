@@ -368,6 +368,25 @@ declare -A SKILL_SETS=(
     [reviewer]="review qa health investigate"
 )
 
+# superpowers 스킬은 플러그인이라 소스 경로가 gstack과 다르다
+# (~/.claude/plugins/cache/.../skills/). --setting-sources project가 플러그인
+# 스킬을 통째로 차단하므로, 역할별로 필요한 것만 위 gstack 스킬과 같은 방식으로
+# .team/{역할}/.claude/skills 에 링크해서 되살린다.
+# 어떤 역할이 무엇을 왜 받는지는 team/{역할}.md의 "## 스킬" 절에 적혀 있다.
+declare -A SUPERPOWERS_SETS=(
+    [lead]="finishing-a-development-branch"
+    [architect]="brainstorming writing-plans"
+    [designer]="brainstorming"
+    [developer]="test-driven-development systematic-debugging receiving-code-review"
+    [reviewer]="verification-before-completion"
+)
+
+# 플러그인은 버전 디렉터리 아래 설치되므로 경로를 고정할 수 없다. 가장 최근
+# 버전 하나를 고른다(설치본이 없으면 빈 값 → 아래 링크 루프가 통째로 건너뛴다).
+SUPERPOWERS_ROOT=$(
+    ls -d "$HOME"/.claude/plugins/cache/*/superpowers/*/skills 2>/dev/null | sort -V | tail -1
+)
+
 # 전역 규칙(~/.claude/rules/)과 ~/.claude/CLAUDE.md는 따로 주입하지 않는다.
 # --setting-sources project가 이것들까지 끌 거라 보고 역할별로 골라 주입했었지만,
 # 실측해보니 cwd가 홈 디렉터리 아래이면 그대로 로드된다(파인 cwd는 항상
@@ -399,7 +418,18 @@ for role in "${!SKILL_SETS[@]}"; do
         fi
         granted+=("$skill")
     done
-    echo "  $role: ${granted[*]:-(gstack 스킬 없음)}"
+    # superpowers 스킬은 래퍼 없이 플러그인 캐시의 스킬 디렉터리를 통째로 링크한다
+    # (references/ 등 하위 파일을 런타임에 읽으므로 SKILL.md만 링크하면 깨진다).
+    for skill in ${SUPERPOWERS_SETS[$role]:-}; do
+        src="$SUPERPOWERS_ROOT/$skill"
+        [ -n "$SUPERPOWERS_ROOT" ] && [ -d "$src" ] || {
+            echo -e "${YELLOW}  ⚠️  $role: superpowers '$skill' 없음 (플러그인 설치 확인)${NC}" >&2
+            continue
+        }
+        ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill"
+        granted+=("$skill")
+    done
+    echo "  $role: ${granted[*]:-(스킬 없음)}"
 done
 
 echo -e "${GREEN}✅ 역할별 스킬 제한 완료${NC}"

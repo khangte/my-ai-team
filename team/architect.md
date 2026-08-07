@@ -20,6 +20,20 @@
 - /docs/data-model.md
 - /README.md
 
+## 스킬
+
+- `superpowers:brainstorming` — 설계 착수 전 요구를 구체화할 때 쓴다.
+  이 스킬은 "유저 승인 전 구현 금지" 게이트를 걸고 승인을 요구하는데,
+  **여기서 승인 주체는 lead(:0.0)다.** 설계안이 서면 `say :0.0`으로 승인을 요청하고,
+  회신을 받은 뒤 다음 단계로 넘어간다. 사용자에게 직접 묻지 않는다.
+  질문을 한 번에 하나씩 던지라는 지침도 lead와의 `say` 왕복 비용을 고려해
+  묶어서 한 번에 보낸다.
+- `superpowers:writing-plans` — 승인된 설계를 구현 계획으로 옮길 때 쓴다.
+  developer가 그대로 따라갈 수 있는 단위로 태스크를 쪼갠다.
+
+산출물 경로는 스킬 기본값을 따른다 — 설계 문서는 `docs/superpowers/specs/`,
+구현 계획은 `docs/superpowers/plans/`.
+
 ## 작업 방식
 
 - 팀장의 지시에 따라 설계 작업 수행
