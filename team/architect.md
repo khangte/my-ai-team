@@ -13,12 +13,7 @@
 - 성능 및 확장성 검토
 - README.md 작성 및 갱신 (프로젝트 전체를 조망하는 진입점 문서로, 필요 시 developer/designer/researcher의 산출물을 취합)
 
-## 산출물 예시
-
-- /docs/architecture.md
-- /docs/api-spec.md
-- /docs/data-model.md
-- /README.md
+산출물 예시: `/docs/architecture.md`, `/docs/api-spec.md`, `/docs/data-model.md`, `/README.md`
 
 ## 스킬
 
@@ -76,10 +71,8 @@ say :0.0 "[architect] {기능명} 설계 이탈 건 {승인/반려}. {한 줄 �
 
 ### reviewer의 리뷰 결과를 받으면
 
-reviewer는 **설계 판단이 필요한 건만** 나에게 보낸다. 승인 건은 팀장에게 직행하고,
-오타·네이밍·에러 핸들링 누락처럼 고칠 방법이 자명한 코드 품질 지적은 reviewer가
-developer에게 직접 보낸다. 따라서 내게 온 리뷰는 구조 변경이나 스펙 해석이 걸린,
-방향을 정해줘야 하는 건이다.
+reviewer는 **설계 판단이 필요한 건만** 나에게 보낸다. 따라서 내게 온 리뷰는
+구조 변경이나 스펙 해석이 걸린, 방향을 정해줘야 하는 건이다.
 
 1. 지적 사항의 타당성과 설계 정합성을 판단한다
 2. 수정이 필요하면 developer(Pane 4)에게 수정을 지시한다
