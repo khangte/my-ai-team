@@ -146,8 +146,7 @@ declare -a MEMBER_MODELS=(
 - `MEMBER_NAMES`와 `MEMBER_MODELS`는 배열 길이가 같아야 함
 - 파인 개수는 배열 길이로 자동 계산
 - 이 저장소의 `team/config.sh`는 기본값(6인)과 동일한 내용의 템플릿 — 복사해서 수정하면 됨
-- 이름을 바꾸면 대응하는 `team/{이름}.md`도 필요
-  (없으면 역할 지침 없이 실행 — 아래 "CLAUDE.md와 team/" 참고)
+- 이름을 바꾸면 대응하는 `team/{이름}.md`도 필요(없으면 역할 지침 없이 실행 — 아래 "CLAUDE.md와 team/" 참고)
 
 ## 파인 간 통신 — `team/say`
 
@@ -172,8 +171,7 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 상대가 작업 중이면 큐에 쌓았다가 유휴가 되면 자동 전송(발신 파인은 대기하지 않음).
 `SAY_NOWAIT=1`이면 큐를 건너뛰고 즉시 전송 — 긴급 중단 지시용.
 
-Enter 누락부터 큐 도입까지, 통신이 깨졌던 유형과 각각의 대응은
-[docs/pane-messaging.md](docs/pane-messaging.md) 참조.
+Enter 누락부터 큐 도입까지, 통신이 깨졌던 유형과 각각의 대응은 [docs/pane-messaging.md](docs/pane-messaging.md) 참조.
 
 ### 보고 경로
 
@@ -318,13 +316,13 @@ $PROJECT_DIR/.claude-logs/
 역할별 필요한 것만 `.team/{역할}/.claude/skills`에 링크해 되살린다
 (`setup-team.sh`의 `SUPERPOWERS_SETS`).
 
-| 역할      | 배정 스킬                                                               |
-| --------- | ----------------------------------------------------------------------- |
-| lead      | `finishing-a-development-branch`                                        |
-| architect | `brainstorming` `writing-plans`                                         |
-| designer  | `brainstorming`                                                         |
+| 역할      | 배정 스킬                                                                |
+| --------- | ------------------------------------------------------------------------ |
+| lead      | `finishing-a-development-branch`                                         |
+| architect | `brainstorming` `writing-plans`                                          |
+| designer  | `brainstorming`                                                          |
 | developer | `test-driven-development` `systematic-debugging` `receiving-code-review` |
-| reviewer  | `verification-before-completion`                                        |
+| reviewer  | `verification-before-completion`                                         |
 
 - researcher는 배정 없음 — 14개 중 조사 업무에 대응하는 스킬이 없다
 - gstack은 래퍼의 `SKILL.md`만 링크하지만, superpowers는 `references/` 등 하위 파일을
@@ -337,10 +335,10 @@ $PROJECT_DIR/.claude-logs/
 | 스킬                                                        | 제외 이유                                                        |
 | ----------------------------------------------------------- | ---------------------------------------------------------------- |
 | `dispatching-parallel-agents` `subagent-driven-development` | 파인 6개가 이미 병렬 실행 단위 — 파인 대신 서브에이전트를 띄운다 |
-| `requesting-code-review`                                    | 리뷰어 서브에이전트를 띄우게 되어 reviewer 파인이 논다            |
-| `using-git-worktrees`                                       | 파인 6개가 같은 워킹트리를 공유하는 구조와 충돌                   |
-| `using-superpowers`                                         | "1%라도 해당되면 무조건 스킬 호출" — 전 파인 고정비만 늘어남      |
-| `executing-plans` `writing-skills`                          | 각각 별도 세션 실행 전제 / 팀 업무 아님                           |
+| `requesting-code-review`                                    | 리뷰어 서브에이전트를 띄우게 되어 reviewer 파인이 논다           |
+| `using-git-worktrees`                                       | 파인 6개가 같은 워킹트리를 공유하는 구조와 충돌                  |
+| `using-superpowers`                                         | "1%라도 해당되면 무조건 스킬 호출" — 전 파인 고정비만 늘어남     |
+| `executing-plans` `writing-skills`                          | 각각 별도 세션 실행 전제 / 팀 업무 아님                          |
 
 이 스킬들은 단독 실행을 전제로 쓰여 있어, 그대로 두면 팀 구조와 어긋나는 지시가
 섞여 있다(사용자에게 직접 승인 요청, 서브에이전트 dispatch 등).
