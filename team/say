@@ -129,7 +129,23 @@ deliver() {
 # SAY_NOWAIT=1 이면 큐를 거치지 않고 즉시 보낸다 — 작업을 중단시키려는
 # 의도적 개입(예: lead의 긴급 중지 지시)에는 기다리는 쪽이 오히려 방해다.
 QUEUE_DIR="/tmp/team-say-queue"
-queue_file="$QUEUE_DIR/${pane//[^0-9A-Za-z]/_}"
+# 큐 파일 키는 $pane 문자열이 아니라 tmux가 실제로 해석한 세션:윈도우.파인
+# 인덱스로 만든다. 파인 내부 호출("say :0.0" → session="")과 파인 밖(훅) 호출
+# ("say team1:0.0" → session="team1")은 같은 파인을 가리켜도 $pane 문자열이
+# 서로 달라(":0.0" vs "team1:0.0") 큐 파일이 갈라지고, 그러면 유휴 판정과
+# 전송 순서가 파인당 하나여야 한다는 전제가 깨진다. 해석에 실패하면(파인이
+# 이미 사라졌다 등) 기존 $pane 문자열로 폴백한다 — 전송 자체에 쓰는 $pane은
+# 여기서 건드리지 않는다.
+resolved_pane="$(tmux display-message -t "$pane" -p '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null || true)"
+# 존재하지 않는 세션을 지정하면 tmux는 실패(exit 1)하지 않고 필드가 빈
+# ":."을 exit 0으로 돌려주는 경우가 있다 — 세 필드가 모두 채워졌는지 직접
+# 확인해야 "해석 실패 시 $pane 폴백"이 실제로 보장된다. (glob은 "[0-9]*"가
+# 자릿수를 강제하지 못해 검증에 못 쓴다 — 정규식으로 채워짐을 확인한다.)
+if [[ ! "$resolved_pane" =~ ^[^:]+:[0-9]+\.[0-9]+$ ]]; then
+    resolved_pane=""
+fi
+queue_key="${resolved_pane:-$pane}"
+queue_file="$QUEUE_DIR/${queue_key//[^0-9A-Za-z]/_}"
 lock_file="$queue_file.lock"
 
 if [ -n "${SAY_NOWAIT:-}" ] || ! is_busy; then
