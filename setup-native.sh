@@ -22,6 +22,8 @@ command -v tmux &>/dev/null || MISSING_APT+=(tmux)
 command -v git  &>/dev/null || MISSING_APT+=(git)
 command -v curl &>/dev/null || MISSING_APT+=(curl)
 command -v unzip &>/dev/null || MISSING_APT+=(unzip)
+# python3는 team/log-hook(프롬프트·툴 로깅)이 쓴다.
+command -v python3 &>/dev/null || MISSING_APT+=(python3)
 locale -a | grep -qi ko_KR.utf8 || MISSING_APT+=(locales)
 
 if [ ${#MISSING_APT[@]} -gt 0 ]; then

@@ -36,46 +36,26 @@
 - 리뷰 결과(코드 품질 수정요청): reviewer(:0.5) → developer(:0.4) 직행
 - 리뷰 결과(설계 판단 필요·설계이탈): reviewer(:0.5) → architect(:0.1) 판정 → lead
 
-파인이 보고를 잊는 경우에 대비해, `setup-team.sh`는 lead를 제외한 각 파인에 Stop 훅을
-`--settings`로 주입한다. 파인이 응답을 마치면 "응답 종료" 신호가 lead에 자동 전달되므로,
-lead는 주기적 폴링 없이 그 신호를 받은 파인만 확인하면 된다(자세한 규칙은 `team/lead.md`).
+보고를 잊는 경우에 대비해, lead를 제외한 각 파인은 응답을 마칠 때 "응답 종료" 신호를
+lead에 자동 전달한다(Stop 훅). lead는 폴링 없이 신호가 온 파인만 확인하면 된다
+(자세한 규칙은 `team/lead.md`).
 
 ## 스킬
 
-[gstack](https://github.com/garrytan/gstack) 스킬을 `setup-team.sh`가
-`~/.claude/skills/gstack`에 설치한다. `~/.claude`는 `claude-home` 볼륨 안에 있어
-컨테이너를 새로 만들면 사라지므로, 이미지 빌드 시점이 아니라 런타임에 매번 설치한다.
-
-유저 전역 경로라 프로젝트와 무관하게 모든 파인에서 사용할 수 있다.
+[gstack](https://github.com/garrytan/gstack) 스킬이 `~/.claude/skills/gstack`에
+설치되어 있다. 유저 전역 경로라 프로젝트와 무관하게 모든 파인에서 쓸 수 있다.
 
 ## 프롬프트·툴 로깅
 
-`setup-team.sh`가 모든 파인에 `UserPromptSubmit`·`PreToolUse` 훅(`team/log-hook`)을
-주입해, 입력한 프롬프트와 실행한 도구를 작업 대상 디렉터리에 기록한다.
-AI가 낸 결과를 나중에 재현하거나 문제 원인을 추적할 때 쓰는 증거다.
-
-```
-$PROJECT_DIR/.claude-logs/{역할}.jsonl
-```
-
-- 파인이 6개라 쓰기가 겹치므로 역할별로 파일을 나눈다.
-- `.team/`과 달리 `rm -rf` 대상이 아니라 세션을 새로 띄워도 남는다.
-- 로그 디렉터리에 `.gitignore`(`*`)를 함께 만들어 스스로를 커밋에서 제외한다.
-  작업 대상 리포의 `.gitignore`는 건드리지 않는다.
-- 파인은 이 경로를 그대로 읽을 수 있다(cwd는 `.team/{역할}/`이지만 역할 지침에
-  실제 프로젝트 루트가 안내된다).
-
-시크릿은 알려진 패턴(`sk-`, `ghp_`, `AKIA`, `API_KEY=` 등)을 마스킹하고 `.env`를
-건드리는 명령은 통째로 가린다. 임의 형식의 키까지 막을 수는 없으므로 로그 파일
-권한을 600으로 제한하는 것을 함께 전제한다. Write/Edit의 본문은 길이만 남긴다 —
-내용 전문을 남기면 로그가 수백 MB로 불어나고 시크릿 노출 표면도 넓어진다.
+프롬프트와 툴 사용은 훅이 `$PROJECT_DIR/.claude-logs/{역할}.jsonl`에 자동 기록한다.
+재현·원인 추적이 필요하면 이 파일을 읽으면 된다. 커밋 대상이 아니고, 시크릿은
+마스킹된다(상세는 README 참조).
 
 ## rtk
 
 [rtk](https://github.com/rtk-ai/rtk)는 개발 명령 출력을 압축해 토큰을 절약하는 CLI 프록시다.
-`setup-team.sh`가 설치하고 `rtk init -g --auto-patch`로 훅을 등록하므로, 평범한
-`git status`·`ls`·`cat` 등은 harness가 알아서 `rtk git status` 형태로 재작성한다.
-따라서 명령 앞에 `rtk`를 직접 붙일 필요는 없다.
+`git status`·`ls`·`cat` 등은 훅이 알아서 `rtk git status` 형태로 재작성하므로,
+명령 앞에 `rtk`를 직접 붙일 필요는 없다.
 
 다만 아래 메타 커맨드는 재작성 대상이 아니라 직접 실행해야 한다.
 
