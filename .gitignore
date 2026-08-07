@@ -21,3 +21,7 @@ Thumbs.db
 
 # setup-team.sh가 만드는 역할별 스킬 격리 디렉터리 (런타임 생성물)
 .team/
+
+# log-hook이 쌓는 프롬프트·툴 로그 (런타임 생성물)
+# 디렉터리 안에도 자체 .gitignore가 생기지만, 여기 명시해 의도를 드러낸다.
+.claude-logs/
