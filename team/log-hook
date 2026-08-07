@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""log-hook <역할> <프로젝트_루트> — 프롬프트/툴 사용을 JSONL로 기록하는 훅.
+
+stdin으로 훅 JSON을 받아 $PROJECT_DIR/.claude-logs/{역할}.jsonl 에 한 줄 덧붙인다.
+UserPromptSubmit(프롬프트)과 PreToolUse(툴 사용) 양쪽에서 같은 스크립트를 쓴다.
+
+훅은 harness가 실행하므로 여기서 죽으면 파인 동작에 영향이 간다.
+따라서 어떤 예외가 나도 로그만 포기하고 exit 0 한다 — 로깅은 관측용이지
+작업을 막을 이유가 없다.
+
+파인이 6개라 로그 쓰기가 겹친다. 역할별로 파일을 나눠 경합 자체를 없앤다.
+"""
+import json
+import os
+import re
+import sys
+import time
+
+# tool_input에서 그대로 남길 키. content/new_string/old_string 같은 본문은
+# 제외한다 — 파일 하나 쓸 때마다 내용 전문이 복사되면 로그가 수백 MB로 불어나고,
+# 시크릿이 흘러들 표면도 그만큼 넓어진다. 재현에 필요한 건 "무엇을 건드렸나"지
+# 내용 전문이 아니므로 본문은 길이만 남긴다.
+KEEP_KEYS = ("command", "file_path", "path", "pattern", "url", "description")
+SIZE_KEYS = ("content", "new_string", "old_string")
+
+# 알려진 시크릿 패턴만 가린다. 완전한 차단은 불가능하므로(사용자가 임의 형식의
+# 키를 붙여넣을 수 있다) 로그 파일 권한 600과 함께 쓰는 것을 전제로 한다.
+SECRET_PATTERNS = (
+    re.compile(r"\b(sk-[A-Za-z0-9_-]{16,})"),                 # OpenAI/Anthropic
+    re.compile(r"\b(gh[pousr]_[A-Za-z0-9]{16,})"),            # GitHub 토큰
+    re.compile(r"\b(AKIA[0-9A-Z]{16})\b"),                    # AWS 액세스 키
+    re.compile(r"\b(xox[baprs]-[A-Za-z0-9-]{10,})"),          # Slack
+    # KEY=값 / "token": "값" 형태의 대입. 값 부분만 가린다.
+    re.compile(
+        r"((?:api[_-]?key|secret|token|password|passwd)"
+        r"\s*[=:]\s*[\"']?)([^\s\"',]{6,})",
+        re.IGNORECASE,
+    ),
+)
+
+# .env 류 파일을 읽는 명령은 출력이 통째로 시크릿이다. 명령 자체를 남기지 않는다.
+ENV_FILE_RE = re.compile(r"(^|[\s/])\.env(\.[A-Za-z0-9_-]+)?\b")
+
+
+def mask(text):
+    """문자열에서 알려진 시크릿 패턴을 가린다."""
+    if not isinstance(text, str):
+        return text
+    for pat in SECRET_PATTERNS:
+        if pat.groups >= 2:
+            text = pat.sub(lambda m: m.group(1) + "***", text)
+        else:
+            text = pat.sub("***", text)
+    return text
+
+
+def scrub_command(cmd):
+    """셸 명령을 마스킹한다. .env를 건드리는 명령은 통째로 감춘다."""
+    if ENV_FILE_RE.search(cmd):
+        return "[redacted: .env 접근 명령]"
+    return mask(cmd)
+
+
+def summarize_input(tool_input):
+    """tool_input에서 재현에 필요한 정보만 추린다."""
+    if not isinstance(tool_input, dict):
+        return {}
+    out = {}
+    for key in KEEP_KEYS:
+        val = tool_input.get(key)
+        if not isinstance(val, str):
+            continue
+        out[key] = scrub_command(val) if key == "command" else mask(val)
+    for key in SIZE_KEYS:
+        val = tool_input.get(key)
+        if isinstance(val, str):
+            out[key + "_len"] = len(val)
+    return out
+
+
+def main():
+    role = sys.argv[1] if len(sys.argv) > 1 else "unknown"
+    project_dir = sys.argv[2] if len(sys.argv) > 2 else os.getcwd()
+
+    raw = sys.stdin.read()
+    # 훅은 stdin을 그대로 통과시켜야 뒤에 붙는 훅이 같은 입력을 받는다.
+    sys.stdout.write(raw)
+    sys.stdout.flush()
+
+    data = json.loads(raw)
+    event = data.get("hook_event_name") or (
+        "UserPromptSubmit" if "prompt" in data else "PreToolUse"
+    )
+
+    entry = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "role": role,
+        "event": event,
+        "session": data.get("session_id"),
+    }
+    if "prompt" in data:
+        entry["prompt"] = mask(data.get("prompt") or "")
+    else:
+        entry["tool"] = data.get("tool_name")
+        entry["input"] = summarize_input(data.get("tool_input"))
+
+    log_dir = os.path.join(project_dir, ".claude-logs")
+    os.makedirs(log_dir, exist_ok=True)
+
+    # 로그 디렉터리가 스스로를 커밋 대상에서 제외한다. 작업 대상 리포의
+    # .gitignore를 건드리지 않고 목적을 달성하기 위한 것 — 남의 리포에
+    # 흔적을 남기지 않는다.
+    ignore = os.path.join(log_dir, ".gitignore")
+    if not os.path.exists(ignore):
+        with open(ignore, "w") as f:
+            f.write("*\n")
+
+    path = os.path.join(log_dir, role + ".jsonl")
+    # 시크릿 마스킹은 완전하지 않으므로 파일 권한으로 한 겹 더 막는다.
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    with os.fdopen(fd, "a") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        # 로깅 실패가 파인 작업을 막아서는 안 된다.
+        pass
+    sys.exit(0)
