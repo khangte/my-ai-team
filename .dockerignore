@@ -1,12 +1,15 @@
 # 빌드 컨텍스트 전송량 축소용. Dockerfile의 COPY는 setup-team.sh와 team/만
 # 명시적으로 가져가므로, 여기 항목을 빼도 이미지 내용은 달라지지 않는다.
 .git
-.github
 .claude
-.claudeignore
 .gitignore
 README.md
 CLAUDE.md
+docs
 setup-docker.sh
 setup-native.sh
-workflows
+
+# 런타임 생성물. .claude-logs는 시크릿 마스킹이 완전하지 않아
+# 파일 권한 600으로 한 겹 더 막아두는데, 빌드 컨텍스트로 보내면 그게 무의미해진다.
+.team
+.claude-logs
