@@ -12,8 +12,7 @@ team/              파인별 역할 지시서 + 팀 구성 (--append-system-prom
   ├ say              파인 간 메시지 전송 래퍼 (setup-team.sh가 각 파인 PATH에 등록)
   ├ log-hook         프롬프트·툴 사용을 .claude-logs/{역할}.jsonl에 기록하는 훅
   └ {역할}.md         역할별 지침 (lead/architect/researcher/designer/developer/reviewer)
-docs/
-  └ token-cost.md    역할별 스킬 제한의 절감 효과와 토큰 비용 분석
+docs/              설계 배경·실측 분석 문서
 Dockerfile         팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
 setup-docker.sh    Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
 setup-native.sh    WSL 등 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
@@ -169,6 +168,12 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 파인 밖(호스트 셸)에서 호출:
 
 - PATH에 없으므로 경로와 세션명을 함께 지정 — `./team/say team1:0.4 "..."`
+
+상대가 작업 중이면 큐에 쌓았다가 유휴가 되면 자동 전송(발신 파인은 대기하지 않음).
+`SAY_NOWAIT=1`이면 큐를 건너뛰고 즉시 전송 — 긴급 중단 지시용.
+
+Enter 누락부터 큐 도입까지, 통신이 깨졌던 유형과 각각의 대응은
+[docs/pane-messaging.md](docs/pane-messaging.md) 참조.
 
 ### 보고 경로
 
