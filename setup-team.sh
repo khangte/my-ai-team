@@ -160,14 +160,23 @@ start_claude_in_pane() {
     # settings.json을 병합이 아니라 '대체'하므로, --settings를 쓰는 순간 글로벌
     # rtk 재작성 훅이 그 파인에서 통째로 사라지기 때문이다.
     # lead도 --setting-sources project로 전역 설정을 끄므로 동일하게 명시 주입한다.
-    local pretooluse_json="\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"rtk hook claude\"}]}]"
+    # 프롬프트·툴 로깅도 모든 파인 공통이다. 로그는 작업 대상인 $PROJECT_DIR의
+    # .claude-logs/{역할}.jsonl 에 쌓이므로, 파인은 자기 로그를 그대로 읽을 수 있고
+    # .team/ 과 달리 세션을 새로 띄워도(rm -rf 대상이 아니다) 남는다.
+    # matcher는 Bash로 한정하지 않는다 — 어떤 파일·디렉터리를 참조했는지가
+    # 재현에 필요하므로 Read/Edit/Write/Grep도 함께 남겨야 한다.
+    # rtk 재작성 훅과는 별도 항목으로 둔다. 같은 Bash 항목에 얹으면 rtk까지
+    # matcher가 넓어져 의도치 않은 도구에 재작성이 걸린다.
+    local log_cmd="${TEAM_DIR}/log-hook ${role:-unknown} '${PROJECT_DIR}'"
+    local pretooluse_json="\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"rtk hook claude\"}]},{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]}]"
+    local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]}]"
 
     local settings_arg=""
     if [ "$role" = "lead" ]; then
         # lead는 Stop 훅을 받으면 안 된다 — 종료 신호의 수신처가 lead 자신(:0.0)이라
         # 자기 응답이 끝날 때마다 스스로에게 신호를 보내 무한 루프가 된다.
-        # 따라서 PreToolUse만 넣는다.
-        local lead_settings_json="{\"hooks\":{${pretooluse_json}}}"
+        # 따라서 Stop을 뺀 나머지(PreToolUse·UserPromptSubmit)만 넣는다.
+        local lead_settings_json="{\"hooks\":{${pretooluse_json},${userprompt_json}}}"
         local lead_settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$lead_settings_json" > "$lead_settings_file"
@@ -181,7 +190,7 @@ start_claude_in_pane() {
         # JSON 문자열로 들어가므로 큰따옴표는 \" 로 이스케이프한다(작은따옴표는 JSON에서 무해).
         # 훅 커맨드는 이 스크립트가 만드는 고정 문자열이라 이스케이프 대상이 이것뿐이다.
         local hook_cmd="if [ -f '${marker}' ]; then rm -f '${marker}'; else ${TEAM_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\\\"; fi"
-        local settings_json="{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json}}}"
+        local settings_json="{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json},${userprompt_json}}}"
         local settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$settings_json" > "$settings_file"

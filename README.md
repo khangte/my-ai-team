@@ -10,6 +10,7 @@ CLAUDE.md          팀장(lead) 역할 정의 + gstack 스킬 라우팅 규칙
 team/              파인별 역할 지시서 + 팀 구성 (--append-system-prompt로 주입, 프로젝트별 오버라이드 가능)
   ├ config.sh        팀 구성 기본값 템플릿 (인원/모델)
   ├ say              파인 간 메시지 전송 래퍼 (setup-team.sh가 각 파인 PATH에 등록)
+  ├ log-hook         프롬프트·툴 사용을 .claude-logs/{역할}.jsonl에 기록하는 훅
   └ {역할}.md         역할별 지침 (architect/researcher/designer/developer/reviewer/lead)
 Dockerfile         팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
 setup-docker.sh    Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
@@ -21,6 +22,11 @@ setup-team.sh      tmux 세션 구성 + 각 파인에서 claude 실행 (핵심 �
 (역할별 스킬 심볼릭 링크 + `_runtime/`의 조립된 역할 지침·훅 설정). 매 실행마다
 지워지고 다시 생성되는 산출물이므로, 대상 프로젝트의 `.gitignore`에 `.team/`을
 넣어두면 좋다.
+
+같은 이유로 프롬프트·툴 로그가 쌓이는 `.claude-logs/`도 대상 프로젝트의
+`.gitignore`에 넣어두는 것을 권한다. 로그 디렉터리가 자기 자신을 무시하는
+`.gitignore`를 안에 만들긴 하지만, 프로젝트 `.gitignore`에도 한 줄 적어두면
+의도가 드러나 팀원이 파일을 보고 당황할 일이 없다(아래 "프롬프트·툴 로깅" 참고).
 
 이 저장소 자체는 개발 대상이 아니라 **팀 오케스트레이션 엔진**이다. 실제로
 개발할 프로젝트는 별도 폴더에 있고, `setup-team.sh`가 그 폴더를 인자로 받아
@@ -141,13 +147,13 @@ Enter가 도착해 무시되는 경우도 함께 막는다.
 
 평상시 1홉(각 파인 → lead)이고, 설계 판단이 필요한 건만 architect를 경유한다.
 
-| 상황                            | 경로                                    |
-| ------------------------------- | --------------------------------------- |
-| 일반 완료 보고                  | 각 파인 → lead                          |
-| 설계 이탈 (developer/designer)  | 파인 → architect → lead                 |
-| 리뷰 승인                       | reviewer → lead                         |
-| 리뷰 — 코드 품질 수정요청       | reviewer → developer (직행)             |
-| 리뷰 — 설계 판단 필요           | reviewer → architect → lead             |
+| 상황                           | 경로                        |
+| ------------------------------ | --------------------------- |
+| 일반 완료 보고                 | 각 파인 → lead              |
+| 설계 이탈 (developer/designer) | 파인 → architect → lead     |
+| 리뷰 승인                      | reviewer → lead             |
+| 리뷰 — 코드 품질 수정요청      | reviewer → developer (직행) |
+| 리뷰 — 설계 판단 필요          | reviewer → architect → lead |
 
 ### Stop 훅 — 보고 누락 방지
 
@@ -160,6 +166,76 @@ lead는 주기적 폴링 없이 신호가 온 파인만 확인하면 된다.
 lead 턴을 한 번 더 태울 이유가 없다). lead 자신은 훅 대상에서 제외된다 — 신호
 수신처가 lead(`:0.0`)라 자기 응답마다 스스로에게 신호를 보내 무한 루프가 된다.
 
+## 프롬프트·툴 로깅 — 재현성과 추적
+
+AI가 좋은 결과를 냈어도 **왜 그 결과가 나왔는지** 설명하거나 재현하기 어려운
+경우가 많다. 어떤 질문을 입력했고, 어떤 명령을 실행했으며, 어떤 파일을
+참조했는지가 남아 있으면 결과 재현과 원인 추적의 근거가 된다.
+
+`setup-team.sh`가 모든 파인에 `UserPromptSubmit`·`PreToolUse` 훅
+(`team/log-hook`)을 주입해 이를 자동으로 기록한다.
+
+```
+$PROJECT_DIR/.claude-logs/
+├── .gitignore        내용은 "*" — 디렉터리가 스스로를 커밋에서 제외
+├── lead.jsonl
+├── developer.jsonl
+└── ...               역할당 하나씩 (그 파인이 처음 동작할 때 생성)
+```
+
+한 줄이 JSON 하나인 JSONL이고, 두 종류가 시간순으로 섞여 들어간다.
+
+```json
+{"ts":"...","role":"developer","event":"UserPromptSubmit","session":"s1","prompt":"로그인 기능 구현해줘"}
+{"ts":"...","role":"developer","event":"PreToolUse","session":"s1","tool":"Write","input":{"file_path":"/a/b.py","content_len":500}}
+```
+
+`session`으로 같은 세션의 프롬프트와 툴 호출을 묶고 `ts`로 순서를 잡으면,
+"어떤 지시에서 시작해 어떤 명령으로 이어졌는지"가 복원된다.
+
+### 설계상의 선택
+
+- **역할별로 파일을 나눈다** — 파인 6개가 병렬로 도는 구조라 한 파일에 쓰면
+  경합이 생기고, 나중에 누가 한 일인지도 구분되지 않는다.
+- **`.team/` 바깥에 둔다** — `.team/`은 매 실행 `rm -rf` 대상이라 거기 두면
+  세션을 새로 띄우는 순간 사라진다. 재현이 목적인 로그로는 자기모순이다.
+- **작업 대상 리포의 `.gitignore`를 건드리지 않는다** — 대신 로그 디렉터리
+  안에 `.gitignore`(`*`)를 만들어 스스로를 제외시킨다. 남의 리포에 흔적을
+  남기지 않으면서 커밋 제외를 달성하기 위한 것.
+- **파인이 자기 로그를 읽을 수 있다** — 파인의 cwd는 `.team/{역할}/`이지만
+  역할 지침에 실제 프로젝트 루트가 안내되므로 그대로 접근된다.
+- **본문은 길이만 남긴다** — Write/Edit의 `content`·`new_string`을 그대로
+  남기면 파일을 쓸 때마다 내용 전문이 복사돼 로그가 수백 MB로 불어나고,
+  시크릿 노출 표면도 그만큼 넓어진다. 재현에 필요한 건 "무엇을 건드렸나"지
+  내용 전문이 아니다. 로그 로테이션은 아직 넣지 않았다.
+
+### 시크릿 처리
+
+알려진 패턴(`sk-`, `ghp_`, `AKIA`, `xox*-`, `API_KEY=` 같은 대입 형태)을
+마스킹하고, `.env`를 건드리는 명령은 명령 자체를 통째로 가린다. Read 계열은
+경로만 남고 내용은 애초에 기록되지 않는다.
+
+다만 **완전한 차단은 불가능하다.** 임의 형식의 키를 프롬프트에 직접 붙여넣으면
+패턴에 걸리지 않는다. 그래서 로그 파일 권한을 `600`으로 제한하는 것을 함께
+전제한다. 훅이 어떤 이유로 실패해도 로그만 포기하고 파인 작업은 막지 않는다.
+
+### 단독 실행에서는 쌓이지 않는다
+
+로깅 훅은 `setup-team.sh`가 `--settings`로 주입하므로, 그 스크립트를 거치지
+않고 그냥 `claude`를 띄우면 **로그가 남지 않는다**. `--settings`는 전역
+`~/.claude/settings.json`을 병합이 아니라 **대체**하기 때문에 팀 파인에서는
+필요한 훅을 전부 명시 주입해야 하고, 반대로 단독 실행은 전역 설정을 그대로
+쓴다 — 두 경로의 훅 소스가 아예 다르다.
+
+| 실행 방식               | 훅 소스                       | 로깅   |
+| ----------------------- | ----------------------------- | ------ |
+| `setup-team.sh` (팀)    | `--settings`로 주입           | 쌓임   |
+| `claude` 단독 실행      | 전역 `~/.claude/settings.json` | 안 쌓임 |
+
+단독 실행에도 남기려면 `~/.claude/settings.json`에 같은 훅을 추가하면 된다
+(`team/log-hook <역할> "$CLAUDE_PROJECT_DIR"`). 단 그러면 어떤 프로젝트에서
+claude를 띄우든 전부 로그가 쌓인다는 점은 감안해야 한다.
+
 ## 역할별 스킬 제한
 
 gstack setup은 스킬 수십 개를 `~/.claude/skills/`에 전부 설치하고, 그 frontmatter는
@@ -171,14 +247,14 @@ gstack setup은 스킬 수십 개를 `~/.claude/skills/`에 전부 설치하고,
 링크**하고 그 디렉터리를 cwd로 claude를 띄운다. 이때 `--setting-sources project`로
 유저 전역 스킬과 플러그인 스킬을 차단한다.
 
-| 역할       | 허용 스킬                                                 |
-| ---------- | --------------------------------------------------------- |
-| lead       | (없음 — 배분·수합·git 커밋만 하므로 gstack 스킬 불필요)   |
+| 역할       | 허용 스킬                                                       |
+| ---------- | --------------------------------------------------------------- |
+| lead       | (없음 — 배분·수합·git 커밋만 하므로 gstack 스킬 불필요)         |
 | architect  | `spec` `diagram` `document-generate` `health` `plan-eng-review` |
-| researcher | `scrape` `browse` `investigate`                           |
-| designer   | `design-consultation` `design-review` `design-html` `diagram` |
-| developer  | `investigate` `health` `codex` `learn`                    |
-| reviewer   | `review` `qa` `health` `investigate`                      |
+| researcher | `scrape` `browse` `investigate`                                 |
+| designer   | `design-consultation` `design-review` `design-html` `diagram`   |
+| developer  | `investigate` `health` `codex` `learn`                          |
+| reviewer   | `review` `qa` `health` `investigate`                            |
 
 claude 빌트인 스킬과 `$PROJECT_DIR/.claude/skills`의 공용 스킬은 이 방식과
 무관하게 모든 파인이 그대로 쓴다. 자세한 근거와 예외는 `setup-team.sh`의
