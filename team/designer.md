@@ -10,11 +10,7 @@
 - 스타일 가이드 정의
 - 반응형 레이아웃 설계
 
-## 산출물 예시
-
-- /docs/design/user-flow.md
-- /docs/design/component-spec.md
-- HTML/CSS 프로토타입
+산출물 예시: `/docs/design/user-flow.md`, `/docs/design/component-spec.md`, HTML/CSS 프로토타입
 
 ## 스킬
 

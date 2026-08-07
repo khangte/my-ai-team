@@ -10,10 +10,8 @@
 - 레퍼런스·사례 수집
 - 공식 문서 요약
 
-## 산출물 예시
-
-- /docs/research/framework-comparison.md
-- /docs/research/current-architecture-analysis.md
+산출물 예시: `/docs/research/framework-comparison.md`,
+`/docs/research/current-architecture-analysis.md`
 
 ## 작업 방식
 
