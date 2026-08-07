@@ -311,6 +311,48 @@ $PROJECT_DIR/.claude-logs/
 | developer  | `investigate` `health` `codex` `learn`                          |
 | reviewer   | `review` `qa` `health` `investigate`                            |
 
+### superpowers 스킬
+
+[superpowers](https://github.com/obra/superpowers)는 gstack과 달리 **플러그인**이라
+`--setting-sources project`에 통째로 차단된다. 그래서 gstack과 같은 방식으로
+역할별 필요한 것만 `.team/{역할}/.claude/skills`에 링크해 되살린다
+(`setup-team.sh`의 `SUPERPOWERS_SETS`).
+
+| 역할      | 배정 스킬                                                               |
+| --------- | ----------------------------------------------------------------------- |
+| lead      | `finishing-a-development-branch`                                        |
+| architect | `brainstorming` `writing-plans`                                         |
+| designer  | `brainstorming`                                                         |
+| developer | `test-driven-development` `systematic-debugging` `receiving-code-review` |
+| reviewer  | `verification-before-completion`                                        |
+
+- researcher는 배정 없음 — 14개 중 조사 업무에 대응하는 스킬이 없다
+- gstack은 래퍼의 `SKILL.md`만 링크하지만, superpowers는 `references/` 등 하위 파일을
+  런타임에 읽으므로 **스킬 디렉터리를 통째로** 링크한다
+- 플러그인 설치 경로에 버전 디렉터리가 끼므로(`.../superpowers/6.2.0/skills`)
+  경로를 고정하지 않고 최신 버전을 골라 쓴다. 미설치면 경고만 내고 넘어간다
+
+배정에서 뺀 것과 그 이유:
+
+| 스킬                                                        | 제외 이유                                                        |
+| ----------------------------------------------------------- | ---------------------------------------------------------------- |
+| `dispatching-parallel-agents` `subagent-driven-development` | 파인 6개가 이미 병렬 실행 단위 — 파인 대신 서브에이전트를 띄운다 |
+| `requesting-code-review`                                    | 리뷰어 서브에이전트를 띄우게 되어 reviewer 파인이 논다            |
+| `using-git-worktrees`                                       | 파인 6개가 같은 워킹트리를 공유하는 구조와 충돌                   |
+| `using-superpowers`                                         | "1%라도 해당되면 무조건 스킬 호출" — 전 파인 고정비만 늘어남      |
+| `executing-plans` `writing-skills`                          | 각각 별도 세션 실행 전제 / 팀 업무 아님                           |
+
+이 스킬들은 단독 실행을 전제로 쓰여 있어, 그대로 두면 팀 구조와 어긋나는 지시가
+섞여 있다(사용자에게 직접 승인 요청, 서브에이전트 dispatch 등).
+그래서 각 `team/{역할}.md`의 "## 스킬" 절에서 그 지점을 팀 규칙으로 바꿔 읽도록
+명시했다 — 예로 `brainstorming`의 "유저 승인" 게이트는 lead(`:0.0`) 승인으로,
+`receiving-code-review`의 되묻기는 `say :0.5`로 치환한다.
+
+`test-driven-development`를 developer에 배정하면서 역할 경계도 조정했다.
+기존 developer.md는 "테스트 진행 금지(테스트는 reviewer가)"였는데 TDD와 정면 충돌한다.
+현재는 **TDD 사이클(실패 테스트 작성 → red → 구현 → green)까지 developer**,
+**커버리지·품질 최종 판정은 reviewer**로 나눠 두었다.
+
 제한 대상이 아닌 것:
 
 - claude 빌트인 스킬

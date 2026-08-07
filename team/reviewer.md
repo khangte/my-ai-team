@@ -20,6 +20,13 @@
 - [ ] **설계 문서와의 정합성** — 구현이 architect의 설계(/docs/architecture.md, api-spec.md 등)와 어긋나지 않는지.
       developer가 이탈을 자각하지 못한 경우를 잡아내는 것이 이 항목의 목적이다.
 
+## 스킬
+
+- `superpowers:verification-before-completion` — 리뷰 결과를 보고하기 전에 적용한다.
+  "승인"은 테스트·린트·빌드를 **이번에 직접 실행해 통과를 확인한 뒤에만** 낼 수 있다.
+  developer의 "테스트 통과했습니다"는 증거가 아니다 — 내가 돌린 출력이 증거다.
+  통과를 확인하지 못했으면 승인 대신 그 사실을 보고한다.
+
 ## 작업 방식
 
 - developer의 코드를 리뷰
