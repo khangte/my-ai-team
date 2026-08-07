@@ -148,6 +148,29 @@ queue_key="${resolved_pane:-$pane}"
 queue_file="$QUEUE_DIR/${queue_key//[^0-9A-Za-z]/_}"
 lock_file="$queue_file.lock"
 
+# 락 없이 큐 파일을 "읽고 나서 쓰면"(append, dequeue, 빈 큐 판정+rm) 그 사이에
+# 다른 프로세스가 끼어들어 메시지가 유실될 수 있다 — 워처가 dequeue 스냅샷으로
+# 파일을 덮어쓰는 순간 그 사이 append된 메시지가 사라지거나, 워처가 큐가
+# 비었다고 판단해 rm하는 순간 새 메시지가 append되면 그 메시지째로 지워진다.
+# mkdir은 원자적이라 짧은 임계구역 락으로 쓴다. 응답 없는 락은 죽은 프로세스가
+# 남긴 것으로 보고 강제 회수한다(is_busy 대기 루프의 상한과 같은 취지 — 무한
+# 데드락보다 늦은 진행이 낫다).
+queue_lock() {
+    local tries=0
+    while ! mkdir "$queue_file.oplock" 2>/dev/null; do
+        tries=$((tries + 1))
+        if [ "$tries" -ge 100 ]; then
+            rmdir "$queue_file.oplock" 2>/dev/null || true
+            tries=0
+        fi
+        sleep 0.05
+    done
+}
+
+queue_unlock() {
+    rmdir "$queue_file.oplock" 2>/dev/null || true
+}
+
 if [ -n "${SAY_NOWAIT:-}" ] || ! is_busy; then
     # 유휴이고 큐도 비어 있으면 곧바로 보낸다(가장 흔한 경로).
     # 큐에 밀린 메시지가 있으면 순서가 뒤집히므로 큐에 넣는다.
@@ -160,7 +183,9 @@ fi
 
 # 여기부터: 상대가 작업 중이거나, 앞서 밀린 메시지가 있다.
 mkdir -p "$QUEUE_DIR"
+queue_lock
 printf '%s\n' "$msg" >> "$queue_file"
+queue_unlock
 record_marker
 echo "say: '$pane'이 작업 중 — 큐에 넣고 유휴가 되면 전송합니다(대기 $(grep -c '' "$queue_file")건)." >&2
 
@@ -169,7 +194,10 @@ if mkdir "$lock_file" 2>/dev/null; then
     (
         trap 'rmdir "$lock_file" 2>/dev/null' EXIT
         # 큐가 빌 때까지: 유휴를 기다렸다가 한 건씩 꺼내 보낸다.
-        while [ -s "$queue_file" ]; do
+        # 빈 큐 판정과 rm을 dequeue와 같은 락 안에서 처리한다 — 그래야
+        # "비었다고 판단한 시점"과 "실제로 rm하는 시점" 사이에 새 메시지가
+        # append될 틈이 없다(있으면 그 메시지가 rm과 함께 조용히 사라진다).
+        while true; do
             # 상한을 둔다. 상태 문구 감지가 어떤 이유로든 계속 참이면
             # 무한 대기로 메시지가 영영 전달되지 않는다 — 늦게라도 보내는 편이 낫다.
             waited=0
@@ -177,15 +205,29 @@ if mkdir "$lock_file" 2>/dev/null; then
                 sleep 3
                 waited=$((waited + 1))
             done
-            # 첫 줄을 꺼내고 나머지를 되쓴다.
+
+            queue_lock
+            if [ ! -s "$queue_file" ]; then
+                rm -f "$queue_file"
+                queue_unlock
+                break
+            fi
+            # 첫 줄을 꺼내고 나머지를 되쓴다. 이 구간이 실패하면(디스크풀 등)
+            # set -e가 서브셸을 즉시 끝내 아래 queue_unlock에 못 미친다 —
+            # 195행 lock_file의 trap ... EXIT와 같은 이유로, 실패해도
+            # queue_unlock이 반드시 실행되도록 명시적으로 가드한다.
             msg="$(head -n 1 "$queue_file")"
-            tail -n +2 "$queue_file" > "$queue_file.tmp" && mv "$queue_file.tmp" "$queue_file"
+            if ! { tail -n +2 "$queue_file" > "$queue_file.tmp" && mv "$queue_file.tmp" "$queue_file"; }; then
+                queue_unlock
+                continue
+            fi
+            queue_unlock
+
             [ -n "$msg" ] || continue
             deliver || true
             # 연속 전송 시 입력창이 따라오도록 간격을 준다.
             sleep 1
         done
-        rm -f "$queue_file"
     ) </dev/null >/dev/null 2>&1 &
     disown 2>/dev/null || true
 fi
