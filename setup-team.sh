@@ -171,12 +171,22 @@ start_claude_in_pane() {
     local pretooluse_json="\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"rtk hook claude\"}]},{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]}]"
     local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]}]"
 
+    # 파인 간 통신은 say(tmux send-keys)가 담당하지만, Claude Code 자체의
+    # cross-session messaging(SendMessage/ListAgents)도 파인마다 켜져 있다 —
+    # 각 파인이 자기 인박스 소켓을 바인딩하므로 서로, 그리고 팀 밖 세션에서도 보인다.
+    # 그런데 파인은 --dangerously-skip-permissions로 뜨고, 그 경우 기본 수신 규칙은
+    # "발신 측도 권한 우회 모드일 때만 전달, 아니면 승인 대기로 보류"다. 팀 밖의
+    # 일반 세션이 보낸 메시지는 여기 걸려 보류되는데, 파인에는 사람이 붙어 있지
+    # 않아 승인 다이얼로그가 dialogExpiry(기본 5분) 후 그대로 폐기된다.
+    # accept로 고정해 그 경로를 열어둔다. say는 이 설정과 무관하게 그대로 동작한다.
+    local inbound_json="\"crossSessionInbound\":\"accept\""
+
     local settings_arg=""
     if [ "$role" = "lead" ]; then
         # lead는 Stop 훅을 받으면 안 된다 — 종료 신호의 수신처가 lead 자신(:0.0)이라
         # 자기 응답이 끝날 때마다 스스로에게 신호를 보내 무한 루프가 된다.
         # 따라서 Stop을 뺀 나머지(PreToolUse·UserPromptSubmit)만 넣는다.
-        local lead_settings_json="{\"hooks\":{${pretooluse_json},${userprompt_json}}}"
+        local lead_settings_json="{${inbound_json},\"hooks\":{${pretooluse_json},${userprompt_json}}}"
         local lead_settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$lead_settings_json" > "$lead_settings_file"
@@ -190,7 +200,7 @@ start_claude_in_pane() {
         # JSON 문자열로 들어가므로 큰따옴표는 \" 로 이스케이프한다(작은따옴표는 JSON에서 무해).
         # 훅 커맨드는 이 스크립트가 만드는 고정 문자열이라 이스케이프 대상이 이것뿐이다.
         local hook_cmd="if [ -f '${marker}' ]; then rm -f '${marker}'; else ${TEAM_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\\\"; fi"
-        local settings_json="{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json},${userprompt_json}}}"
+        local settings_json="{${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json},${userprompt_json}}}"
         local settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$settings_json" > "$settings_file"
