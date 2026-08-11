@@ -126,6 +126,12 @@ tmux kill-session -t team1                    # 세션 종료
 - 대가: 파인이 확인 없이 파일을 수정·삭제
 - 완화: **git으로 관리되는 프로젝트**에서 쓰거나, Docker 실행으로 격리하는 편이 안전
 
+파급효과 — cross-session messaging 수신:
+
+- Claude Code는 권한 우회 세션에 오는 메시지를 기본적으로 **승인 대기로 보류**함
+- 파인에는 사람이 붙어 있지 않아 승인 다이얼로그가 `dialogExpiry`(기본 5분) 후 그대로 폐기됨
+- 그래서 `setup-team.sh`가 각 파인에 `crossSessionInbound: accept`를 함께 주입 — 아래 "팀 밖 세션에서 파인 호출" 참고
+
 ## 프로젝트별 팀 구성 커스터마이징
 
 - 기본 팀 구성은 `setup-team.sh`에 내장 — lead/architect/researcher/designer/developer/reviewer 6인
@@ -167,6 +173,31 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 파인 밖(호스트 셸)에서 호출:
 
 - PATH에 없으므로 경로와 세션명을 함께 지정 — `./team/say team1:0.4 "..."`
+
+### 팀 밖 세션에서 파인 호출 — `SendMessage`
+
+`say`와 별개로, Claude Code 자체의 cross-session messaging도 파인마다 켜져 있다.
+팀 밖에서 도는 일반 Claude 세션이 파인에 직접 지시할 때 쓴다.
+
+- 각 파인이 자기 인박스 소켓을 바인딩하므로 `/list-agents`에 6개가 그대로 보임
+- 이름은 cwd 기반 자동 생성 — `lead-1f`, `developer-a7` 형태 (tmux 파인 번호도 함께 표시됨)
+- 사용자는 자연어로 지시하면 됨 — `lead에게 "..." 전해줘`
+- 이름이 겹치면 `to`에 `lead-1f [bba91f]`처럼 ref를 붙여야 함
+
+`say`와의 차이:
+
+| | `say` | `SendMessage` |
+| --- | --- | --- |
+| 전달 방식 | tmux 입력창에 타이핑 | 세션 간 소켓 |
+| 수신 파인이 보는 형태 | 사람이 친 것과 **구분 불가** | `<cross-session-message from=...>` 태그 + 신뢰 안내 동반 |
+| 유휴 대기 큐 | 있음 | 없음 (도구 호출 사이 삽입) |
+| 훅에서 발신 | 가능 (셸 스크립트) | 불가 (도구 호출) |
+
+제약:
+
+- **Docker 실행(`setup-docker.sh`) 시 호스트에서는 파인이 보이지 않음** — 컨테이너가 자체 파일시스템을 가져 서로를 찾지 못함. 네이티브 실행에서만 유효
+- 파인의 답장은 오지만, 발신 측(파인) 화면에 "held for approval" 중간 알림이 먼저 뜰 수 있음 — 팀 밖 세션이 권한을 묻는 모드라서이고, 이후 전달된다
+- 파인끼리는 여전히 `say`를 쓴다 — 유휴 대기 큐·전송 검증·`SAY_NOWAIT` 인터럽트, 그리고 Stop 훅에서의 발신이 `SendMessage`에는 없다
 
 상대가 작업 중이면 큐에 쌓았다가 유휴가 되면 자동 전송(발신 파인은 대기하지 않음).
 `SAY_NOWAIT=1`이면 큐를 건너뛰고 즉시 전송 — 긴급 중단 지시용.
