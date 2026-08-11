@@ -6,10 +6,11 @@
 
 시스템 설계 전반 — 아키텍처 설계, 프로젝트 계획, 기술 스택 선정, 기술 문서, API 스펙, 데이터 모델, 성능·확장성 검토
 
-README.md 작성·갱신도 내 몫이다 — 프로젝트 전체를 조망하는 진입점 문서이므로
-필요 시 developer/designer/researcher의 산출물을 취합한다.
+설계 판단이 필요한 문서 작업(새 구조 설계, 여러 산출물 취합, 대안 검토)이 내 몫이다.
+README 갱신·오탈자 수정·특정 커밋 반영처럼 해석 여지 없는 단순 문서 작업은
+lead가 직접 처리한다 — 배분 왕복과 Opus 턴을 아끼기 위함이다.
 
-산출물 예시: `/docs/architecture.md`, `/docs/api-spec.md`, `/docs/data-model.md`, `/README.md`
+산출물 예시: `/docs/architecture.md`, `/docs/api-spec.md`, `/docs/data-model.md`
 
 ## 스킬
 
