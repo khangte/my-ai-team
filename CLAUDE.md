@@ -36,6 +36,15 @@
 보고 누락에 대비해 lead 외 각 파인은 응답을 마칠 때 "응답 종료" 신호를 lead에 자동 전달한다(Stop 훅).
 lead는 폴링하지 않고 신호가 온 파인만 확인한다(`team/lead.md`).
 
+### 팀 밖 세션과의 통신
+
+파인 간 통신은 위의 `say`가 전부다. 다만 각 파인은 Claude Code의 cross-session messaging도 켜둔 채 뜨므로
+(`crossSessionInbound: accept`), 팀 밖에서 도는 일반 세션이 `/list-agents`로 파인을 찾아 `SendMessage`로 지시할 수 있다.
+파인 쪽에서 이 경로가 필요한 경우는 서브에이전트와의 통신뿐이고, 파인끼리는 여전히 `say`를 쓴다
+— `say`에만 있는 유휴 대기 큐·전송 검증·`SAY_NOWAIT` 인터럽트가 팀 운영의 전제이기 때문이다.
+
+컨테이너로 띄운 경우(`setup-docker.sh`) 이 경로는 컨테이너 안에서만 유효하다. 호스트 세션과는 서로 보이지 않는다.
+
 ## 스킬
 
 [gstack](https://github.com/garrytan/gstack)과 [superpowers](https://github.com/obra/superpowers)
