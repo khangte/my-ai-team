@@ -51,6 +51,7 @@
 - 이 스킬들은 단독 실행 전제로 쓰여 팀 구조와 어긋나는 지시가 섞여 있음
   - 예: 사용자 직접 승인 요청, 서브에이전트 dispatch, 워크트리 생성
   - 충돌하면 **역할 문서가 우선한다**
+- 전역 규칙의 서브에이전트 위임(planner·code-reviewer 등)은 파인 역할이 대체한다
 
 ## 프롬프트·툴 로깅
 
@@ -61,11 +62,4 @@
 ## rtk
 
 - `git status`·`ls`·`cat` 등은 훅이 `rtk git status` 형태로 재작성 → 직접 `rtk`를 붙이지 않는다
-- 아래 메타 커맨드만 직접 실행한다
-
-```bash
-rtk gain              # 누적 토큰 절약량
-rtk gain --history    # 명령별 절약 내역
-rtk discover          # 놓친 절약 기회 분석
-rtk proxy <cmd>       # 재작성 없이 원본 명령 실행(디버깅용)
-```
+- 메타 커맨드(`rtk gain` 등)는 전역 RTK.md 참조
