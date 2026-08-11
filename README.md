@@ -176,8 +176,10 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 
 ### 팀 밖 세션에서 파인 호출 — `SendMessage`
 
-`say`와 별개로, Claude Code 자체의 cross-session messaging도 파인마다 켜져 있다.
-팀 밖에서 도는 일반 Claude 세션이 파인에 직접 지시할 때 쓴다.
+`say`와 별개로, Claude Code 자체의 cross-session messaging도 파인마다 켜져 있어
+팀 밖에서 도는 일반 Claude 세션이 파인에 직접 지시하는 것도 가능은 하다.
+다만 실제로는 lead 파인에 `tmux attach`로 붙어 명령하는 경우가 대부분이고,
+이 경로는 lead를 거치지 않고 특정 파인 하나를 바로 찔러야 할 때 정도에 쓴다.
 
 - 각 파인이 자기 인박스 소켓을 바인딩하므로 `/list-agents`에 6개가 그대로 보임
 - 이름은 cwd 기반 자동 생성 — `lead-1f`, `developer-a7` 형태 (tmux 파인 번호도 함께 표시됨)
