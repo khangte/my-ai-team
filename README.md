@@ -102,12 +102,13 @@ Docker 환경의 특이점:
 2. 도구 준비
    - rtk 훅 초기화
    - gstack 스킬(`/office-hours`, `/review` 등 슬래시 커맨드) 설치
-3. 역할별 스킬 제한 — `.team/{역할}/.claude/skills`에 그 역할이 쓸 스킬만 링크
-4. tmux 세션 구성
+3. 필수 마켓플레이스 플러그인(superpowers/serena/ponytail/caveman) 설치 — 역할별 활성화는 5번이 담당
+4. 역할별 스킬 제한 — `.team/{역할}/.claude/skills`에 그 역할이 쓸 스킬만 링크
+5. tmux 세션 구성
    - 팀 인원 수만큼 파인 분할
    - 파인 타이틀은 대문자로 표시 (예: `LEAD`, `ARCHITECT`)
-5. 각 파인에서 지정 모델로 `claude --dangerously-skip-permissions` 실행 — 역할 지침·훅 설정 주입
-6. 완료 후 `tmux attach -t [세션명]` 접속 안내
+6. 각 파인에서 지정 모델로 `claude --dangerously-skip-permissions` 실행 — 역할 지침·훅 설정·플러그인 활성화 주입
+7. 완료 후 `tmux attach -t [세션명]` 접속 안내
 
 ### 세션 확인 및 종료
 
@@ -203,12 +204,12 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 
 `say`와의 차이:
 
-| | `say` | `SendMessage` |
-| --- | --- | --- |
-| 전달 방식 | tmux 입력창에 타이핑 | 세션 간 소켓 |
+|                       | `say`                        | `SendMessage`                                            |
+| --------------------- | ---------------------------- | -------------------------------------------------------- |
+| 전달 방식             | tmux 입력창에 타이핑         | 세션 간 소켓                                             |
 | 수신 파인이 보는 형태 | 사람이 친 것과 **구분 불가** | `<cross-session-message from=...>` 태그 + 신뢰 안내 동반 |
-| 유휴 대기 큐 | 있음 | 없음 (도구 호출 사이 삽입) |
-| 훅에서 발신 | 가능 (셸 스크립트) | 불가 (도구 호출) |
+| 유휴 대기 큐          | 있음                         | 없음 (도구 호출 사이 삽입)                               |
+| 훅에서 발신           | 가능 (셸 스크립트)           | 불가 (도구 호출)                                         |
 
 제약:
 
@@ -361,9 +362,29 @@ $PROJECT_DIR/.claude-logs/
 
 - claude 빌트인 스킬
 - `$PROJECT_DIR/.claude/skills`의 공용 스킬
-- 위 둘은 모든 파인이 그대로 사용, 자세한 근거와 예외는 `setup-team.sh`의 `[1.6/5]` 섹션 주석 참조
+- 위 둘은 모든 파인이 그대로 사용, 자세한 근거와 예외는 `setup-team.sh`의 `[4/7]` 섹션 주석 참조
 
-실제 절감량과 토큰 비용 발생 지점은 [docs/token-cost.md](docs/token-cost.md) 참조.
+스킬 제한 절감량은 [docs/token-cost.md](docs/token-cost.md) 참조.
+
+## 역할별 플러그인 활성화
+
+- 문제: caveman·ponytail·serena는 유저 전역 `~/.claude/settings.json`의 `enabledPlugins`로 켜지는데,
+  파인은 `--setting-sources project`로 뜨는 탓에 이 전역 설정을 못 읽음 → 방치하면 **세 플러그인이
+  파인에서 전혀 걸리지 않음**(실측 확인)
+- 해결: `setup-team.sh`의 `[3/7]`이 플러그인을 설치하고, `start_claude_in_pane()`이 `--settings`에
+  `enabledPlugins`·`extraKnownMarketplaces`를 역할별로 명시 주입(`PLUGIN_ROLES` 배열이 배분을 결정)
+
+| 플러그인    | 배분                          | 이유                                                                                                                                                       |
+| ----------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| caveman     | 전 파인                       | 고정비가 작고, 파인 5개가 응답을 압축한 만큼 lead가 입력에서 이득을 회수하는 구조라 일부만 켜면 그 효과가 샘                                               |
+| ponytail    | 전 파인                       | 고정비가 작고 효과가 역할을 가리지 않음                                                                                                                    |
+| serena      | developer·reviewer만          | 고정비가 가장 큼(MCP 툴 정의 30개). lead·researcher·designer·architect는 심볼 단위 코드 탐색을 쓸 일이 없어 죽은 무게                                      |
+| superpowers | 없음(`enabledPlugins` 미주입) | 위 "superpowers 스킬" 절대로 `[4/7]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 16개가 통째로 들어와 선별이 무의미해짐 |
+
+`claude plugin enable`은 부르지 않는다 — 유저 전역 `settings.json`을 고쳐 팀 밖 세션까지 건드리는데,
+파인 활성화는 `--settings`가 이미 담당하므로 불필요하다.
+
+실측 고정비, PATH 관련 함정(활성화가 조용히 실패하는 경우)은 [docs/token-cost.md](docs/token-cost.md) 참조.
 
 ## Remote Control — 폰으로 lead 파인 제어
 
