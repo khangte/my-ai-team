@@ -400,6 +400,8 @@ declare -A PLUGIN_MARKETPLACES=(
     [ponytail]="DietrichGebert/ponytail"
     [caveman]="JuliusBrussee/caveman"
 )
+# 아래 PLUGIN_ROLES의 선언 순서는 읽기 편하라고 맞춰둔 것일 뿐이다.
+# bash 연관 배열은 해시 순으로 순회하므로 설치·활성화 순서와는 무관하다.
 
 # 설치할 플러그인 → 그 플러그인을 켤 역할 (plugin@marketplace 형식으로 소스를
 # 못 박는다 — 같은 이름이 여러 마켓플레이스에 있을 때 엉뚱한 쪽이 깔리는 것을 막는다).
@@ -430,10 +432,10 @@ declare -A PLUGIN_MARKETPLACES=(
 # 심볼릭 링크하므로 enabledPlugins 없이도 역할별로 이미 걸린다. 여기서 또 켜면
 # 스킬 16개가 통째로 들어와 [4/7]의 선별이 무의미해진다.
 declare -A PLUGIN_ROLES=(
+    ["superpowers@claude-plugins-official"]=""
+    ["serena@claude-plugins-official"]="developer reviewer"
     ["ponytail@ponytail"]="*"
     ["caveman@caveman"]="*"
-    ["serena@claude-plugins-official"]="developer reviewer"
-    ["superpowers@claude-plugins-official"]=""
 )
 
 for mp in "${!PLUGIN_MARKETPLACES[@]}"; do
