@@ -5,6 +5,8 @@
 
 ## 구조
 
+![팀 구조: lead가 배분하고 architect·researcher·designer·developer·reviewer 5개 역할이 병렬로 붙는다](images/team-architecture.svg)
+
 ```
 CLAUDE.md          모든 파인 공통 규칙 요약 + 상세 문서 포인터 (팀 구성·통신·로깅·rtk — 역할 무관)
 team/              파인별 역할 지시서 + 팀 구성 (--append-system-prompt로 주입, 프로젝트별 오버라이드 가능)
