@@ -9,7 +9,7 @@
 #   [1] rtk 훅을 전역(-g) 초기화
 #   [2] gstack 스킬(~/.claude/skills/gstack)을 clone/pull 및 setup
 #       (CLAUDE.md의 "Skill routing"이 참조하는 /office-hours 등 슬래시 커맨드 제공)
-#   [3] 필수 마켓플레이스 플러그인 설치·활성화
+#   [3] 필수 마켓플레이스 플러그인 설치 (역할별 활성화는 [7]의 --settings가 담당)
 #   [4] 역할별 스킬 제한 디렉터리(.team/{역할}/.claude/skills) 구성
 #   [5] 기존 tmux 세션 정리
 #   [6] MEMBER_NAMES/MEMBER_MODELS 배열 기준으로 파인을 분할하고 이름 부여
@@ -183,12 +183,43 @@ start_claude_in_pane() {
     # accept로 고정해 그 경로를 열어둔다. say는 이 설정과 무관하게 그대로 동작한다.
     local inbound_json="\"crossSessionInbound\":\"accept\""
 
+    # 플러그인 활성화도 --settings로 명시 주입한다. enabledPlugins·
+    # extraKnownMarketplaces는 유저 전역 settings.json에만 있어서,
+    # --setting-sources project로 뜨는 파인에서는 통째로 무시되기 때문이다
+    # (실측: 그냥 두면 caveman·ponytail·serena가 파인에서 전혀 안 걸린다).
+    # rtk 훅을 여기서 다시 넣는 것과 같은 이유·같은 패턴이다.
+    #
+    # 어떤 역할에 무엇을 주는지는 [3/7]의 PLUGIN_ROLES가 정한다.
+    local plugins_json=""
+    if [ -n "$role" ]; then
+        local enabled_entries=() marketplace_entries=() seen_marketplaces=" "
+        for plugin in "${!PLUGIN_ROLES[@]}"; do
+            # 값이 "*"이면 전 파인, 아니면 공백 구분 역할 목록에 있을 때만 준다.
+            local roles="${PLUGIN_ROLES[$plugin]}"
+            if [ "$roles" != "*" ] && [[ " $roles " != *" $role "* ]]; then
+                continue
+            fi
+            enabled_entries+=("\"${plugin}\":true")
+            # plugin@marketplace 에서 마켓플레이스 이름만 떼어 출처를 함께 싣는다.
+            # 출처를 빼면 파인이 마켓플레이스를 몰라 플러그인을 못 찾는다.
+            local mp="${plugin##*@}"
+            if [[ "$seen_marketplaces" != *" $mp "* ]]; then
+                marketplace_entries+=("\"${mp}\":{\"source\":{\"source\":\"github\",\"repo\":\"${PLUGIN_MARKETPLACES[$mp]}\"}}")
+                seen_marketplaces+="$mp "
+            fi
+        done
+        if [ ${#enabled_entries[@]} -gt 0 ]; then
+            local IFS=,
+            plugins_json="\"enabledPlugins\":{${enabled_entries[*]}},\"extraKnownMarketplaces\":{${marketplace_entries[*]}},"
+        fi
+    fi
+
     local settings_arg=""
     if [ "$role" = "lead" ]; then
         # lead는 Stop 훅을 받으면 안 된다 — 종료 신호의 수신처가 lead 자신(:0.0)이라
         # 자기 응답이 끝날 때마다 스스로에게 신호를 보내 무한 루프가 된다.
         # 따라서 Stop을 뺀 나머지(PreToolUse·UserPromptSubmit)만 넣는다.
-        local lead_settings_json="{${inbound_json},\"hooks\":{${pretooluse_json},${userprompt_json}}}"
+        local lead_settings_json="{${plugins_json}${inbound_json},\"hooks\":{${pretooluse_json},${userprompt_json}}}"
         local lead_settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$lead_settings_json" > "$lead_settings_file"
@@ -202,7 +233,7 @@ start_claude_in_pane() {
         # JSON 문자열로 들어가므로 큰따옴표는 \" 로 이스케이프한다(작은따옴표는 JSON에서 무해).
         # 훅 커맨드는 이 스크립트가 만드는 고정 문자열이라 이스케이프 대상이 이것뿐이다.
         local hook_cmd="if [ -f '${marker}' ]; then rm -f '${marker}'; else ${TEAM_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\\\"; fi"
-        local settings_json="{${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json},${userprompt_json}}}"
+        local settings_json="{${plugins_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json},${userprompt_json}}}"
         local settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$settings_json" > "$settings_file"
@@ -345,10 +376,12 @@ fi
 # 아래 [4/7]의 SUPERPOWERS_SETS가 참조하는 superpowers 스킬이 여기서 깔리고,
 # caveman/ponytail은 응답 스타일 규칙을, serena는 심볼 단위 코드 탐색 MCP를 제공한다.
 #
+# 여기서는 설치까지만 한다. 파인별 활성화는 start_claude_in_pane이 --settings에
+# enabledPlugins를 실어 처리한다 — 파인은 --setting-sources project로 뜨는 탓에
+# 유저 전역 settings.json의 enabledPlugins를 못 읽기 때문이다.
+#
 # 멱등성: `claude plugin install`은 이미 설치돼 있으면 그 사실만 알리고 성공으로
-# 끝나고, `enable`도 이미 켜져 있으면 메시지만 내고 exit 0이다. 따라서 재실행에
-# 안전하다. install 뒤에 enable을 붙이는 이유는 설치돼 있어도 disabled 상태일 수
-# 있기 때문이다(claude plugin list의 Status 참고).
+# 끝나므로 재실행에 안전하다.
 echo -e "\n${YELLOW}[3/7] 필수 플러그인 설치...${NC}"
 
 # 마켓플레이스 이름 → GitHub 리포. 공식 마켓플레이스가 아닌 것은 먼저 등록해야
@@ -359,14 +392,39 @@ declare -A PLUGIN_MARKETPLACES=(
     [caveman]="JuliusBrussee/caveman"
 )
 
-# 설치할 플러그인 (plugin@marketplace 형식으로 소스를 못 박는다 — 같은 이름이
-# 여러 마켓플레이스에 있을 때 엉뚱한 쪽이 깔리는 것을 막는다).
-REQUIRED_PLUGINS=(
-    "superpowers@claude-plugins-official"
-    "serena@claude-plugins-official"
-    "ponytail@ponytail"
-    "caveman@caveman"
-
+# 설치할 플러그인 → 그 플러그인을 켤 역할 (plugin@marketplace 형식으로 소스를
+# 못 박는다 — 같은 이름이 여러 마켓플레이스에 있을 때 엉뚱한 쪽이 깔리는 것을 막는다).
+#
+# 값의 의미:
+#   "*"          모든 파인에서 켠다
+#   "a b"        공백으로 구분된 해당 역할에서만 켠다
+#   ""           설치만 하고 enabledPlugins에는 넣지 않는다
+#
+# 배분 근거는 [4/7]의 스킬 제한과 같다 — 파인 6개 × 매 턴이라 고정비가 크므로
+# 쓰지 않을 파인에는 주지 않는다. 실측한 파인당 고정비:
+#   ponytail  ~2.2K tok (스킬 frontmatter ~0.9K + SessionStart 주입 ~1.3K)
+#   caveman   ~3.9K tok (스킬 frontmatter ~2.8K + SessionStart 주입 ~1.0K)
+#   serena    ~6K tok   (MCP 툴 정의 30개. 스킬이 없어 plugin details에는 안 잡힌다)
+#
+# ponytail·caveman은 전 파인에 준다. 고정비가 작고 효과가 역할을 가리지 않는데,
+# 특히 caveman은 켠 파인이 아니라 lead가 이득을 회수한다 — 파인 5개가 보고를
+# 압축하면 그게 전부 lead 입력으로 들어가기 때문이다(lead는 모든 보고가 모여
+# 컨텍스트가 가장 빨리 불어나는 파인이다. MEMBER_MODELS 주석 참조).
+# 일부만 켜면 그만큼 lead 압축 효과가 샌다.
+#
+# serena는 고정비가 가장 크고 용도가 명확히 갈려 코드를 직접 다루는 둘에만 준다.
+# lead는 코드를 안 쓰고, researcher는 웹 조사, designer는 디자인이 주 업무라
+# 심볼 단위 코드 탐색이 죽은 무게가 된다. architect도 뺐다 — 설계 시 기존 구조
+# 파악에 쓸 여지는 있지만 Opus라 토큰 단가가 가장 비싸다.
+#
+# superpowers는 빈 값이다. [4/7]이 플러그인 캐시에서 스킬 디렉터리를 직접
+# 심볼릭 링크하므로 enabledPlugins 없이도 역할별로 이미 걸린다. 여기서 또 켜면
+# 스킬 16개가 통째로 들어와 [4/7]의 선별이 무의미해진다.
+declare -A PLUGIN_ROLES=(
+    ["ponytail@ponytail"]="*"
+    ["caveman@caveman"]="*"
+    ["serena@claude-plugins-official"]="developer reviewer"
+    ["superpowers@claude-plugins-official"]=""
 )
 
 for mp in "${!PLUGIN_MARKETPLACES[@]}"; do
@@ -374,10 +432,12 @@ for mp in "${!PLUGIN_MARKETPLACES[@]}"; do
     claude plugin marketplace add "${PLUGIN_MARKETPLACES[$mp]}" >/dev/null 2>&1 || true
 done
 
-for plugin in "${REQUIRED_PLUGINS[@]}"; do
+# 설치만 한다. `claude plugin enable`은 부르지 않는다 — 그건 유저 전역
+# settings.json을 고쳐 팀 밖 세션에까지 영향을 주는데, 파인의 활성화는
+# start_claude_in_pane이 --settings로 따로 넣으므로 필요하지도 않다.
+for plugin in "${!PLUGIN_ROLES[@]}"; do
     if claude plugin install "$plugin" >/dev/null 2>&1; then
-        claude plugin enable "$plugin" >/dev/null 2>&1 || true
-        echo "  ✅ $plugin"
+        echo "  ✅ $plugin → ${PLUGIN_ROLES[$plugin]:-(설치만)}"
     else
         echo -e "${YELLOW}  ⚠️  $plugin 설치 실패 (수동 확인: claude plugin install $plugin)${NC}"
     fi
