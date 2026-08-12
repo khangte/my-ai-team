@@ -15,6 +15,7 @@ team/              파인별 역할 지시서 + 팀 구성 (--append-system-prom
   ├ log-hook         프롬프트·툴 사용을 .claude-logs/{역할}.jsonl에 기록하는 훅
   └ {역할}.md         역할별 지침 (lead/architect/researcher/designer/developer/reviewer)
 docs/              설계 배경·실측 분석 문서
+  └ architect-review/ architect의 리뷰 판정 문서 ({순번}_{주제}.md)
 Dockerfile         팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
 setup-docker.sh    Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
 setup-native.sh    WSL 등 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
