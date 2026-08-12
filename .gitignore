@@ -25,3 +25,6 @@ Thumbs.db
 # log-hook이 쌓는 프롬프트·툴 로그 (런타임 생성물)
 # 디렉터리 안에도 자체 .gitignore가 생기지만, 여기 명시해 의도를 드러낸다.
 .claude-logs/
+
+# graphify 스킬 산출물 (런타임 생성물)
+graphify-out/
