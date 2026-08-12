@@ -7,12 +7,14 @@
 #   [0] tmux/claude/rtk/bun 등 사전 요구사항 및 claude 로그인 여부 확인
 #       (미로그인 시 claude를 실행해 /login을 안내하고 완료를 대기)
 #   [1] rtk 훅을 전역(-g) 초기화
-#   [1.5] gstack 스킬(~/.claude/skills/gstack)을 clone/pull 및 setup
-#         (CLAUDE.md의 "Skill routing"이 참조하는 /office-hours 등 슬래시 커맨드 제공)
-#   [2] 기존 tmux 세션("team1") 정리
-#   [3] MEMBER_NAMES/MEMBER_MODELS 배열 기준으로 파인을 분할하고 이름 부여
-#   [4] 각 파인에서 지정된 모델로 claude를 실행(최초 로그인 시 trust/terms 다이얼로그 자동 처리)
-#   [4.5] tmux가 파인 타이틀을 스피너로 덮어쓰는 문제를 막기 위해 백그라운드에서 주기적으로 타이틀 재설정
+#   [2] gstack 스킬(~/.claude/skills/gstack)을 clone/pull 및 setup
+#       (CLAUDE.md의 "Skill routing"이 참조하는 /office-hours 등 슬래시 커맨드 제공)
+#   [3] 필수 마켓플레이스 플러그인 설치·활성화
+#   [4] 역할별 스킬 제한 디렉터리(.team/{역할}/.claude/skills) 구성
+#   [5] 기존 tmux 세션 정리
+#   [6] MEMBER_NAMES/MEMBER_MODELS 배열 기준으로 파인을 분할하고 이름 부여
+#   [7] 각 파인에서 지정된 모델로 claude를 실행(최초 로그인 시 trust/terms 다이얼로그 자동 처리)
+#       및 tmux가 파인 타이틀을 스피너로 덮어쓰는 문제를 막기 위한 타이틀 워처 기동
 #
 # 사용:
 #   ./setup-team.sh [프로젝트_경로]
@@ -101,8 +103,8 @@ start_claude_in_pane() {
     # 따옴표·개행이 셸 파싱과 충돌하는 문제도 함께 사라진다.
     # team/config.sh와 동일한 오버라이드 규칙: 프로젝트 루트에 team/{role}.md가
     # 있으면 그쪽을 우선 사용하고, 없으면 이 저장소의 기본값으로 폴백한다.
-    # 역할별 스킬 제한([1.6/5])이 만든 디렉터리가 있으면 그곳을 cwd로 삼고
-    # 유저 전역·플러그인 스킬을 차단한다(빌트인 스킬은 남는다 — [1.6/5] 주석 참조).
+    # 역할별 스킬 제한([4/7])이 만든 디렉터리가 있으면 그곳을 cwd로 삼고
+    # 유저 전역·플러그인 스킬을 차단한다(빌트인 스킬은 남는다 — [4/7] 주석 참조).
     # 프로젝트 스킬 탐색은 상위로 거슬러 올라가므로
     # $PROJECT_DIR/.claude/skills 의 공용 스킬은 그대로 상속된다.
     # SKILL_SETS에 없는 역할은 $PROJECT_DIR에서 전체 스킬로 그대로 뜬다
@@ -243,8 +245,8 @@ check_login() {
     claude auth status >/dev/null 2>&1
 }
 
-# ── [0/5] 사전 요구사항 확인 ────────────────────────────────
-echo -e "${YELLOW}[0/5] 사전 요구사항 확인...${NC}"
+# ── [0/7] 사전 요구사항 확인 ────────────────────────────────
+echo -e "${YELLOW}[0/7] 사전 요구사항 확인...${NC}"
 
 MISSING=()
 command -v tmux   &>/dev/null || MISSING+=("tmux (apt-get install -y tmux)")
@@ -298,7 +300,7 @@ else
     echo -e "${GREEN}✅ 로그인 확인 완료${NC}"
 fi
 
-# ── [1/5] rtk 훅 초기화 ────────────────────────────────────
+# ── [1/7] rtk 훅 초기화 ────────────────────────────────────
 # ~/.claude 는 로그인 후 생성되고 volume(claude-home) 안에 있으므로
 # 이미지 빌드 시점이 아니라 여기(런타임)에서 1회 등록한다.
 # --auto-patch: settings.json patch 여부를 묻지 않고 자동 진행
@@ -306,7 +308,7 @@ fi
 # telemetry 동의 프롬프트가 무한 대기하는 알려진 버그(rtk-ai/rtk#1307)에 대한 안전장치
 # printf 'n\n': 위 telemetry 동의 프롬프트에 대한 응답(비동의)이며,
 # RTK_TELEMETRY_DISABLED가 무시될 경우를 대비한 이중 안전장치
-echo -e "\n${YELLOW}[1/5] rtk 훅 초기화...${NC}"
+echo -e "\n${YELLOW}[1/7] rtk 훅 초기화...${NC}"
 
 if printf 'n\n' | RTK_TELEMETRY_DISABLED=1 timeout 15 rtk init -g --auto-patch; then
     echo -e "${GREEN}✅ rtk 훅 등록 완료${NC}"
@@ -315,12 +317,12 @@ else
     echo -e "${YELLOW}   확인: rtk init --show${NC}"
 fi
 
-# ── [1.5/5] gstack 스킬 설치 ─────────────────────────────────
+# ── [2/7] gstack 스킬 설치 ─────────────────────────────────
 # CLAUDE.md의 "Skill routing"이 참조하는 /office-hours, /plan-ceo-review 등은
 # gstack(https://github.com/garrytan/gstack) 패키지가 제공한다.
 # ~/.claude 는 volume(claude-home) 안에 있어 컨테이너를 새로 만들면 사라지므로
 # 이미지 빌드 시점이 아니라 여기(런타임)에서 매번 최신 상태로 맞춘다.
-echo -e "\n${YELLOW}[1.5/5] gstack 스킬 설치...${NC}"
+echo -e "\n${YELLOW}[2/7] gstack 스킬 설치...${NC}"
 
 GSTACK_DIR="$HOME/.claude/skills/gstack"
 if [ -d "$GSTACK_DIR/.git" ]; then
@@ -335,7 +337,53 @@ else
     echo -e "${YELLOW}⚠️  gstack setup 실패 또는 timeout (수동 확인 필요: cd $GSTACK_DIR && ./setup)${NC}"
 fi
 
-# ── [1.6/5] 역할별 스킬 제한 ─────────────────────────────────
+# ── [3/7] 필수 플러그인 설치 ─────────────────────────────────
+# 마켓플레이스 플러그인은 ~/.claude/plugins/ 아래에 설치되는데, 이 경로는
+# volume(claude-home) 안이라 컨테이너를 새로 만들면 사라진다. gstack과 같은
+# 이유로 런타임에 매번 맞춘다.
+#
+# 아래 [4/7]의 SUPERPOWERS_SETS가 참조하는 superpowers 스킬이 여기서 깔리고,
+# caveman/ponytail은 응답 스타일 규칙을, serena는 심볼 단위 코드 탐색 MCP를 제공한다.
+#
+# 멱등성: `claude plugin install`은 이미 설치돼 있으면 그 사실만 알리고 성공으로
+# 끝나고, `enable`도 이미 켜져 있으면 메시지만 내고 exit 0이다. 따라서 재실행에
+# 안전하다. install 뒤에 enable을 붙이는 이유는 설치돼 있어도 disabled 상태일 수
+# 있기 때문이다(claude plugin list의 Status 참고).
+echo -e "\n${YELLOW}[3/7] 필수 플러그인 설치...${NC}"
+
+# 마켓플레이스 이름 → GitHub 리포. 공식 마켓플레이스가 아닌 것은 먼저 등록해야
+# install이 플러그인을 찾을 수 있다.
+declare -A PLUGIN_MARKETPLACES=(
+    [claude-plugins-official]="anthropics/claude-plugins-official"
+    [ponytail]="DietrichGebert/ponytail"
+    [caveman]="JuliusBrussee/caveman"
+)
+
+# 설치할 플러그인 (plugin@marketplace 형식으로 소스를 못 박는다 — 같은 이름이
+# 여러 마켓플레이스에 있을 때 엉뚱한 쪽이 깔리는 것을 막는다).
+REQUIRED_PLUGINS=(
+    "superpowers@claude-plugins-official"
+    "serena@claude-plugins-official"
+    "ponytail@ponytail"
+    "caveman@caveman"
+
+)
+
+for mp in "${!PLUGIN_MARKETPLACES[@]}"; do
+    # 이미 등록돼 있으면 add가 실패하지만 무해하므로 실패를 삼킨다.
+    claude plugin marketplace add "${PLUGIN_MARKETPLACES[$mp]}" >/dev/null 2>&1 || true
+done
+
+for plugin in "${REQUIRED_PLUGINS[@]}"; do
+    if claude plugin install "$plugin" >/dev/null 2>&1; then
+        claude plugin enable "$plugin" >/dev/null 2>&1 || true
+        echo "  ✅ $plugin"
+    else
+        echo -e "${YELLOW}  ⚠️  $plugin 설치 실패 (수동 확인: claude plugin install $plugin)${NC}"
+    fi
+done
+
+# ── [4/7] 역할별 스킬 제한 ─────────────────────────────────
 # gstack setup은 스킬 56개를 ~/.claude/skills/ 아래 전부 깔고, 그 frontmatter
 # (약 22.8KB ≈ 5.7K 토큰)는 파인이 뜰 때마다 시스템 프롬프트로 들어간다.
 # 파인 6개 × 매 턴이므로 고정비가 크다. 실제로는 researcher가 /ios-qa를,
@@ -361,7 +409,7 @@ fi
 # cwd가 홈 디렉터리 아래이면 그대로 로드된다(실측). 파인 cwd는 항상
 # $PROJECT_DIR/.team/{역할} 이므로 전역 규칙은 계속 들어온다.
 # 즉 여기서 줄어드는 것은 gstack 스킬 frontmatter와 플러그인·에이전트 정의다.
-echo -e "\n${YELLOW}[1.6/5] 역할별 스킬 제한...${NC}"
+echo -e "\n${YELLOW}[4/7] 역할별 스킬 제한...${NC}"
 
 # 역할 → 허용 스킬 목록. 값이 비면 gstack 스킬을 하나도 주지 않는다는 뜻이고,
 # 키 자체가 없으면 제한하지 않는다(전역 스킬 전체 유지).
@@ -444,16 +492,16 @@ done
 
 echo -e "${GREEN}✅ 역할별 스킬 제한 완료${NC}"
 
-# ── [2/5] 기존 세션 정리 ────────────────────────────────────
-echo -e "\n${YELLOW}[2/5] 기존 세션 초기화...${NC}"
+# ── [5/7] 기존 세션 정리 ────────────────────────────────────
+echo -e "\n${YELLOW}[5/7] 기존 세션 초기화...${NC}"
 
 tmux has-session -t "$SESSION" 2>/dev/null && {
     tmux kill-session -t "$SESSION"
     echo "  기존 '$SESSION' 세션 종료"
 }
 
-# ── [3/5] TMUX 세션 & 레이아웃 구성 ────────────────────────
-echo -e "\n${YELLOW}[3/5] TMUX 세션 & 레이아웃 구성...${NC}"
+# ── [6/7] TMUX 세션 & 레이아웃 구성 ────────────────────────
+echo -e "\n${YELLOW}[6/7] TMUX 세션 & 레이아웃 구성...${NC}"
 
 # -x 220 -y 50: main-vertical 레이아웃에서 파인 6개가 각각 읽을 만한 너비를
 # 확보하기 위한 최소 터미널 크기. tmux는 접속 클라이언트 크기로 윈도우를 다시
@@ -492,8 +540,8 @@ tmux set-option -t "$SESSION" mouse on
 
 echo "  ✅ 레이아웃 구성 완료 (${PANE_COUNT} panes)"
 
-# ── [4/5] Claude 자동 실행 ──────────────────────────────────
-echo -e "\n${YELLOW}[4/5] Claude 실행 중... (파인당 최대 1분)${NC}"
+# ── [7/7] Claude 자동 실행 ──────────────────────────────────
+echo -e "\n${YELLOW}[7/7] Claude 실행 중... (파인당 최대 1분)${NC}"
 
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
     echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}): "
@@ -502,7 +550,7 @@ for ((pane = 0; pane < PANE_COUNT; pane++)); do
     echo -e "${GREEN}✅ 실행 완료${NC}"
 done
 
-# ── [4.5/5] 파인 타이틀 워처 ──────────────────────────────────
+# ── 파인 타이틀 워처 ──────────────────────────────────────────
 # Claude Code가 스피너 표시용 OSC 이스케이프 시퀀스로 파인 타이틀을
 # 계속 덮어쓰기 때문에 (2026-07 기준 공식 비활성화 옵션 없음,
 # 관련 이슈: anthropics/claude-code#31107, #21677),
@@ -523,7 +571,7 @@ done
 disown
 echo "  ✅ 파인 타이틀 워처 시작 (PID: $!)"
 
-# ── [5/5] 완료 ──────────────────────────────────────────────
+# ── 완료 ────────────────────────────────────────────────────
 echo -e "\n${GREEN}"
 echo "  ╔══════════════════════════════════════╗"
 echo "  ║   ✅ 팀 환경 구성 완료!              ║"
