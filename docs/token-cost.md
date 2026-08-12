@@ -60,7 +60,7 @@ Bash 호출 한 번의 비용은 그 명령의 결과 토큰이 아니라, **그
 
 ### 1. 역할별 스킬 제한 — 턴당 고정비
 
-`setup-team.sh` `[1.6/5]` 섹션.
+`setup-team.sh` `[4/7]` 섹션.
 
 gstack setup은 스킬 56개를 `~/.claude/skills/`에 전부 깐다. 그 frontmatter는
 약 **22.8KB ≈ 5.7K 토큰**이고, 파인이 뜰 때마다 시스템 프롬프트에 들어간다.
@@ -105,7 +105,7 @@ lead는 직접 작업하지 않고 배분·수합만 하지만, **모든 보고�
 
 ### 4. rtk 출력 압축
 
-`setup-team.sh` `[1/5]` 섹션이 `rtk init -g --auto-patch`로 훅을 등록한다.
+`setup-team.sh` `[1/7]` 섹션이 `rtk init -g --auto-patch`로 훅을 등록한다.
 평범한 `git status`·`ls`·`cat`은 harness가 `rtk git status` 형태로 재작성하므로
 명령 앞에 `rtk`를 직접 붙일 필요는 없다.
 
@@ -113,6 +113,47 @@ lead는 직접 작업하지 않고 배분·수합만 하지만, **모든 보고�
 `start_claude_in_pane()`이 `PreToolUse`(rtk 재작성 훅)를 `--settings`로 **모든
 파인에 명시 주입**한다. lead도 예외가 아니다 — lead는 Stop 훅만 제외된다
 (종료 신호의 수신처가 lead 자신이라 무한 루프가 되기 때문).
+
+### 5. 역할별 플러그인 활성화 — 턴당 고정비
+
+`setup-team.sh` `[3/7]` 섹션의 `PLUGIN_ROLES`, 활성화는 `start_claude_in_pane()`.
+
+caveman·ponytail·serena는 유저 전역 `~/.claude/settings.json`의
+`enabledPlugins`로 켜진다. 그런데 파인은 `--setting-sources project`로 뜨는
+탓에 이 전역 설정을 통째로 못 읽는다 — **방치하면 세 플러그인이 파인에서
+전혀 걸리지 않는다**(실측 확인). 그래서 스킬 제한과 같은 이유로 `--settings`에
+`enabledPlugins`·`extraKnownMarketplaces`를 명시 주입한다.
+
+실측 파인당 고정비:
+
+| 플러그인 | 고정비 | 구성 |
+| --- | --- | --- |
+| ponytail | ~2.2K tok | 스킬 frontmatter ~0.9K + SessionStart 주입 ~1.3K |
+| caveman | ~3.9K tok | 스킬 frontmatter ~2.8K + SessionStart 주입 ~1.0K |
+| serena | ~6K tok | MCP 툴 정의 30개 (스킬이 없어 `claude plugin details`에는 안 잡힌다) |
+
+배분은 전 파인 일괄이 아니라 역할별 차등이다 — 파인 6개 × 매 턴이라 고정비가
+크므로 쓰지 않을 파인에는 주지 않는다는, `[4/7]` 스킬 제한과 동일한 논리다.
+
+- **ponytail·caveman → 전 파인.** 고정비가 작고 효과가 역할을 가리지 않는다.
+  특히 caveman은 **켠 파인이 아니라 lead가 이득을 회수하는 구조**다 — 파인 5개가
+  응답을 압축하면 그 보고가 전부 lead 입력으로 들어가기 때문이다(lead는 모든
+  보고가 모여 컨텍스트가 가장 빨리 불어나는 파인, 위 "3. lead 모델 선택" 참조).
+  일부 파인만 켜면 그만큼 lead 압축 효과가 샌다.
+- **serena → developer·reviewer만.** 고정비가 가장 크고 용도가 명확히 갈린다.
+  lead는 코드를 안 쓰고, researcher는 웹 조사, designer는 디자인이 주 업무라
+  심볼 단위 코드 탐색이 죽은 무게다. architect도 뺐다 — 설계 시 기존 구조 파악에
+  쓸 여지는 있지만 Opus라 토큰 단가가 가장 비싸다.
+- **superpowers → enabledPlugins 없음.** `[4/7]`이 플러그인 캐시에서 스킬
+  디렉터리를 역할별로 직접 심볼릭 링크하므로 이미 걸려 있다. 여기서 또 켜면
+  스킬 16개가 통째로 들어와 `[4/7]`의 선별이 무의미해진다.
+
+**함정 하나— 설정이 아니라 실행 환경이 원인인 실패.** caveman·ponytail의
+SessionStart 훅은 `node`로, `team/log-hook`은 `python3`로 돈다. 이 스크립트가
+`export PATH=...`로 만드는 non-interactive 셸에 이 인터프리터가 없으면 훅이
+**조용히(non-blocking) 실패**해 해당 파인만 플러그인이 안 걸린 것처럼 보인다
+(실측: lead 파인에서 재현). 원인은 PATH 보강이 rtk·claude·bun만 챙기고
+node·python3를 빠뜨린 것 — 지금은 nvm 최신 버전과 시스템 경로를 함께 넣는다.
 
 ## 남은 레버와 한계
 
@@ -127,5 +168,5 @@ lead는 직접 작업하지 않고 배분·수합만 하지만, **모든 보고�
 ## 참고
 
 - 재현 명령: `rtk gain`, `rtk gain --history`, `rtk discover`
-- 관련 코드: `setup-team.sh` `[1/5]`, `[1.6/5]`, `start_claude_in_pane()`
+- 관련 코드: `setup-team.sh` `[1/7]`, `[3/7]`(`PLUGIN_ROLES`), `[4/7]`, `start_claude_in_pane()`
 - 관련 문서: README "역할별 스킬 제한", "Stop 훅 — 보고 누락 방지"
