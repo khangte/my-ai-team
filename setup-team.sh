@@ -568,6 +568,14 @@ echo -e "\n${YELLOW}[5/7] 기존 세션 초기화...${NC}"
 
 tmux has-session -t "$SESSION" 2>/dev/null && {
     tmux kill-session -t "$SESSION"
+    # kill-session은 요청만 던지고 바로 리턴한다. tmux 서버가 소켓 정리를
+    # 끝내기 전에 [6/7]의 new-session -s "$SESSION"이 같은 이름으로 뜨면
+    # 레이스로 실패하는 경우가 실측됐다(set -e라 스크립트 전체가 죽는다).
+    # has-session이 실제로 false를 반환할 때까지 짧게 폴링해 정리 완료를 기다린다.
+    for _ in $(seq 1 20); do
+        tmux has-session -t "$SESSION" 2>/dev/null || break
+        sleep 0.2
+    done
     echo "  기존 '$SESSION' 세션 종료"
 }
 
