@@ -29,7 +29,16 @@ set -e
 # ~/.bashrc가 자동으로 로드되지 않는다. rtk/claude/bun이 어디 설치되어 있든
 # (~/.local/bin, /opt/rtk-bin, /opt/npm-global/bin, /opt/bun/bin 등) 찾을 수 있도록
 # 여기서 명시적으로 PATH에 추가한다.
-export PATH="$HOME/.local/bin:/opt/rtk-bin:/opt/npm-global/bin:/opt/bun/bin:$HOME/.bun/bin:$PATH"
+#
+# node·python3도 반드시 포함해야 한다. 이 PATH는 파인이 그대로 물려받고,
+# 파인의 훅은 여기서 인터프리터를 찾기 때문이다:
+#   node    — caveman·ponytail의 SessionStart 훅 (없으면 활성화가 조용히 실패해
+#             해당 파인만 플러그인이 안 걸린다. 실측으로 겪은 증상이다)
+#   python3 — team/log-hook (없으면 프롬프트·툴 로깅이 통째로 빠진다)
+# nvm으로 깐 node는 버전 디렉터리 아래에 있어 경로를 고정할 수 없으므로
+# 설치된 것 중 가장 최신 하나를 고른다(없으면 빈 값 → 시스템 node로 폴백).
+NVM_BIN=$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)
+export PATH="$HOME/.local/bin:/opt/rtk-bin:/opt/npm-global/bin:/opt/bun/bin:$HOME/.bun/bin:${NVM_BIN:+$NVM_BIN:}/usr/local/bin:/usr/bin:/bin:$PATH"
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
