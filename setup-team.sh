@@ -10,7 +10,8 @@
 #   [2] gstack 스킬(~/.claude/skills/gstack)을 clone/pull 및 setup
 #       (CLAUDE.md의 "Skill routing"이 참조하는 /office-hours 등 슬래시 커맨드 제공)
 #   [3] 필수 마켓플레이스 플러그인 설치 (역할별 활성화는 [7]의 --settings가 담당)
-#   [4] 역할별 스킬 제한 디렉터리(.team/{역할}/.claude/skills) 구성
+#   [4] 팀 공통 지침(이 리포 CLAUDE.md)을 $PROJECT_DIR/CLAUDE.md에 마커 블록으로 병합,
+#       이어서 역할별 스킬 제한 디렉터리(.team/{역할}/.claude/skills) 구성
 #   [5] 기존 tmux 세션 정리
 #   [6] MEMBER_NAMES/MEMBER_MODELS 배열 기준으로 파인을 분할하고 이름 부여
 #   [7] 각 파인에서 지정된 모델로 claude를 실행(최초 로그인 시 trust/terms 다이얼로그 자동 처리)
@@ -527,6 +528,37 @@ SUPERPOWERS_ROOT=$(
 # 홈 밖이면 전역 규칙 없이 도는 것이 오히려 이 리포의 의도(고정비 절감)에 맞다.
 # 스킬·플러그인 차단은 홈 아래에서도 정상 작동하므로 플래그 자체는 계속 필요하다
 # (실측: 플래그 있으면 스킬 11개, 없으면 232개).
+
+# ── 공통 지침을 대상 프로젝트 CLAUDE.md에 병합 ──────────────
+# 파인이 세션 시작 시 자동으로 읽는 CLAUDE.md는 $PROJECT_DIR의 것이다.
+# 이 리포의 CLAUDE.md는 $PROJECT_DIR이 여기일 때만 우연히 읽히므로, 남의
+# 프로젝트에 팀을 띄우면 팀 공통 규칙(say 사용법, cwd 함정 등)이 전달되지 않는다.
+# 그래서 마커 블록으로 삽입한다 — 사용자가 쓴 내용은 건드리지 않고 블록 안만 교체.
+# .team/ 과 달리 이 파일은 대상 리포에 남으므로 매 실행 rm 하지 않는다.
+merge_team_claude_md() {
+    local src="$SCRIPT_DIR/CLAUDE.md"
+    local dst="$PROJECT_DIR/CLAUDE.md"
+    [ -f "$src" ] || return 0
+    # 같은 파일이면(이 리포에서 팀을 띄운 경우) 자기 자신에 병합할 필요가 없다.
+    [ "$(realpath "$src")" != "$(realpath "$dst" 2>/dev/null || echo "$dst")" ] || return 0
+
+    local begin="<!-- ai-setup:team:start -->"
+    local end="<!-- ai-setup:team:end -->"
+
+    if [ -f "$dst" ] && grep -qF "$begin" "$dst"; then
+        # 기존 블록 교체. awk로 마커 사이만 갈아끼운다(사용자 내용 보존).
+        awk -v b="$begin" -v e="$end" -v f="$src" '
+            index($0, b) { print; while ((getline line < f) > 0) print line; skip = 1; next }
+            index($0, e) { skip = 0 }
+            !skip
+        ' "$dst" > "$dst.tmp" && mv "$dst.tmp" "$dst"
+    else
+        # 블록이 없으면 파일 끝에 추가(파일 자체가 없으면 새로 생성).
+        { [ -f "$dst" ] && printf '\n'; printf '%s\n' "$begin"; cat "$src"; printf '%s\n' "$end"; } >> "$dst"
+    fi
+    echo -e "${GREEN}✅ 팀 공통 지침을 $dst 에 병합${NC}"
+}
+merge_team_claude_md
 
 TEAM_SKILLS_ROOT="$PROJECT_DIR/.team"
 # 조립된 역할 지침(.prompt.md)과 훅 설정(.settings.json)을 두는 곳.
