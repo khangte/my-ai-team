@@ -8,7 +8,7 @@
 - 각 파인의 지침 = `team/{역할}.md` (프로젝트 루트에 있으면 그쪽 우선) + 작업 경로 안내
   - 조립 결과는 `.team/_runtime/{역할}.prompt.md`에 남음 — 자기 지침이 의심스러우면 그 파일을 읽는다
 - **각 파인의 cwd는 프로젝트 루트가 아니라 `.team/{역할}/`** — 파일·git 작업은 시스템 프롬프트가 알려주는 실제 프로젝트 루트 기준
-- 인원 구성·통신 규약·스킬 배정 근거는 [README.md](README.md), 역할별 통신 규칙은 `team/lead.md` 참조
+- 인원 구성·통신 규약·스킬 배정 근거는 [README.md](README.md), 역할별 통신 규칙은 [team/lead.md](team/lead.md) 참조
 
 ### 팀 밖 세션과의 통신
 
@@ -24,3 +24,7 @@
 ### rtk
 
 - `git status`·`ls`·`cat` 등은 훅이 `rtk git status` 형태로 재작성 → 직접 `rtk`를 붙이지 않는다 (메타 커맨드는 전역 RTK.md 참조)
+
+### 플러그인 활성화
+
+- caveman·ponytail·serena는 `--settings`로 역할별 명시 주입됨 (전역 `enabledPlugins` 아님) — 배분 근거는 README.md의 "역할별 플러그인 활성화" 참조
