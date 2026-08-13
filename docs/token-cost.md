@@ -76,12 +76,35 @@ gstack setup은 스킬 56개를 `~/.claude/skills/`에 전부 깐다. 그 frontm
 **이 방식으로 줄지 않는 것**(실측 확인됨):
 
 - claude 빌트인 스킬 약 15개 — 설정 소스와 무관하게 항상 로드된다
-- `~/.claude/rules/`, `~/.claude/CLAUDE.md` — cwd가 홈 디렉터리 아래이면
-  그대로 로드된다. 파인 cwd는 항상 `$PROJECT_DIR/.team/{역할}`이므로 해당된다
+- `~/.claude/rules/`, `~/.claude/CLAUDE.md` — cwd가 `$HOME` 아래이면
+  `--setting-sources project`와 **무관하게** 그대로 로드된다
 
 즉 여기서 실제로 줄어드는 것은 **gstack 스킬 frontmatter와 플러그인·에이전트
-정의**다. 전역 규칙까지 줄이려면 `~/.claude/rules/`를 홈 밖으로 옮겨야 하는데,
+정의**다.
+
+#### 전역 규칙 차단은 `$PROJECT_DIR` 위치에 달려 있다
+
+마커를 심고 실측한 결과, `--setting-sources project`의 전역 규칙 차단은
+cwd가 홈 밖일 때만 성립한다.
+
+| 파인 cwd     | 플래그 | 전역 규칙 |
+| ------------ | ------ | --------- |
+| `$HOME` 아래 | 있음   | 로드됨    |
+| `$HOME` 밖   | 있음   | 차단됨    |
+| `$HOME` 밖   | 없음   | 로드됨    |
+
+파인 cwd는 `$PROJECT_DIR/.team/{역할}`이고 `$PROJECT_DIR`는 실행 인자이므로,
+같은 스크립트라도 대상 프로젝트가 어디 있느냐에 따라 결과가 갈린다.
+
+- `~/projects/foo` 등 홈 아래 프로젝트 → 파인이 전역 규칙을 받는다
+- `/mnt/c/work/foo` 등 홈 밖 프로젝트 → 파인이 전역 규칙 없이 뜬다
+
+전역 규칙을 항상 차단하려면 `~/.claude/rules/`를 홈 밖으로 옮겨야 하는데,
 그건 이 리포 밖의 다른 Claude Code 세션에도 영향을 주므로 하지 않는다.
+
+한편 **스킬·플러그인 차단은 홈 아래에서도 정상 작동**하므로, 홈 아래
+프로젝트라고 해서 플래그를 뺄 수는 없다 — 실측상 플래그가 있으면 스킬
+11개, 없으면 232개가 실린다.
 
 ### 2. Stop 훅 중복 신호 가드 — 불필요한 턴
 
@@ -126,11 +149,11 @@ caveman·ponytail·serena는 유저 전역 `~/.claude/settings.json`의
 
 실측 파인당 고정비:
 
-| 플러그인 | 고정비 | 구성 |
-| --- | --- | --- |
-| ponytail | ~2.2K tok | 스킬 frontmatter ~0.9K + SessionStart 주입 ~1.3K |
-| caveman | ~3.9K tok | 스킬 frontmatter ~2.8K + SessionStart 주입 ~1.0K |
-| serena | ~6K tok | MCP 툴 정의 30개 (스킬이 없어 `claude plugin details`에는 안 잡힌다) |
+| 플러그인 | 고정비    | 구성                                                                 |
+| -------- | --------- | -------------------------------------------------------------------- |
+| ponytail | ~2.2K tok | 스킬 frontmatter ~0.9K + SessionStart 주입 ~1.3K                     |
+| caveman  | ~3.9K tok | 스킬 frontmatter ~2.8K + SessionStart 주입 ~1.0K                     |
+| serena   | ~6K tok   | MCP 툴 정의 30개 (스킬이 없어 `claude plugin details`에는 안 잡힌다) |
 
 배분은 전 파인 일괄이 아니라 역할별 차등이다 — 파인 6개 × 매 턴이라 고정비가
 크므로 쓰지 않을 파인에는 주지 않는다는, `[4/7]` 스킬 제한과 동일한 논리다.

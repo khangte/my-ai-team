@@ -366,6 +366,9 @@ $PROJECT_DIR/.claude-logs/
 - claude 빌트인 스킬
 - `$PROJECT_DIR/.claude/skills`의 공용 스킬
 - 위 둘은 모든 파인이 그대로 사용, 자세한 근거와 예외는 `setup-team.sh`의 `[4/7]` 섹션 주석 참조
+- 전역 규칙(`~/.claude/rules/`, `~/.claude/CLAUDE.md`)도 **대상 프로젝트가 홈 아래에 있으면** 차단되지 않고 그대로 로드됨
+  — `--setting-sources project`의 규칙 차단은 cwd가 홈 밖일 때만 성립(실측). 즉 `/mnt/c/...` 같은 홈 밖 프로젝트로 팀을
+  띄우면 파인이 전역 규칙 없이 뜨므로, 그쪽에 의존하는 지침이 있으면 프로젝트 `CLAUDE.md`로 옮겨야 함
 
 스킬 제한 절감량은 [docs/token-cost.md](docs/token-cost.md) 참조.
 
