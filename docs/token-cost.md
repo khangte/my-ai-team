@@ -118,7 +118,51 @@ cwd가 홈 밖일 때만 성립한다.
 남기고, Stop 훅은 마커가 있으면 신호를 생략하며 마커를 소비(삭제)한다.
 보고 없이 끝난 응답에서는 마커가 없으므로 신호가 정상 발송된다.
 
-### 3. lead 모델 선택 — 컨텍스트 × 단가
+### 3. 파인 간 통신에 `say`를 쓰는 것 — 턴 수
+
+`team/say`. 선택의 근거가 비용에도 걸려 있어 여기 적는다.
+
+먼저 흔한 오해 하나. **`--setting-sources project` 때문에 `say`를 쓰는 것이
+아니다.** cross-session messaging(`SendMessage`)은 파인에서도 켜져 있다 —
+`start_claude_in_pane()`이 `crossSessionInbound: accept`를 함께 주입한다.
+즉 두 방식 다 쓸 수 있는 상태이고, `say`는 기능 제약이 아니라 선택이다.
+
+실측 비교(파인 조건 재현):
+
+| 항목             | `say`              | `SendMessage`                             |
+| ---------------- | ------------------ | ----------------------------------------- |
+| 툴 정의 고정비   | 0 (Bash 재사용)    | `ListAgents`는 상시 로드, `SendMessage`는 deferred |
+| 스키마 인출      | 없음               | `ToolSearch` 1턴 + 약 2.5KB ≈ **630 tok** |
+| 발신 측 턴       | Bash 1회           | 첫 사용 시 `ToolSearch` + 본 호출로 2턴   |
+| 수신 측 오버헤드 | 메시지 텍스트만    | `<cross-session-message>` 태그 + 신뢰 안내문 동반 |
+
+`SendMessage`의 스키마는 파인에서 **deferred로 잡힌다**(실측). 세션마다 첫
+사용에 `ToolSearch` 턴이 하나 더 붙는다는 뜻이고, 위 "진짜 비용은 출력이 아니라
+입력"의 논리가 그대로 적용된다 — 늘어난 턴마다 시스템 프롬프트와 누적 대화가
+다시 태워지고, 파인 6개면 그 구조가 6벌이다.
+
+메시지당 차이는 수백 토큰 수준이라 절대량은 작다. 그래서 **`say`를 쓰는 진짜
+이유는 비용이 아니라 기능**이고, 비용은 그 선택을 뒤집지 않는다는 뜻으로만
+읽으면 된다. `say`만 가진 것 셋:
+
+1. **작업 완료를 기다리는 큐.** 둘 다 큐는 있으나 대기 기준이 다르다 —
+   `SendMessage`는 공식 스키마상 "no busy state; messages enqueue and drain at
+   the receiver's next tool round"라 **작업 도중** 도구 호출 사이에 꽂힌다.
+   `say`는 상대 파인의 `esc to interrupt`가 사라질 때까지, 즉 **작업이 끝날
+   때까지** 기다린다. 긴 작업 중인 파인에 지시가 끼어들지 않는다.
+2. **훅에서 발신 가능** — Stop 훅은 셸 스크립트라 도구 호출인 `SendMessage`를
+   부를 수단이 없다. 위 "2. Stop 훅 중복 신호 가드"가 `say` 없이는 성립하지
+   않는다. **대체 불가는 이 항목뿐이다.**
+
+전송 검증(Enter 누락·파인 오지정 감지)은 `say`에만 있지만 이건 우열이 아니다 —
+tmux 타이핑 방식이라서 필요한 보정이고, 도구 호출인 `SendMessage`에는 그런
+실패 유형 자체가 없다.
+
+따라서 현행 유지가 맞다 — 파인 간에는 `say`, `SendMessage`는 팀 밖 세션이
+특정 파인을 직접 찌를 때만. 두 방식의 기능 차이 전체는 README "팀 밖 세션에서
+파인 호출" 표 참조.
+
+### 4. lead 모델 선택 — 컨텍스트 × 단가
 
 `setup-team.sh` `MEMBER_MODELS` 배열.
 
@@ -126,7 +170,7 @@ lead는 직접 작업하지 않고 배분·수합만 하지만, **모든 보고�
 가장 빨리 불어나는 파인**이다. 비싼 모델 × 최장 컨텍스트 조합을 피해 Sonnet을
 쓰고, 깊은 판단이 필요한 architect만 Opus로 둔다.
 
-### 4. rtk 출력 압축
+### 5. rtk 출력 압축
 
 `setup-team.sh` `[1/7]` 섹션이 `rtk init -g --auto-patch`로 훅을 등록한다.
 평범한 `git status`·`ls`·`cat`은 harness가 `rtk git status` 형태로 재작성하므로
@@ -137,7 +181,7 @@ lead는 직접 작업하지 않고 배분·수합만 하지만, **모든 보고�
 파인에 명시 주입**한다. lead도 예외가 아니다 — lead는 Stop 훅만 제외된다
 (종료 신호의 수신처가 lead 자신이라 무한 루프가 되기 때문).
 
-### 5. 역할별 플러그인 활성화 — 턴당 고정비
+### 6. 역할별 플러그인 활성화 — 턴당 고정비
 
 `setup-team.sh` `[3/7]` 섹션의 `PLUGIN_ROLES`, 활성화는 `start_claude_in_pane()`.
 
@@ -161,7 +205,7 @@ caveman·ponytail·serena는 유저 전역 `~/.claude/settings.json`의
 - **ponytail·caveman → 전 파인.** 고정비가 작고 효과가 역할을 가리지 않는다.
   특히 caveman은 **켠 파인이 아니라 lead가 이득을 회수하는 구조**다 — 파인 5개가
   응답을 압축하면 그 보고가 전부 lead 입력으로 들어가기 때문이다(lead는 모든
-  보고가 모여 컨텍스트가 가장 빨리 불어나는 파인, 위 "3. lead 모델 선택" 참조).
+  보고가 모여 컨텍스트가 가장 빨리 불어나는 파인, 위 "4. lead 모델 선택" 참조).
   일부 파인만 켜면 그만큼 lead 압축 효과가 샌다.
 - **serena → developer·reviewer만.** 고정비가 가장 크고 용도가 명확히 갈린다.
   lead는 코드를 안 쓰고, researcher는 웹 조사, designer는 디자인이 주 업무라
@@ -191,5 +235,6 @@ node·python3를 빠뜨린 것 — 지금은 nvm 최신 버전과 시스템 경�
 ## 참고
 
 - 재현 명령: `rtk gain`, `rtk gain --history`, `rtk discover`
-- 관련 코드: `setup-team.sh` `[1/7]`, `[3/7]`(`PLUGIN_ROLES`), `[4/7]`, `start_claude_in_pane()`
-- 관련 문서: README "역할별 스킬 제한", "Stop 훅 — 보고 누락 방지"
+- 관련 코드: `setup-team.sh` `[1/7]`, `[3/7]`(`PLUGIN_ROLES`), `[4/7]`, `start_claude_in_pane()`, `team/say`
+- 관련 문서: README "역할별 스킬 제한", "Stop 훅 — 보고 누락 방지", "팀 밖 세션에서 파인 호출",
+  [pane-messaging.md](pane-messaging.md)
