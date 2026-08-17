@@ -142,9 +142,9 @@ start_claude_in_pane() {
         # lead에는 MEMBER_NAMES 배열 기준 배분 표를 실행 시점에 동적 생성해 이어붙인다.
         # config.sh만 바꾸면 lead.md를 손대지 않아도 배분 표가 항상 일치하게 하기 위함.
         if [ "$role" = "lead" ]; then
-            local team_table="## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 파인 | 지시 방법 |"$'\n'"| --- | --- | --- |"
+            local team_table="## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 지시 방법 |"$'\n'"| --- | --- |"
             for ((m = 1; m < ${#MEMBER_NAMES[@]}; m++)); do
-                team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | :0.$m | say :0.$m \"...\" |"
+                team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${MEMBER_NAMES[$m]} \"...\" |"
             done
             role_content="${role_content}"$'\n\n'"${team_table}"
         fi
@@ -601,6 +601,12 @@ echo -e "${GREEN}✅ 역할별 스킬 제한 완료${NC}"
 
 # ── [5/7] 기존 세션 정리 ────────────────────────────────────
 echo -e "\n${YELLOW}[5/7] 기존 세션 초기화...${NC}"
+
+# 이전 실행이 남긴 파인 타이틀 워처를 먼저 죽인다. 워처는 실행 시점의
+# MEMBER_NAMES/PANE_COUNT를 값으로 들고 도는 백그라운드 루프라, 살아남으면
+# 새 세션의 파인에 옛 구성의 이름을 덮어쓴다(팀원을 추가·삭제하면 어긋난다).
+# has-session은 최대 1초 뒤에야 false가 되므로 스스로 끝나기를 기다리면 늦다.
+pkill -f "has-session -t $SESSION" 2>/dev/null || true
 
 tmux has-session -t "$SESSION" 2>/dev/null && {
     tmux kill-session -t "$SESSION"
