@@ -602,12 +602,6 @@ echo -e "${GREEN}✅ 역할별 스킬 제한 완료${NC}"
 # ── [5/7] 기존 세션 정리 ────────────────────────────────────
 echo -e "\n${YELLOW}[5/7] 기존 세션 초기화...${NC}"
 
-# 이전 실행이 남긴 파인 타이틀 워처를 먼저 죽인다. 워처는 실행 시점의
-# MEMBER_NAMES/PANE_COUNT를 값으로 들고 도는 백그라운드 루프라, 살아남으면
-# 새 세션의 파인에 옛 구성의 이름을 덮어쓴다(팀원을 추가·삭제하면 어긋난다).
-# has-session은 최대 1초 뒤에야 false가 되므로 스스로 끝나기를 기다리면 늦다.
-pkill -f "has-session -t $SESSION" 2>/dev/null || true
-
 tmux has-session -t "$SESSION" 2>/dev/null && {
     tmux kill-session -t "$SESSION"
     # kill-session은 요청만 던지고 바로 리턴한다. tmux 서버가 소켓 정리를
@@ -628,6 +622,11 @@ echo -e "\n${YELLOW}[6/7] TMUX 세션 & 레이아웃 구성...${NC}"
 # 확보하기 위한 최소 터미널 크기. tmux는 접속 클라이언트 크기로 윈도우를 다시
 # 맞추므로, 이 값을 키워도 실제 터미널 창보다 커질 수는 없다.
 tmux new-session -d -s "$SESSION" -x 220 -y 50
+
+# 방금 만든 세션의 tmux 내부 고유 ID($0, $1, ...). 세션 이름과 달리 세션을
+# 새로 만들 때마다 달라지므로, 아래 타이틀 워처가 "이 실행이 만든 세션"만
+# 정확히 가리키는 데 쓴다(이유는 워처 주석 참조).
+SESSION_ID="$(tmux display-message -p -t "$SESSION" '#{session_id}')"
 
 # 파인을 PANE_COUNT개가 될 때까지 분할 (0번 파인은 new-session이 이미 생성)
 for ((i = 0; i < PANE_COUNT - 1; i++)); do
@@ -679,12 +678,23 @@ done
 # select-pane -T는 호출될 때마다 파인 테두리를 다시 그려 tmux가 화면을
 # 재렌더링하므로, 매초 무조건 호출하면 그 순간 한글 IME 조합 중이던 입력이
 # 씹히는 경우가 있다. 그래서 현재 타이틀이 원하는 값과 실제로 다를 때만 호출한다.
+#
+# 생존 조건과 대상은 세션 '이름'이 아니라 세션 ID($SESSION_ID)로 잡는다.
+# 워처는 실행 시점의 MEMBER_NAMES/PANE_COUNT를 값으로 들고 도는 백그라운드
+# 루프인데, 이름으로 잡으면 팀 구성을 바꿔 재실행할 때 옛 워처가 새 세션에
+# 옛 이름을 덮어쓴다: 세션을 kill해도 옛 워처는 sleep 중이라 최대 1초 뒤에야
+# has-session을 다시 확인하고, 그 사이 [6/7]이 같은 이름으로 새 세션을 만들면
+# 깨어난 옛 워처의 has-session이 새 세션에 true가 되어 계속 살아버린다.
+# (이 잔존 워처는 pkill -f로도 못 죽인다 — `( ... ) &` 서브셸은 부모의 argv를
+#  그대로 물려받아 루프 본문이 커맨드라인에 나타나지 않기 때문이다.)
+# 세션 ID는 세션을 만들 때마다 새로 발급되므로 옛 세션이 죽으면 옛 워처의
+# 조건도 확실히 false가 되고, 새 세션을 건드릴 수단 자체가 없다.
 (
-    while tmux has-session -t "$SESSION" 2>/dev/null; do
+    while tmux has-session -t "$SESSION_ID" 2>/dev/null; do
         for ((pane = 0; pane < PANE_COUNT; pane++)); do
             want="${MEMBER_NAMES[$pane]^^}"
-            current="$(tmux display-message -p -t "$SESSION:0.$pane" '#{pane_title}' 2>/dev/null)"
-            [ "$current" = "$want" ] || tmux select-pane -t "$SESSION:0.$pane" -T "$want" 2>/dev/null
+            current="$(tmux display-message -p -t "$SESSION_ID:0.$pane" '#{pane_title}' 2>/dev/null)"
+            [ "$current" = "$want" ] || tmux select-pane -t "$SESSION_ID:0.$pane" -T "$want" 2>/dev/null
         done
         sleep 1
     done
