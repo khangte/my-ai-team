@@ -35,7 +35,7 @@ set -e
 # 파인의 훅은 여기서 인터프리터를 찾기 때문이다:
 #   node    — caveman·ponytail의 SessionStart 훅 (없으면 활성화가 조용히 실패해
 #             해당 파인만 플러그인이 안 걸린다. 실측으로 겪은 증상이다)
-#   python3 — team/log-hook (없으면 프롬프트·툴 로깅이 통째로 빠진다)
+#   python3 — bin/log-hook (없으면 프롬프트·툴 로깅이 통째로 빠진다)
 # nvm으로 깐 node는 버전 디렉터리 아래에 있어 경로를 고정할 수 없으므로
 # 설치된 것 중 가장 최신 하나를 고른다(없으면 빈 값 → 시스템 node로 폴백).
 NVM_BIN=$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)
@@ -54,6 +54,7 @@ PROJECT_DIR="$(realpath "$PROJECT_DIR")"
 # team/{role}.md 지침 파일 위치. 이 스크립트(ai-setup 리포) 기준이므로 PROJECT_DIR과 무관하다.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEAM_DIR="$SCRIPT_DIR/team"
+BIN_DIR="$SCRIPT_DIR/bin"   # say·log-hook — 오버라이드 대상이 아닌 고정 스크립트
 
 # ── 팀 멤버 정보 (기본값. $PROJECT_DIR/team/config.sh가 있으면 그쪽 값으로 대체됨) ──
 declare -a MEMBER_NAMES=("lead" "architect" "researcher" "designer" "developer" "reviewer")
@@ -179,7 +180,7 @@ start_claude_in_pane() {
     # 재현에 필요하므로 Read/Edit/Write/Grep도 함께 남겨야 한다.
     # rtk 재작성 훅과는 별도 항목으로 둔다. 같은 Bash 항목에 얹으면 rtk까지
     # matcher가 넓어져 의도치 않은 도구에 재작성이 걸린다.
-    local log_cmd="${TEAM_DIR}/log-hook ${role:-unknown} '${PROJECT_DIR}'"
+    local log_cmd="${BIN_DIR}/log-hook ${role:-unknown} '${PROJECT_DIR}'"
     local pretooluse_json="\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"rtk hook claude\"}]},{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]}]"
     local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]}]"
 
@@ -242,7 +243,7 @@ start_claude_in_pane() {
         local marker="/tmp/team-say/${pane_id}"
         # JSON 문자열로 들어가므로 큰따옴표는 \" 로 이스케이프한다(작은따옴표는 JSON에서 무해).
         # 훅 커맨드는 이 스크립트가 만드는 고정 문자열이라 이스케이프 대상이 이것뿐이다.
-        local hook_cmd="if [ -f '${marker}' ]; then rm -f '${marker}'; else ${TEAM_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\\\"; fi"
+        local hook_cmd="if [ -f '${marker}' ]; then rm -f '${marker}'; else ${BIN_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\\\"; fi"
         local settings_json="{${plugins_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json},${userprompt_json}}}"
         local settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
@@ -252,9 +253,9 @@ start_claude_in_pane() {
 
     # unset CLAUDECODE: 이 스크립트 자신이 Claude Code 세션 안에서 실행 중일 경우
     # 남아있는 CLAUDECODE 환경변수가 파인 내부의 claude 실행에 영향을 주지 않도록 제거한다.
-    # PATH에 TEAM_DIR: 파인들이 `say`를 경로 없이 호출할 수 있게 한다.
+    # PATH에 BIN_DIR: 파인들이 `say`를 경로 없이 호출할 수 있게 한다.
     tmux send-keys -t "$pane" \
-        "cd '$work_dir' && unset CLAUDECODE && export PATH='$TEAM_DIR':\$PATH && $claude_bin --model $model --dangerously-skip-permissions $skills_arg $system_prompt_arg $settings_arg" Enter
+        "cd '$work_dir' && unset CLAUDECODE && export PATH='$BIN_DIR':\$PATH && $claude_bin --model $model --dangerously-skip-permissions $skills_arg $system_prompt_arg $settings_arg" Enter
 
     if [ "$NEED_FIRST_LOGIN" = true ]; then
 
