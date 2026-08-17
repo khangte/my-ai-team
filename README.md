@@ -185,10 +185,10 @@ declare -a MEMBER_MODELS=(
 - 이 저장소의 `team/config.sh`는 기본값(6인)과 동일한 내용의 템플릿 — 복사해서 수정하면 됨
 - 이름을 바꾸면 대응하는 `team/{이름}.md`도 필요(없으면 역할 지침 없이 실행 — 위 "CLAUDE.md와 team/" 참고)
 
-## 파인 간 통신 — `team/say`
+## 파인 간 통신 — `bin/say`
 
 - 파인끼리는 `say`로만 메시지를 주고받음
-- `setup-team.sh`가 `team/`을 각 파인 PATH에 등록 → 경로 없이 바로 호출
+- `setup-team.sh`가 `bin/`을 각 파인 PATH에 등록 → 경로 없이 바로 호출
 
 ```bash
 say :0.0 "[developer] 로그인 기능 구현 완료"   # 파인 번호로 지정
@@ -200,7 +200,7 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 
 파인 밖(호스트 셸)에서 호출:
 
-- PATH에 없으므로 경로와 세션명을 함께 지정 — `./team/say team1:0.4 "..."`
+- PATH에 없으므로 경로와 세션명을 함께 지정 — `./bin/say team1:0.4 "..."`
 
 ### 팀 밖 세션에서 파인 호출 — `SendMessage`
 
@@ -260,7 +260,7 @@ Enter 누락부터 큐 도입까지, 통신이 깨졌던 유형과 각각의 대
 
 구현:
 
-- `setup-team.sh`가 모든 파인에 `UserPromptSubmit`·`PreToolUse` 훅(`team/log-hook`)을 주입해 자동 기록
+- `setup-team.sh`가 모든 파인에 `UserPromptSubmit`·`PreToolUse` 훅(`bin/log-hook`)을 주입해 자동 기록
 
 ```
 $PROJECT_DIR/.claude-logs/
@@ -311,7 +311,7 @@ $PROJECT_DIR/.claude-logs/
 
 단독 실행에도 로그를 남기려면:
 
-- `~/.claude/settings.json`에 같은 훅 추가 — `team/log-hook <역할> "$CLAUDE_PROJECT_DIR"`
+- `~/.claude/settings.json`에 같은 훅 추가 — `bin/log-hook <역할> "$CLAUDE_PROJECT_DIR"`
 - 단, 어떤 프로젝트에서 claude를 띄우든 전부 로그가 쌓인다는 점 감안
 
 ## 역할별 스킬 제한

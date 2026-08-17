@@ -120,7 +120,7 @@ cwd가 홈 밖일 때만 성립한다.
 
 ### 3. 파인 간 통신에 `say`를 쓰는 것 — 턴 수
 
-`team/say`. 선택의 근거가 비용에도 걸려 있어 여기 적는다.
+`bin/say`. 선택의 근거가 비용에도 걸려 있어 여기 적는다.
 
 먼저 흔한 오해 하나. **`--setting-sources project` 때문에 `say`를 쓰는 것이
 아니다.** cross-session messaging(`SendMessage`)은 파인에서도 켜져 있다 —
@@ -216,7 +216,7 @@ caveman·ponytail·serena는 유저 전역 `~/.claude/settings.json`의
   스킬 16개가 통째로 들어와 `[4/7]`의 선별이 무의미해진다.
 
 **함정 하나— 설정이 아니라 실행 환경이 원인인 실패.** caveman·ponytail의
-SessionStart 훅은 `node`로, `team/log-hook`은 `python3`로 돈다. 이 스크립트가
+SessionStart 훅은 `node`로, `bin/log-hook`은 `python3`로 돈다. 이 스크립트가
 `export PATH=...`로 만드는 non-interactive 셸에 이 인터프리터가 없으면 훅이
 **조용히(non-blocking) 실패**해 해당 파인만 플러그인이 안 걸린 것처럼 보인다
 (실측: lead 파인에서 재현). 원인은 PATH 보강이 rtk·claude·bun만 챙기고
@@ -235,6 +235,6 @@ node·python3를 빠뜨린 것 — 지금은 nvm 최신 버전과 시스템 경�
 ## 참고
 
 - 재현 명령: `rtk gain`, `rtk gain --history`, `rtk discover`
-- 관련 코드: `setup-team.sh` `[1/7]`, `[3/7]`(`PLUGIN_ROLES`), `[4/7]`, `start_claude_in_pane()`, `team/say`
+- 관련 코드: `setup-team.sh` `[1/7]`, `[3/7]`(`PLUGIN_ROLES`), `[4/7]`, `start_claude_in_pane()`, `bin/say`
 - 관련 문서: README "역할별 스킬 제한", "Stop 훅 — 보고 누락 방지", "팀 밖 세션에서 파인 호출",
   [pane-messaging.md](pane-messaging.md)

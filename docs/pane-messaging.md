@@ -2,7 +2,7 @@
 
 파인 6개가 서로 지시하고 보고하는 구조에서, 메시지 전달은 여러 번 다른 방식으로
 깨졌다. 이 문서는 **어떤 실패가 있었고 각각을 무엇으로 막았는지**를 커밋 기록
-기준으로 정리한다. 지금 `team/say`가 왜 39줄에서 234줄이 됐는지에 대한 답이다.
+기준으로 정리한다. 지금 `bin/say`가 왜 39줄에서 234줄이 됐는지에 대한 답이다.
 
 ## 관통하는 원칙
 
@@ -72,7 +72,7 @@ reviewer.md:34    tmux send-keys -t team:0.1 "architect, [파일명] 리뷰 완�
 입력창에 텍스트로 남고 전송되지 않는다. **보낸 쪽은 보고를 마쳤다고 착각하고,
 받는 쪽은 아무것도 모르는** 상태가 된다.
 
-`team/say`를 만들어 Enter를 항상 붙였다. 초기 버전은 39줄이고, 타겟 해석(파인
+`bin/say`를 만들어 Enter를 항상 붙였다. 초기 버전은 39줄이고, 타겟 해석(파인
 번호·역할 이름 양쪽)과 `send-keys -l` 리터럴 전송, 입력창 반영을 기다리는
 `sleep 0.3`이 전부였다.
 
@@ -248,6 +248,6 @@ election `lock_file`을 해제하기 직전 그 찰나에 새 메시지가 appen
 
 ## 참고
 
-- 관련 코드: `team/say`, `setup-team.sh` `start_claude_in_pane()`
+- 관련 코드: `bin/say`, `setup-team.sh` `start_claude_in_pane()`
 - 관련 문서: [token-cost.md](token-cost.md), README "Stop 훅 — 보고 누락 방지"
 - 커밋: `6a311a6`, `3dbfd40`, `47a3b2d`, `fafc2d6`, `c37ac6f`, `3b90a37`, `6c71244`, `703aa7d`
