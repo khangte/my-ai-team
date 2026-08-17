@@ -9,11 +9,12 @@
 
 ```
 CLAUDE.md          모든 파인 공통 규칙 요약 + 상세 문서 포인터 (팀 구성·통신·로깅·rtk — 역할 무관)
-team/              파인별 역할 지시서 + 팀 구성 (--append-system-prompt로 주입, 프로젝트별 오버라이드 가능)
+team/              프로젝트별 오버라이드 대상만 (--append-system-prompt로 주입)
   ├ config.sh        팀 구성 기본값 템플릿 (세션명/인원/모델)
-  ├ say              파인 간 메시지 전송 래퍼 (setup-team.sh가 각 파인 PATH에 등록)
-  ├ log-hook         프롬프트·툴 사용을 .claude-logs/{역할}.jsonl에 기록하는 훅
   └ {역할}.md         역할별 지침 (lead/architect/researcher/designer/developer/reviewer)
+bin/               항상 이 저장소 기준으로 고정 실행되는 스크립트 (오버라이드 대상 아님)
+  ├ say              파인 간 메시지 전송 래퍼 (setup-team.sh가 각 파인 PATH에 등록)
+  └ log-hook         프롬프트·툴 사용을 .claude-logs/{역할}.jsonl에 기록하는 훅
 docs/              설계 배경·실측 분석 문서
   └ architect-review/ architect의 리뷰 판정 문서 ({순번}_{주제}.md)
 Dockerfile         팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
@@ -197,6 +198,10 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 
 `tmux send-keys`를 직접 쓰지 않는 이유: `Enter`가 별개 인자라 누락되기 쉽고, 누락 시 메시지가
 상대 입력창에 텍스트로만 남고 전송되지 않음. `say`는 Enter를 항상 부착해 이를 방지.
+
+유휴 판정은 화면 문구가 아니라 훅 기반 busy 마커로 함 — `--dangerously-skip-permissions` 모드는
+힌트줄 "esc to interrupt"가 유휴 상태에서도 남는 경우가 있어, UserPromptSubmit/Stop 훅이
+`/tmp/team-busy/{pane_id}` 마커를 찍고 지우는 방식으로 실제 턴 경계를 판정.
 
 파인 밖(호스트 셸)에서 호출:
 
