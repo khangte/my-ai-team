@@ -100,6 +100,7 @@ wait_for_pane() {
 start_claude_in_pane() {
     local pane="$1" model="${2:-claude-sonnet-4-6}" role="${3:-}"
     local claude_bin; claude_bin="$(command -v claude)"
+    local pane_id="${pane##*:}"   # "team1:0.4" → "0.4". busy 마커·say 큐 키와 형식을 맞춘다.
 
     # C-c로 파인에 떠 있을 수 있는 이전 프로세스를 중단하고, C-u로 입력 줄을 비워
     # 아래 send-keys가 이전 입력 잔여물과 섞이지 않게 한다.
@@ -182,7 +183,15 @@ start_claude_in_pane() {
     # matcher가 넓어져 의도치 않은 도구에 재작성이 걸린다.
     local log_cmd="${BIN_DIR}/log-hook ${role:-unknown} '${PROJECT_DIR}'"
     local pretooluse_json="\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"rtk hook claude\"}]},{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]}]"
-    local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]}]"
+
+    # 유휴 판정용 busy 마커. say의 is_busy()가 화면 문구("esc to interrupt")
+    # 대신 이 파일 존재 여부로 판정한다 — bypass-permissions 모드에서는 이
+    # 문구가 힌트줄에 상시 남아 유휴인데도 BUSY로 오판하는 사례가 실측으로
+    # 확인됐다(하단 힌트줄 잔류, 본문 노출과는 다른 원인이라 tail 범위를
+    # 좁혀도 못 막는다). UserPromptSubmit(턴 시작)에서 찍고 Stop(턴 종료)에서
+    # 지운다 — harness가 실행하는 실제 턴 경계라 화면 상태와 무관하다.
+    # pane_id는 각 role 블록에서 정의한다(lead는 Stop이 없어 별도 처리).
+    local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]},{\"hooks\":[{\"type\":\"command\",\"command\":\"mkdir -p /tmp/team-busy && touch /tmp/team-busy/${pane_id}\"}]}]"
 
     # 파인 간 통신은 say(tmux send-keys)가 담당하지만, Claude Code 자체의
     # cross-session messaging(SendMessage/ListAgents)도 파인마다 켜져 있다 —
@@ -227,23 +236,24 @@ start_claude_in_pane() {
 
     local settings_arg=""
     if [ "$role" = "lead" ]; then
-        # lead는 Stop 훅을 받으면 안 된다 — 종료 신호의 수신처가 lead 자신(:0.0)이라
+        # lead는 say 종료 신호용 Stop 훅을 받으면 안 된다 — 수신처가 lead 자신(:0.0)이라
         # 자기 응답이 끝날 때마다 스스로에게 신호를 보내 무한 루프가 된다.
-        # 따라서 Stop을 뺀 나머지(PreToolUse·UserPromptSubmit)만 넣는다.
-        local lead_settings_json="{${plugins_json}${inbound_json},\"hooks\":{${pretooluse_json},${userprompt_json}}}"
+        # busy 마커 정리는 say를 호출하지 않으므로 무한 루프와 무관해 lead에도 넣는다.
+        local lead_settings_json="{${plugins_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"rm -f /tmp/team-busy/${pane_id}\"}]}],${pretooluse_json},${userprompt_json}}}"
         local lead_settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$lead_settings_json" > "$lead_settings_file"
         settings_arg="--settings '$lead_settings_file'"
     elif [ -n "$role" ]; then
-        local pane_id="${pane##*:}"   # "team1:0.4" → "0.4"
         # 중복 신호 가드: 이 파인이 방금 say로 본 보고를 보냈다면 종료 신호를 생략한다.
         # 본 보고에 이미 작업 내용이 담겨 있어 신호는 lead 턴만 한 번 더 태우기 때문이다.
         # say가 남긴 마커를 소비(삭제)하므로, 보고 없이 끝난 응답에서는 신호가 정상 발송된다.
         local marker="/tmp/team-say/${pane_id}"
+        # busy 마커도 같은 Stop 훅에서 지운다 — 신호 발송 여부와 무관하게 턴은
+        # 끝났으므로 항상 rm한다. say의 is_busy()가 이 파일로 유휴를 판정한다.
         # JSON 문자열로 들어가므로 큰따옴표는 \" 로 이스케이프한다(작은따옴표는 JSON에서 무해).
         # 훅 커맨드는 이 스크립트가 만드는 고정 문자열이라 이스케이프 대상이 이것뿐이다.
-        local hook_cmd="if [ -f '${marker}' ]; then rm -f '${marker}'; else ${BIN_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\\\"; fi"
+        local hook_cmd="rm -f /tmp/team-busy/${pane_id}; if [ -f '${marker}' ]; then rm -f '${marker}'; else ${BIN_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\\\"; fi"
         local settings_json="{${plugins_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json},${userprompt_json}}}"
         local settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
