@@ -203,6 +203,13 @@ start_claude_in_pane() {
     # accept로 고정해 그 경로를 열어둔다. say는 이 설정과 무관하게 그대로 동작한다.
     local inbound_json="\"crossSessionInbound\":\"accept\""
 
+    # 파인은 1M 컨텍스트 모델로 뜨는데, 200k를 넘긴 턴이 전체 입력의 32.6%를 차지했다.
+    # 이 변수를 걸면 harness가 200K에서 자동 compaction으로 눌러 준다(/clear와 달리
+    # 세션이 유지되므로 프리픽스 캐시를 다시 사지 않는다).
+    # CLAUDE_CODE_DISABLE_BUNDLED_SKILLS: 번들 스킬 설명문(dataviz·claude-api·artifact-* 등)이
+    # 매 턴 상수로 붙는 것을 끈다. superpowers:*·gstack 스킬은 플러그인이라 영향 없다.
+    local env_json="\"env\":{\"CLAUDE_CODE_DISABLE_1M_CONTEXT\":\"1\",\"CLAUDE_CODE_DISABLE_BUNDLED_SKILLS\":\"1\"},"
+
     # 플러그인 활성화도 --settings로 명시 주입한다. enabledPlugins·
     # extraKnownMarketplaces는 유저 전역 settings.json에만 있어서,
     # --setting-sources project로 뜨는 파인에서는 통째로 무시되기 때문이다
@@ -239,7 +246,13 @@ start_claude_in_pane() {
         # lead는 say 종료 신호용 Stop 훅을 받으면 안 된다 — 수신처가 lead 자신(:0.0)이라
         # 자기 응답이 끝날 때마다 스스로에게 신호를 보내 무한 루프가 된다.
         # busy 마커 정리는 say를 호출하지 않으므로 무한 루프와 무관해 lead에도 넣는다.
-        local lead_settings_json="{${plugins_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"rm -f /tmp/team-busy/${pane_id}\"}]}],${pretooluse_json},${userprompt_json}}}"
+        #
+        # lead만 tmux send-keys를 deny한다 — CLAUDE.md가 이미 금지하는데도 실측에서
+        # tmux send-keys 24회가 나왔다(규칙 문구로는 안 막혀 구조로 막는다).
+        # --dangerously-skip-permissions 하에서도 permissions.deny는 실제로 차단됨을
+        # 격리된 프로브 세션으로 별도 확인 완료.
+        local lead_deny_json="\"permissions\":{\"deny\":[\"Bash(tmux send-keys:*)\"]},"
+        local lead_settings_json="{${plugins_json}${lead_deny_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"rm -f /tmp/team-busy/${pane_id}\"}]}],${pretooluse_json},${userprompt_json}}}"
         local lead_settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$lead_settings_json" > "$lead_settings_file"
@@ -254,7 +267,7 @@ start_claude_in_pane() {
         # JSON 문자열로 들어가므로 큰따옴표는 \" 로 이스케이프한다(작은따옴표는 JSON에서 무해).
         # 훅 커맨드는 이 스크립트가 만드는 고정 문자열이라 이스케이프 대상이 이것뿐이다.
         local hook_cmd="rm -f /tmp/team-busy/${pane_id}; if [ -f '${marker}' ]; then rm -f '${marker}'; else ${BIN_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\\\"; fi"
-        local settings_json="{${plugins_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json},${userprompt_json}}}"
+        local settings_json="{${plugins_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json},${userprompt_json}}}"
         local settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$settings_json" > "$settings_file"
