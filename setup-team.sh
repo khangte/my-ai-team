@@ -459,7 +459,7 @@ declare -A PLUGIN_MARKETPLACES=(
 #
 # superpowers는 빈 값이다. [4/7]이 플러그인 캐시에서 스킬 디렉터리를 직접
 # 심볼릭 링크하므로 enabledPlugins 없이도 역할별로 이미 걸린다. 여기서 또 켜면
-# 스킬 16개가 통째로 들어와 [4/7]의 선별이 무의미해진다.
+# 스킬 14개가 통째로 들어와 [4/7]의 선별이 무의미해진다.
 declare -A PLUGIN_ROLES=(
     ["superpowers@claude-plugins-official"]=""
     ["serena@claude-plugins-official"]="developer reviewer"

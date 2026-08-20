@@ -8,7 +8,7 @@
 ![팀 구조: lead가 배분하고 architect·researcher·designer·developer·reviewer 5개 역할이 병렬로 붙는다](images/team-architecture.svg)
 
 ```
-CLAUDE.md          모든 파인 공통 규칙 요약 + 상세 문서 포인터 (팀 구성·통신·로깅·rtk — 역할 무관)
+CLAUDE.md          모든 파인 공통 규칙 (cwd 함정·say 통신·파일 읽기·보고 — 역할 무관)
 team/              프로젝트별 오버라이드 대상만 (--append-system-prompt로 주입)
   ├ config.sh        팀 구성 기본값 템플릿 (세션명/인원/모델)
   └ {역할}.md         역할별 지침 (lead/architect/researcher/designer/developer/reviewer)
@@ -16,6 +16,8 @@ bin/               항상 이 저장소 기준으로 고정 실행되는 스크�
   ├ say              파인 간 메시지 전송 래퍼 (setup-team.sh가 각 파인 PATH에 등록)
   └ log-hook         프롬프트·툴 사용을 .claude-logs/{역할}.jsonl에 기록하는 훅
 docs/              설계 배경·실측 분석 문서
+  ├ pane-messaging.md 파인 간 통신이 깨졌던 유형과 대응
+  ├ token-cost.md     토큰 비용 구조와 절감 장치 실측
   └ architect-review/ architect의 리뷰 판정 문서 ({순번}_{주제}.md)
 Dockerfile         팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
 setup-docker.sh    Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
@@ -183,7 +185,7 @@ declare -a MEMBER_MODELS=(
 
 - `MEMBER_NAMES`와 `MEMBER_MODELS`는 배열 길이가 같아야 함
 - 파인 개수는 배열 길이로 자동 계산
-- 이 저장소의 `team/config.sh`는 기본값(6인)과 동일한 내용의 템플릿 — 복사해서 수정하면 됨
+- 이 저장소의 `team/config.sh`는 복사해서 수정할 템플릿 — 현재는 designer를 주석 처리한 5인 구성
 - 이름을 바꾸면 대응하는 `team/{이름}.md`도 필요(없으면 역할 지침 없이 실행 — 위 "CLAUDE.md와 team/" 참고)
 
 ## 파인 간 통신 — `bin/say`
@@ -400,12 +402,17 @@ gstack `investigate`는 superpowers `systematic-debugging`과 교리·4단계 �
 - 해결: `setup-team.sh`의 `[3/7]`이 플러그인을 설치하고, `start_claude_in_pane()`이 `--settings`에
   `enabledPlugins`·`extraKnownMarketplaces`를 역할별로 명시 주입(`PLUGIN_ROLES` 배열이 배분을 결정)
 
+실측 파인당 고정비 — `ponytail` ~2.2K tok / `caveman` ~3.9K tok / `serena` ~6K tok.
+파인 5개 × 매 턴이라 쓰지 않을 파인에는 주지 않는다.
+
 | 플러그인    | 배분                          | 이유                                                                                                                                                       |
 | ----------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| caveman     | 전 파인                       | 고정비가 작고, 파인 5개가 응답을 압축한 만큼 lead가 입력에서 이득을 회수하는 구조라 일부만 켜면 그 효과가 샘                                               |
-| ponytail    | 전 파인                       | 고정비가 작고 효과가 역할을 가리지 않음                                                                                                                    |
-| serena      | developer·reviewer만          | 고정비가 가장 큼(MCP 툴 정의 30개). lead·researcher·designer·architect는 심볼 단위 코드 탐색을 쓸 일이 없어 죽은 무게                                      |
-| superpowers | 없음(`enabledPlugins` 미주입) | 위 "superpowers 스킬" 절대로 `[4/7]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 16개가 통째로 들어와 선별이 무의미해짐 |
+| caveman     | 전 파인                       | 켠 파인이 아니라 lead가 이득을 회수하는 구조(파인들의 보고가 전부 lead 입력). 출력 문체를 팀 전체에서 통일하는 값이 고정비보다 크다는 사용자 결정          |
+| ponytail    | developer만                   | 사다리 7단 중 2~7단이 전부 코드 대상이라 코드를 안 쓰는 역할에는 1단 YAGNI만 남음. 그 한 줄은 역할 지침에 문장으로 넣는 편이 100배 쌈(2.2K 대 ~20토큰)     |
+| serena      | developer·reviewer만          | 고정비가 가장 큼(MCP 툴 정의 30개). lead·researcher·designer는 심볼 단위 코드 탐색을 쓸 일이 없어 죽은 무게. architect도 뺐음 — Opus라 토큰 단가가 가장 비쌈 |
+| superpowers | 없음(`enabledPlugins` 미주입) | 위 "superpowers 스킬" 절대로 `[4/7]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 14개가 통째로 들어와 선별이 무의미해짐 |
+
+배분 근거 실측은 [docs/architect-review/6_caveman-ponytail-role-scoping.md](docs/architect-review/6_caveman-ponytail-role-scoping.md) 참조.
 
 `claude plugin enable`은 부르지 않는다 — 유저 전역 `settings.json`을 고쳐 팀 밖 세션까지 건드리는데,
 파인 활성화는 `--settings`가 이미 담당하므로 불필요하다.
