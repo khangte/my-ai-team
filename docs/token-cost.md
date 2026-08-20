@@ -225,6 +225,33 @@ SessionStart 훅은 `node`로, `bin/log-hook`은 `python3`로 돈다. 이 스크
 (실측: lead 파인에서 재현). 원인은 PATH 보강이 rtk·claude·bun만 챙기고
 node·python3를 빠뜨린 것 — 지금은 nvm 최신 버전과 시스템 경로를 함께 넣는다.
 
+### 7. 멀티 에이전트 파인 토큰 최적화 T1-T6 (`f0320d8`)
+
+researcher가 docs-mcp 실전 로그를 감사하고 architect가 재검증한 실행 작업 목록을
+developer가 구현, reviewer가 확인한 항목들이다. 근거 문서는
+`docs/architect-review/1~4`(커밋 대상 제외).
+
+- **200K 자동 compaction.** `CLAUDE_CODE_DISABLE_1M_CONTEXT`를 전 파인에 적용해
+  1M 컨텍스트 대신 200K에서 자동 compaction되게 함. 실측상 200K 초과 턴이 전체
+  입력 토큰의 32.6%를 차지했다.
+- **번들 스킬 설명문 차단.** `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS`로 dataviz·
+  claude-api·artifact-* 등 번들 스킬 목록 주입을 막는다. "이미 적용된 절감
+  장치 1"의 gstack 스킬 제한과 같은 종류의 고정비 절감이지만 대상이 다르다 —
+  1은 `~/.claude/skills/`, 이건 claude 빌트인 번들이라 `--setting-sources`와
+  무관하게 항상 실렸던 부분이다.
+- **세션 내 중복 Read 금지.** CLAUDE.md에 "같은 세션에서 이미 읽은 파일을 다시
+  Read하지 않는다"와 "300줄 넘는 파일은 offset/limit으로 필요한 구간만" 규칙을
+  추가. 실측상 세션 내 중복 Read가 developer 파인 191회 등, 파인별로 최대
+  6.4%까지 차지했다.
+- **lead 직접 코드 열람 차단.** lead 파인에 `permissions.deny`로
+  `Bash(tmux send-keys:*)`를 적용하고, `team/lead.md`에 직접 `git diff`·`grep`
+  금지, `/clear` 주기적 지시 금지 문구를 추가. lead가 세션당 27.5k 토큰을 새로
+  청구하는 원인이 이 두 습관이었다(위 "하지 말 것" 항목 참조).
+- **보류.** caveman·ponytail 플러그인을 파인별로 켜고 끄는 건(T7)은 사용자
+  개인 설정 판단 영역이라 이 작업에서는 보류했다. 이후 caveman은 전 파인
+  상시 활성화로, ponytail은 developer로 스코핑됐다 — 위 "6. 역할별 플러그인
+  활성화" 참조.
+
 ## 남은 레버와 한계
 
 **습관 하나**: Read/Grep 툴 대신 Bash로 `cat`/`grep`을 쓰는 것. rtk가 재작성해
@@ -238,6 +265,7 @@ node·python3를 빠뜨린 것 — 지금은 nvm 최신 버전과 시스템 경�
 ## 참고
 
 - 재현 명령: `rtk gain`, `rtk gain --history`, `rtk discover`
-- 관련 코드: `setup-team.sh` `[1/7]`, `[3/7]`(`PLUGIN_ROLES`), `[4/7]`, `start_claude_in_pane()`, `bin/say`
+- 관련 코드: `setup-team.sh` `[1/7]`, `[3/7]`(`PLUGIN_ROLES`), `[4/7]`, `start_claude_in_pane()`, `bin/say`, `CLAUDE.md`, `team/lead.md`
 - 관련 문서: README "역할별 스킬 제한", "Stop 훅 — 보고 누락 방지", "팀 밖 세션에서 파인 호출",
   [pane-messaging.md](pane-messaging.md)
+- 커밋: `f0320d8`(T1-T6), `6acb8b9`(caveman 상시·ponytail 스코핑)
