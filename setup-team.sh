@@ -278,7 +278,7 @@ start_claude_in_pane() {
     # 남아있는 CLAUDECODE 환경변수가 파인 내부의 claude 실행에 영향을 주지 않도록 제거한다.
     # PATH에 BIN_DIR: 파인들이 `say`를 경로 없이 호출할 수 있게 한다.
     tmux send-keys -t "$pane" \
-        "cd '$work_dir' && unset CLAUDECODE && export PATH='$BIN_DIR':\$PATH && $claude_bin --model $model --dangerously-skip-permissions $skills_arg $system_prompt_arg $settings_arg" Enter
+        "cd '$work_dir' && unset CLAUDECODE && export PATH='$BIN_DIR'${NVM_BIN:+:'$NVM_BIN'}:\$PATH && export CAVEMAN_DEFAULT_MODE=full && $claude_bin --model $model --dangerously-skip-permissions $skills_arg $system_prompt_arg $settings_arg" Enter
 
     if [ "$NEED_FIRST_LOGIN" = true ]; then
 
@@ -436,17 +436,21 @@ declare -A PLUGIN_MARKETPLACES=(
 #   "a b"        공백으로 구분된 해당 역할에서만 켠다
 #   ""           설치만 하고 enabledPlugins에는 넣지 않는다
 #
-# 배분 근거는 [4/7]의 스킬 제한과 같다 — 파인 6개 × 매 턴이라 고정비가 크므로
+# 배분 근거는 [4/7]의 스킬 제한과 같다 — 파인 5개 × 매 턴이라 고정비가 크므로
 # 쓰지 않을 파인에는 주지 않는다. 실측한 파인당 고정비:
 #   ponytail  ~2.2K tok (스킬 frontmatter ~0.9K + SessionStart 주입 ~1.3K)
 #   caveman   ~3.9K tok (스킬 frontmatter ~2.8K + SessionStart 주입 ~1.0K)
 #   serena    ~6K tok   (MCP 툴 정의 30개. 스킬이 없어 plugin details에는 안 잡힌다)
 #
-# ponytail·caveman은 전 파인에 준다. 고정비가 작고 효과가 역할을 가리지 않는데,
-# 특히 caveman은 켠 파인이 아니라 lead가 이득을 회수한다 — 파인 5개가 보고를
-# 압축하면 그게 전부 lead 입력으로 들어가기 때문이다(lead는 모든 보고가 모여
-# 컨텍스트가 가장 빨리 불어나는 파인이다. MEMBER_MODELS 주석 참조).
-# 일부만 켜면 그만큼 lead 압축 효과가 샌다.
+# caveman은 전 파인에 준다. 켠 파인이 아니라 lead가 이득을 회수하는 구조이고
+# (파인들의 보고가 전부 lead 입력이 된다), 출력 문체를 팀 전체에서 통일하는 값이
+# 토큰 고정비보다 크다는 사용자 결정이다. 비용·회수 실측은
+# docs/architect-review/6_caveman-ponytail-role-scoping.md 참조.
+#
+# ponytail은 developer에만 준다. 사다리 7단 중 2~7단(기존 헬퍼 재사용, 표준
+# 라이브러리, 네이티브 기능, 설치된 의존성, 한 줄 구현)이 전부 코드 대상이라
+# 코드를 직접 쓰지 않는 역할에서는 1단 YAGNI만 남는데, 그 한 줄은 역할 지침에
+# 문장으로 넣는 편이 100배 싸다(고정비 2.2K/호출 대 ~20토큰).
 #
 # serena는 고정비가 가장 크고 용도가 명확히 갈려 코드를 직접 다루는 둘에만 준다.
 # lead는 코드를 안 쓰고, researcher는 웹 조사, designer는 디자인이 주 업무라
@@ -459,7 +463,7 @@ declare -A PLUGIN_MARKETPLACES=(
 declare -A PLUGIN_ROLES=(
     ["superpowers@claude-plugins-official"]=""
     ["serena@claude-plugins-official"]="developer reviewer"
-    ["ponytail@ponytail"]="*"
+    ["ponytail@ponytail"]="developer"
     ["caveman@caveman"]="*"
 )
 
