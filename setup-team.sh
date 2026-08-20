@@ -26,18 +26,10 @@
 set -e
 
 # ── PATH 보강 ─────────────────────────────────────────────
-# ./setup-team.sh 처럼 스크립트로 직접 실행하면 non-interactive 셸이라
-# ~/.bashrc가 자동으로 로드되지 않는다. rtk/claude/bun이 어디 설치되어 있든
-# (~/.local/bin, /opt/rtk-bin, /opt/npm-global/bin, /opt/bun/bin 등) 찾을 수 있도록
-# 여기서 명시적으로 PATH에 추가한다.
-#
-# node·python3도 반드시 포함해야 한다. 이 PATH는 파인이 그대로 물려받고,
-# 파인의 훅은 여기서 인터프리터를 찾기 때문이다:
-#   node    — caveman·ponytail의 SessionStart 훅 (없으면 활성화가 조용히 실패해
-#             해당 파인만 플러그인이 안 걸린다. 실측으로 겪은 증상이다)
-#   python3 — bin/log-hook (없으면 프롬프트·툴 로깅이 통째로 빠진다)
-# nvm으로 깐 node는 버전 디렉터리 아래에 있어 경로를 고정할 수 없으므로
-# 설치된 것 중 가장 최신 하나를 고른다(없으면 빈 값 → 시스템 node로 폴백).
+# 스크립트 직접 실행은 non-interactive 셸이라 ~/.bashrc가 로드되지 않는다.
+# 파인이 이 PATH를 그대로 물려받고 파인의 훅이 여기서 인터프리터를 찾으므로
+# node(caveman·ponytail SessionStart 훅)와 python3(bin/log-hook)이 빠지면
+# 해당 기능이 조용히 죽는다. nvm node는 버전 디렉터리 아래라 최신 하나를 고른다.
 NVM_BIN=$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)
 export PATH="$HOME/.local/bin:/opt/rtk-bin:/opt/npm-global/bin:/opt/bun/bin:$HOME/.bun/bin:${NVM_BIN:+$NVM_BIN:}/usr/local/bin:/usr/bin:/bin:$PATH"
 
@@ -107,26 +99,16 @@ start_claude_in_pane() {
     tmux send-keys -t "$pane" C-c 2>/dev/null; sleep 0.3
     tmux send-keys -t "$pane" C-u 2>/dev/null; sleep 0.2
 
-    # 역할별 지침(team/{role}.md)이 있으면 --append-system-prompt-file로 주입한다.
-    # 지침을 조립해 파일로 쓰고 그 경로만 커맨드에 싣는다. 예전에는 base64로
-    # 인코딩해 커맨드에 통째로 실었는데, 역할 지침에 전역 규칙까지 붙으면서
-    # reviewer의 인코딩 결과가 18KB를 넘어 tmux send-keys가 "command too long"으로
-    # 거부했다. 파일 경로는 길이가 일정하므로 지침이 아무리 커져도 문제가 없고,
-    # 따옴표·개행이 셸 파싱과 충돌하는 문제도 함께 사라진다.
-    # team/config.sh와 동일한 오버라이드 규칙: 프로젝트 루트에 team/{role}.md가
-    # 있으면 그쪽을 우선 사용하고, 없으면 이 저장소의 기본값으로 폴백한다.
     # 역할별 스킬 제한([4/7])이 만든 디렉터리가 있으면 그곳을 cwd로 삼고
-    # 유저 전역·플러그인 스킬을 차단한다(빌트인 스킬은 남는다 — [4/7] 주석 참조).
-    # 프로젝트 스킬 탐색은 상위로 거슬러 올라가므로
-    # $PROJECT_DIR/.claude/skills 의 공용 스킬은 그대로 상속된다.
-    # GSTACK_SKILL_SETS에 없는 역할은 $PROJECT_DIR에서 전체 스킬로 그대로 뜬다
-    # (현재 GSTACK_SKILL_SETS는 6개 역할을 모두 포함하므로 해당 없음).
+    # --setting-sources project로 유저 전역·플러그인 스킬을 차단한다([4/7] 주석 참조).
     local work_dir="$PROJECT_DIR" skills_arg=""
     if [ -n "$role" ] && [ -d "$TEAM_SKILLS_ROOT/$role/.claude/skills" ]; then
         work_dir="$TEAM_SKILLS_ROOT/$role"
         skills_arg="--setting-sources project"
     fi
 
+    # team/config.sh와 동일한 오버라이드 규칙: 프로젝트 루트의 team/{role}.md가
+    # 있으면 우선, 없으면 이 저장소의 기본값으로 폴백한다.
     local role_file="$PROJECT_DIR/team/${role}.md"
     [ -f "$role_file" ] || role_file="$TEAM_DIR/${role}.md"
     local system_prompt_arg=""
@@ -150,8 +132,9 @@ start_claude_in_pane() {
             done
             role_content="${role_content}"$'\n\n'"${team_table}"
         fi
-        # 조립된 지침을 파일로 쓰고 경로만 넘긴다. 파인이 재시작해도 읽을 수 있도록
-        # /tmp가 아니라 스킬 격리 디렉터리(.team/{역할}/) 옆에 둔다.
+        # 조립된 지침은 파일로 쓰고 경로만 넘긴다 — 내용을 커맨드에 실으면
+        # 지침이 커질 때 tmux send-keys가 "command too long"으로 거부한다(실측).
+        # 파인이 재시작해도 읽을 수 있도록 /tmp가 아니라 .team/ 아래에 둔다.
         local prompt_file="$RUNTIME_DIR/${role}.prompt.md"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$role_content" > "$prompt_file"
@@ -163,24 +146,15 @@ start_claude_in_pane() {
     fi
 
     # Stop 훅으로 "작업 종료" 신호를 lead에 자동 전송한다(lead 자신은 제외).
-    # 파인이 send-keys 실행을 잊어도 훅은 harness가 실행하므로 신호가 반드시 나간다.
-    # lead는 이 신호를 받은 파인만 capture-pane으로 확인하면 되므로 주기적 폴링이 필요 없다.
-    # 신호는 "종료됐다"는 사실만 전달하고, 작업 내용은 파인이 보내는 본 보고가 담당한다.
-    # 파인 번호는 호출 시점의 $pane에서 그대로 가져온다. 훅 커맨드 안에서
+    # 파인 번호는 호출 시점의 $pane에서 가져온다. 훅 커맨드 안에서
     # `tmux display-message -p '#{pane_index}'`를 쓰면 안 된다 — 훅 프로세스에는
-    # TMUX_PANE이 전달되지 않아 자기 파인이 아니라 그 시점의 활성 파인 번호가
-    # 잡히고, 결국 모든 파인이 lead 자신인 :0.0을 보고하게 된다.
-    # PreToolUse는 역할과 무관하게 모든 파인에 필요하다. --settings가 글로벌
-    # settings.json을 병합이 아니라 '대체'하므로, --settings를 쓰는 순간 글로벌
-    # rtk 재작성 훅이 그 파인에서 통째로 사라지기 때문이다.
-    # lead도 --setting-sources project로 전역 설정을 끄므로 동일하게 명시 주입한다.
-    # 프롬프트·툴 로깅도 모든 파인 공통이다. 로그는 작업 대상인 $PROJECT_DIR의
-    # .claude-logs/{역할}.jsonl 에 쌓이므로, 파인은 자기 로그를 그대로 읽을 수 있고
-    # .team/ 과 달리 세션을 새로 띄워도(rm -rf 대상이 아니다) 남는다.
-    # matcher는 Bash로 한정하지 않는다 — 어떤 파일·디렉터리를 참조했는지가
-    # 재현에 필요하므로 Read/Edit/Write/Grep도 함께 남겨야 한다.
-    # rtk 재작성 훅과는 별도 항목으로 둔다. 같은 Bash 항목에 얹으면 rtk까지
-    # matcher가 넓어져 의도치 않은 도구에 재작성이 걸린다.
+    # TMUX_PANE이 전달되지 않아 그 시점의 활성 파인 번호가 잡히고,
+    # 결국 모든 파인이 lead 자신인 :0.0을 보고하게 된다.
+    #
+    # PreToolUse(rtk 재작성 + 로깅)는 모든 파인에 명시 주입한다 — --settings가
+    # 글로벌 settings.json을 병합이 아니라 '대체'하므로 그냥 두면 글로벌 rtk 훅이
+    # 그 파인에서 사라진다. 로깅은 rtk와 별도 항목으로 둔다(같은 Bash 항목에
+    # 얹으면 rtk의 matcher까지 넓어져 엉뚱한 도구에 재작성이 걸린다).
     local log_cmd="${BIN_DIR}/log-hook ${role:-unknown} '${PROJECT_DIR}'"
     local pretooluse_json="\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"rtk hook claude\"}]},{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]}]"
 
@@ -306,7 +280,6 @@ start_claude_in_pane() {
 
 # ── claude 로그인 확인 ────────────────
 check_login() {
-    # 실제 로그인 확인 방식은 Claude Code 버전에 맞게 변경
     claude auth status >/dev/null 2>&1
 }
 
@@ -329,13 +302,6 @@ echo "  ✅ tmux $(tmux -V | awk '{print $2}')"
 echo "  ✅ claude $(claude --version 2>/dev/null | head -1)"
 echo "  ✅ rtk $(rtk --version 2>/dev/null | head -1)"
 echo "  ✅ bun $(bun --version 2>/dev/null | head -1)"
-
-# if [ -z "$ANTHROPIC_API_KEY" ]; then
-#     echo -e "${RED}❌ ANTHROPIC_API_KEY 환경변수가 없습니다.${NC}"
-#     echo "   docker run 시 -e ANTHROPIC_API_KEY=... 옵션을 확인하세요."
-#     exit 1
-# fi
-# echo "  ✅ API 키 주입 확인"
 
 # ── Claude 로그인 여부 확인 ───────────────────────────────
 echo -n "  Claude 로그인 확인... "
@@ -425,9 +391,6 @@ declare -A PLUGIN_MARKETPLACES=(
     [ponytail]="DietrichGebert/ponytail"
     [caveman]="JuliusBrussee/caveman"
 )
-# 아래 PLUGIN_ROLES의 선언 순서는 읽기 편하라고 맞춰둔 것일 뿐이다.
-# bash 연관 배열은 해시 순으로 순회하므로 설치·활성화 순서와는 무관하다.
-
 # 설치할 플러그인 → 그 플러그인을 켤 역할 (plugin@marketplace 형식으로 소스를
 # 못 박는다 — 같은 이름이 여러 마켓플레이스에 있을 때 엉뚱한 쪽이 깔리는 것을 막는다).
 #
@@ -452,22 +415,12 @@ declare -A PLUGIN_MARKETPLACES=(
 # 코드를 직접 쓰지 않는 역할에서는 1단 YAGNI만 남는데, 그 한 줄은 역할 지침에
 # 문장으로 넣는 편이 100배 싸다(고정비 2.2K/호출 대 ~20토큰).
 #
-# serena는 고정비가 가장 크므로 코드를 직접 다루는 역할에만 준다.
-# lead는 코드를 안 쓰고 researcher는 웹 조사라 심볼 단위 코드 탐색이 죽은 무게다.
-# architect도 뺐다 — 설계 시 기존 구조 파악에 쓸 여지는 있지만 Opus라 토큰
-# 단가가 가장 비싸다.
-#
-# designer는 프론트엔드를 구현하므로 준다. serena의 LSP 백엔드는 프론트엔드를
-# 1급으로 지원한다 — typescript(.ts/.tsx/.js/.jsx), vue(.vue SFC),
-# svelte(.svelte SFC), angular, html, some-sass(.scss/.sass/.css).
-# 값이 나오는 지점은 find_referencing_symbols다. "이 컴포넌트를 고치면 어디가
-# 깨지나"를 grep으로 찾으면 `<Button`, `Button(`, `import Button`, 재export를
-# 놓치는데 심볼 탐색은 잡는다. rename_symbol·safe_delete_symbol도 컴포넌트
-# 정리에서 grep 치환보다 안전하다.
-#
-# 단 이는 대상 프로젝트에 프론트엔드가 있을 때의 이야기다. UI가 없는 프로젝트
-# (이 리포처럼 bash+문서)에 팀을 띄우면 designer 파인 자체가 불필요하므로
-# team/config.sh의 MEMBER_NAMES에서 designer를 빼는 것이 옳은 대응이다.
+# serena는 고정비가 가장 크므로 코드를 직접 다루는 역할(developer·reviewer·
+# designer)에만 준다. lead는 코드를 안 쓰고, researcher는 웹 조사라 심볼 탐색이
+# 죽은 무게이며, architect는 쓸 여지는 있지만 Opus라 토큰 단가가 가장 비싸다.
+# designer가 받는 이유는 프론트엔드를 구현하기 때문이다 — serena의 LSP 백엔드는
+# ts/tsx·vue·svelte·html·scss를 1급으로 지원하고, find_referencing_symbols가
+# grep이 놓치는 컴포넌트 사용처(재export 등)까지 잡는다.
 #
 # superpowers·frontend-design는 빈 값이다. [4/7]이 플러그인 캐시에서 스킬
 # 디렉터리를 직접 심볼릭 링크하므로 enabledPlugins 없이도 역할별로 이미 걸린다.
@@ -532,25 +485,12 @@ echo -e "\n${YELLOW}[4/7] 역할별 스킬 제한...${NC}"
 # 빈 값을 줘서 디렉터리는 만들되(→ --setting-sources project 적용) gstack 스킬은
 # 하나도 주지 않는다(빌트인 스킬은 위 주석대로 남는다).
 #
-# gstack investigate는 어느 역할에도 주지 않는다. superpowers
-# systematic-debugging과 같은 교리("Iron Law: 근본 원인 없이는 수정 없음",
-# 4단계 조사→분석→가설→구현)를 문구까지 거의 그대로 담고 있어 순수 중복인데,
-# 62.6KB(1,104줄)로 systematic-debugging(9.5KB)의 6.6배다. 그중 디버깅 실체는
-# 852줄 이후 ~250줄뿐이고 앞 851줄은 Preamble·Skill routing·Telemetry 등
-# gstack 런타임 보일러플레이트라, 호출당 ~15K 토큰을 태우고도 알맹이는 더 적다.
-# 게다가 본문의 gstack 경로 참조 92곳과 frontmatter의 훅·gbrain 쿼리는
-# 아래 링크 루프가 SKILL.md 하나만 걸고 파인이 --setting-sources project로
-# 뜨는 탓에 파인에서 동작하지 않는다(= 절반이 죽은 텍스트).
-# 근거는 docs/architect-review/8_ecc-skill-overlap-review.md §5 참조.
-#
-# designer의 design-consultation도 같은 이유로 뺐다. 아래 FRONTEND_DESIGN_SKILL_SETS의
-# frontend-design과 "팔레트·타이포·레이아웃을 정한다"는 역할이 정면으로 겹치는데,
-# 71KB(1,258줄) 중 앞 861줄이 gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다.
-# frontend-design은 8.3KB 전량이 지침이라 호출당 17.8K 대 2.1K 토큰으로 8.5배 싸고,
-# gstack에 없는 AI 슬롭 캘리브레이션(크림+세리프+테라코타 등 수렴하는 세 가지 룩을
-# 명시하고 피하게 하는 것)까지 담고 있다. 빠지는 것은 웹 리서치·폰트 프리뷰 절차인데
-# 리서치는 researcher 파인이 이미 담당한다.
-# design-review(브라우저 QA)·design-html(코드 생성)·diagram은 역할이 달라 유지한다.
+# gstack investigate는 어느 역할에도 주지 않는다 — superpowers
+# systematic-debugging과 순수 중복인데 6.6배 크고, 대부분이 파인에서 동작하지
+# 않는 gstack 런타임 보일러플레이트다.
+# designer의 design-consultation도 같은 이유로 뺐다 — frontend-design과 역할이
+# 겹치면서 8.5배 비싸다. design-review·design-html·diagram은 역할이 달라 유지한다.
+# 실측 근거는 docs/architect-review/8_ecc-skill-overlap-review.md §5 참조.
 declare -A GSTACK_SKILL_SETS=(
     [lead]=""
     [architect]="spec diagram document-generate health plan-eng-review"
@@ -590,17 +530,10 @@ FRONTEND_DESIGN_ROOT=$(
     ls -d "$HOME"/.claude/plugins/cache/*/frontend-design/*/skills 2>/dev/null | sort -V | tail -1
 )
 
-# 전역 규칙(~/.claude/rules/)과 ~/.claude/CLAUDE.md는 따로 주입하지 않는다.
-# --setting-sources project가 이것들까지 끌 거라 보고 역할별로 골라 주입했었지만,
-# 실측해보니 cwd가 $HOME 아래이면 이 플래그와 무관하게 그대로 로드된다.
-# (마커를 심고 확인: 홈 아래 + 플래그 → 로드됨 / 홈 밖 + 플래그 → 안 됨 /
-#  홈 밖 + 플래그 없음 → 로드됨. 즉 차단은 "홈 밖"에서만 성립한다.)
-# 파인 cwd는 $PROJECT_DIR/.team/{역할} 이므로 로드 여부는 $PROJECT_DIR 위치에
-# 달려 있다 — 홈 아래 프로젝트는 로드되고, /mnt/c 등 홈 밖 프로젝트는 안 된다.
-# 어느 쪽이든 주입은 하지 않는다. 홈 아래면 같은 내용을 두 번 넣는 중복이고,
-# 홈 밖이면 전역 규칙 없이 도는 것이 오히려 이 리포의 의도(고정비 절감)에 맞다.
-# 스킬·플러그인 차단은 홈 아래에서도 정상 작동하므로 플래그 자체는 계속 필요하다
-# (실측: 플래그 있으면 스킬 11개, 없으면 232개).
+# 전역 규칙(~/.claude/rules/, ~/.claude/CLAUDE.md)은 따로 주입하지 않는다.
+# --setting-sources project는 cwd가 $HOME 아래이면 이것들을 끄지 못하므로(실측)
+# 홈 아래 프로젝트에서는 주입이 중복이고, 홈 밖이면 전역 규칙 없이 도는 편이
+# 고정비 절감이라는 의도에 맞다. 스킬·플러그인 차단은 양쪽 모두 정상 작동한다.
 
 # ── 공통 지침을 대상 프로젝트 CLAUDE.md에 병합 ──────────────
 # 파인이 세션 시작 시 자동으로 읽는 CLAUDE.md는 $PROJECT_DIR의 것이다.
@@ -728,8 +661,7 @@ tmux select-layout -t "$SESSION:0" even-horizontal
 tmux set-option -t "$SESSION" main-pane-width '55%'
 tmux select-layout -t "$SESSION:0" main-vertical
 
-#  파인 이름 설정 (레이아웃 설정 후, Claude 실행 전)
-# 파인 타이틀은 시각적 강조를 위해 대문자로 표시 (데이터 자체는 소문자 유지)
+# 파인 이름 설정 (레이아웃 설정 후, Claude 실행 전)
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
     tmux select-pane -t "$SESSION:0.$pane" -T "${MEMBER_NAMES[$pane]^^}"
 done
