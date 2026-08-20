@@ -7,6 +7,18 @@
 
 ![팀 구조: lead가 배분하고 architect·researcher·designer·developer·reviewer 5개 역할이 병렬로 붙는다](images/team-architecture.svg)
 
+| 역할       | 담당                                                             |
+| ---------- | ---------------------------------------------------------------- |
+| lead       | 배분·수합·git 커밋 (직접 작업하지 않음)                          |
+| architect  | 설계·기술 판단, 설계 이탈 승인                                   |
+| researcher | 웹 조사                                                          |
+| designer   | UI/UX 설계 + **프론트엔드 구현** (마크업·스타일·컴포넌트)        |
+| developer  | **백엔드 구현** (API·DB·테스트·빌드)                             |
+| reviewer   | 코드 리뷰·QA·커버리지 판정                                       |
+
+designer와 developer는 프론트/백엔드로 갈린다 — designer가 화면을 설계하고 그대로 구현하며,
+필요한 API는 `say developer`로 요청한다. 상세는 각 `team/{역할}.md` 참조.
+
 ```
 CLAUDE.md          모든 파인 공통 규칙 (cwd 함정·say 통신·파일 읽기·보고 — 역할 무관)
 team/              프로젝트별 오버라이드 대상만 (--append-system-prompt로 주입)
@@ -185,7 +197,7 @@ declare -a MEMBER_MODELS=(
 
 - `MEMBER_NAMES`와 `MEMBER_MODELS`는 배열 길이가 같아야 함
 - 파인 개수는 배열 길이로 자동 계산
-- 이 저장소의 `team/config.sh`는 복사해서 수정할 템플릿 — 현재는 designer를 주석 처리한 5인 구성
+- 이 저장소의 `team/config.sh`는 복사해서 수정할 템플릿 — 기본값(6인)과 동일한 내용
 - 이름을 바꾸면 대응하는 `team/{이름}.md`도 필요(없으면 역할 지침 없이 실행 — 위 "CLAUDE.md와 team/" 참고)
 
 ## 파인 간 통신 — `bin/say`
@@ -251,8 +263,11 @@ Enter 누락부터 큐 도입까지, 통신이 깨졌던 유형과 각각의 대
 | 일반 완료 보고                 | 각 파인 → lead              |
 | 설계 이탈 (developer/designer) | 파인 → architect → lead     |
 | 리뷰 승인                      | reviewer → lead             |
-| 리뷰 — 코드 품질 수정요청      | reviewer → developer (직행) |
+| 리뷰 — 코드 품질 수정요청      | reviewer → 작성자 (직행)    |
 | 리뷰 — 설계 판단 필요          | reviewer → architect → lead |
+| 화면에 필요한 API 요청         | designer → developer        |
+
+코드 품질 수정요청의 "작성자"는 백엔드면 developer, 프론트엔드면 designer다.
 
 ### Stop 훅 — 보고 누락 방지
 
@@ -436,7 +451,7 @@ gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리
 | ----------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | caveman     | 전 파인                       | 켠 파인이 아니라 lead가 이득을 회수하는 구조(파인들의 보고가 전부 lead 입력). 출력 문체를 팀 전체에서 통일하는 값이 고정비보다 크다는 사용자 결정          |
 | ponytail    | developer만                   | 사다리 7단 중 2~7단이 전부 코드 대상이라 코드를 안 쓰는 역할에는 1단 YAGNI만 남음. 그 한 줄은 역할 지침에 문장으로 넣는 편이 100배 쌈(2.2K 대 ~20토큰)     |
-| serena      | developer·reviewer만          | 고정비가 가장 큼(MCP 툴 정의 30개). lead·researcher·designer는 심볼 단위 코드 탐색을 쓸 일이 없어 죽은 무게. architect도 뺐음 — Opus라 토큰 단가가 가장 비쌈 |
+| serena      | developer·reviewer만          | 고정비가 가장 큼(MCP 툴 정의 30개). lead·researcher는 코드를 안 다뤄 죽은 무게. architect는 Opus라 토큰 단가가 가장 비쌈. designer는 코드를 쓰지만 UI 작업이 파일 단위라 심볼 추적 이득이 작아 일단 제외 |
 | superpowers | 없음(`enabledPlugins` 미주입) | 위 "superpowers 스킬" 절대로 `[4/7]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 14개가 통째로 들어와 선별이 무의미해짐 |
 | frontend-design | 없음(`enabledPlugins` 미주입) | superpowers와 동일 — `[4/7]`이 designer에 직접 링크함                                                                                              |
 
