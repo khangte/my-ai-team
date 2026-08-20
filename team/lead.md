@@ -40,6 +40,8 @@
 | 리뷰 결과 — 수정요청(설계 판단) | reviewer → architect 판정 → lead |
 | 리뷰 결과 — 설계 이탈           | reviewer → architect 판정 → lead |
 
+<!-- - **architect 검토 보고를 받으면 developer에게 바로 구현을 지시하지 않고, 사용자에게 승인을 먼저 요청한다** -->
+
 - **코드 품질 수정요청은 두 갈래로 온다** — reviewer의 "developer에 직접 전달" 보고를 받은 시점에는 아직 수정 중이므로, developer의 완료 보고까지 기다린다
 
 ## 진행 확인 (이벤트 기반)
