@@ -457,11 +457,13 @@ declare -A PLUGIN_MARKETPLACES=(
 # 심볼 단위 코드 탐색이 죽은 무게가 된다. architect도 뺐다 — 설계 시 기존 구조
 # 파악에 쓸 여지는 있지만 Opus라 토큰 단가가 가장 비싸다.
 #
-# superpowers는 빈 값이다. [4/7]이 플러그인 캐시에서 스킬 디렉터리를 직접
-# 심볼릭 링크하므로 enabledPlugins 없이도 역할별로 이미 걸린다. 여기서 또 켜면
-# 스킬 14개가 통째로 들어와 [4/7]의 선별이 무의미해진다.
+# superpowers·frontend-design는 빈 값이다. [4/7]이 플러그인 캐시에서 스킬
+# 디렉터리를 직접 심볼릭 링크하므로 enabledPlugins 없이도 역할별로 이미 걸린다.
+# 여기서 또 켜면 superpowers 스킬 14개가 통째로 들어와 [4/7]의 선별이 무의미해진다
+# (frontend-design은 스킬이 1개뿐이라 차이가 없지만, 링크로 거는 방식을 맞춘다).
 declare -A PLUGIN_ROLES=(
     ["superpowers@claude-plugins-official"]=""
+    ["frontend-design@claude-plugins-official"]=""
     ["serena@claude-plugins-official"]="developer reviewer"
     ["ponytail@ponytail"]="developer"
     ["caveman@caveman"]="*"
@@ -528,11 +530,20 @@ echo -e "\n${YELLOW}[4/7] 역할별 스킬 제한...${NC}"
 # 아래 링크 루프가 SKILL.md 하나만 걸고 파인이 --setting-sources project로
 # 뜨는 탓에 파인에서 동작하지 않는다(= 절반이 죽은 텍스트).
 # 근거는 docs/architect-review/8_ecc-skill-overlap-review.md §5 참조.
+#
+# designer의 design-consultation도 같은 이유로 뺐다. 아래 FRONTEND_DESIGN_SKILL_SETS의
+# frontend-design과 "팔레트·타이포·레이아웃을 정한다"는 역할이 정면으로 겹치는데,
+# 71KB(1,258줄) 중 앞 861줄이 gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다.
+# frontend-design은 8.3KB 전량이 지침이라 호출당 17.8K 대 2.1K 토큰으로 8.5배 싸고,
+# gstack에 없는 AI 슬롭 캘리브레이션(크림+세리프+테라코타 등 수렴하는 세 가지 룩을
+# 명시하고 피하게 하는 것)까지 담고 있다. 빠지는 것은 웹 리서치·폰트 프리뷰 절차인데
+# 리서치는 researcher 파인이 이미 담당한다.
+# design-review(브라우저 QA)·design-html(코드 생성)·diagram은 역할이 달라 유지한다.
 declare -A GSTACK_SKILL_SETS=(
     [lead]=""
     [architect]="spec diagram document-generate health plan-eng-review"
     [researcher]="scrape browse"
-    [designer]="design-consultation design-review design-html diagram"
+    [designer]="design-review design-html diagram"
     [developer]="health codex learn"
     [reviewer]="review qa health"
 )
@@ -550,10 +561,21 @@ declare -A SUPERPOWERS_SKILL_SETS=(
     [reviewer]="verification-before-completion"
 )
 
+# frontend-design도 플러그인이라 superpowers와 같은 방식으로 링크한다.
+# 스킬이 frontend-design 하나뿐이지만 배열로 둬서 배분 규칙을 나머지와 맞춘다.
+declare -A FRONTEND_DESIGN_SKILL_SETS=(
+    [designer]="frontend-design"
+)
+
 # 플러그인은 버전 디렉터리 아래 설치되므로 경로를 고정할 수 없다. 가장 최근
 # 버전 하나를 고른다(설치본이 없으면 빈 값 → 아래 링크 루프가 통째로 건너뛴다).
+# frontend-design은 버전 디렉터리가 semver가 아니라 'unknown'이지만, 어차피
+# 설치본이 하나뿐이라 같은 glob + tail -1로 잡힌다.
 SUPERPOWERS_ROOT=$(
     ls -d "$HOME"/.claude/plugins/cache/*/superpowers/*/skills 2>/dev/null | sort -V | tail -1
+)
+FRONTEND_DESIGN_ROOT=$(
+    ls -d "$HOME"/.claude/plugins/cache/*/frontend-design/*/skills 2>/dev/null | sort -V | tail -1
 )
 
 # 전역 규칙(~/.claude/rules/)과 ~/.claude/CLAUDE.md는 따로 주입하지 않는다.
@@ -628,6 +650,16 @@ for role in "${!GSTACK_SKILL_SETS[@]}"; do
         src="$SUPERPOWERS_ROOT/$skill"
         [ -n "$SUPERPOWERS_ROOT" ] && [ -d "$src" ] || {
             echo -e "${YELLOW}  ⚠️  $role: superpowers '$skill' 없음 (플러그인 설치 확인)${NC}" >&2
+            continue
+        }
+        ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill"
+        granted+=("$skill")
+    done
+    # frontend-design도 플러그인이라 superpowers와 같은 방식(디렉터리 통째 링크)이다.
+    for skill in ${FRONTEND_DESIGN_SKILL_SETS[$role]:-}; do
+        src="$FRONTEND_DESIGN_ROOT/$skill"
+        [ -n "$FRONTEND_DESIGN_ROOT" ] && [ -d "$src" ] || {
+            echo -e "${YELLOW}  ⚠️  $role: frontend-design '$skill' 없음 (플러그인 설치 확인)${NC}" >&2
             continue
         }
         ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill"

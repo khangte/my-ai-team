@@ -108,7 +108,7 @@ Docker 환경의 특이점:
 2. 도구 준비
    - rtk 훅 초기화
    - gstack 스킬(`/office-hours`, `/review` 등 슬래시 커맨드) 설치
-3. 필수 마켓플레이스 플러그인(superpowers/serena/ponytail/caveman) 설치 — 역할별 활성화는 5번이 담당
+3. 필수 마켓플레이스 플러그인(superpowers/frontend-design/serena/ponytail/caveman) 설치 — 역할별 활성화는 5번이 담당
 4. 역할별 스킬 제한 — `.team/{역할}/.claude/skills`에 그 역할이 쓸 스킬만 링크
 5. tmux 세션 구성
    - 팀 인원 수만큼 파인 분할
@@ -334,7 +334,7 @@ $PROJECT_DIR/.claude-logs/
 | lead       | (없음 — 배분·수합·git 커밋만 하므로 gstack 스킬 불필요)         |
 | architect  | `spec` `diagram` `document-generate` `health` `plan-eng-review` |
 | researcher | `scrape` `browse`                                               |
-| designer   | `design-consultation` `design-review` `design-html` `diagram`   |
+| designer   | `design-review` `design-html` `diagram`                         |
 | developer  | `health` `codex` `learn`                                        |
 | reviewer   | `review` `qa` `health`                                          |
 
@@ -343,6 +343,11 @@ gstack `investigate`는 superpowers `systematic-debugging`과 교리·4단계 �
 (62.6KB 대 9.5KB)인데 디버깅 실체는 뒤쪽 ~250줄뿐이고, 본문의 gstack 경로 참조
 92곳과 frontmatter의 훅·gbrain 쿼리는 파인에서 동작하지 않는다.
 근거: `docs/architect-review/8_ecc-skill-overlap-review.md` §5
+
+designer의 `design-consultation`도 같은 이유로 뺐다 — 아래 `frontend-design`과
+"팔레트·타이포·레이아웃을 정한다"는 역할이 겹치는데, 71KB(1,258줄) 중 앞 861줄이
+gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리서치 절차가 빠지지만
+그건 researcher 파인이 이미 담당한다.
 
 ### superpowers 스킬
 
@@ -383,6 +388,28 @@ gstack `investigate`는 superpowers `systematic-debugging`과 교리·4단계 �
 방침과 TDD가 충돌해, 현재는 **TDD 사이클(red→구현→green)까지 developer**,
 **커버리지·품질 최종 판정은 reviewer**로 나눴다.
 
+### frontend-design 스킬
+
+[frontend-design](https://github.com/anthropics/claude-plugins-official)(공식 마켓플레이스)도
+플러그인이라 superpowers와 같은 방식으로 링크한다(`FRONTEND_DESIGN_SKILL_SETS`).
+스킬이 1개뿐이지만 배열로 둬서 배분 규칙을 나머지와 맞췄다.
+
+| 역할     | 배정 스킬         |
+| -------- | ----------------- |
+| designer | `frontend-design` |
+
+`design-consultation`을 대체한다. 8.3KB 전량이 지침이라 호출당 **2.1K 토큰**으로
+`design-consultation`(17.8K)보다 **8.5배 싸다**. 더 중요한 건 gstack에 없는
+**AI 슬롭 캘리브레이션** — 지금 AI 디자인이 수렴하는 세 가지 룩(크림 배경+세리프+테라코타,
+니어블랙+애시드그린, 헤어라인 브로드시트)을 명시하고, 브리프가 자유롭게 둔 축을
+거기에 쓰지 말라고 못박는다.
+
+`design-review`(브라우저 QA)·`design-html`(코드 생성)·`diagram`(렌더)은 역할이 달라 유지한다.
+단 `design-html`은 Pretext(`@chenglou/pretext`) 참조가 38곳이라 그 스택에 묶인다.
+
+> 버전 디렉터리가 semver가 아니라 `unknown`이지만, 설치본이 하나뿐이라
+> superpowers와 같은 `*/skills` glob + `tail -1`로 잡힌다.
+
 제한 대상이 아닌 것:
 
 - claude 빌트인 스킬
@@ -411,6 +438,7 @@ gstack `investigate`는 superpowers `systematic-debugging`과 교리·4단계 �
 | ponytail    | developer만                   | 사다리 7단 중 2~7단이 전부 코드 대상이라 코드를 안 쓰는 역할에는 1단 YAGNI만 남음. 그 한 줄은 역할 지침에 문장으로 넣는 편이 100배 쌈(2.2K 대 ~20토큰)     |
 | serena      | developer·reviewer만          | 고정비가 가장 큼(MCP 툴 정의 30개). lead·researcher·designer는 심볼 단위 코드 탐색을 쓸 일이 없어 죽은 무게. architect도 뺐음 — Opus라 토큰 단가가 가장 비쌈 |
 | superpowers | 없음(`enabledPlugins` 미주입) | 위 "superpowers 스킬" 절대로 `[4/7]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 14개가 통째로 들어와 선별이 무의미해짐 |
+| frontend-design | 없음(`enabledPlugins` 미주입) | superpowers와 동일 — `[4/7]`이 designer에 직접 링크함                                                                                              |
 
 배분 근거 실측은 [docs/architect-review/6_caveman-ponytail-role-scoping.md](docs/architect-review/6_caveman-ponytail-role-scoping.md) 참조.
 
