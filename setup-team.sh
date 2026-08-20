@@ -517,13 +517,24 @@ echo -e "\n${YELLOW}[4/7] 역할별 스킬 제한...${NC}"
 # lead는 코드를 직접 쓰지 않고 배분·수합·git 커밋만 하므로 gstack 스킬이 필요 없다.
 # 빈 값을 줘서 디렉터리는 만들되(→ --setting-sources project 적용) gstack 스킬은
 # 하나도 주지 않는다(빌트인 스킬은 위 주석대로 남는다).
+#
+# gstack investigate는 어느 역할에도 주지 않는다. superpowers
+# systematic-debugging과 같은 교리("Iron Law: 근본 원인 없이는 수정 없음",
+# 4단계 조사→분석→가설→구현)를 문구까지 거의 그대로 담고 있어 순수 중복인데,
+# 62.6KB(1,104줄)로 systematic-debugging(9.5KB)의 6.6배다. 그중 디버깅 실체는
+# 852줄 이후 ~250줄뿐이고 앞 851줄은 Preamble·Skill routing·Telemetry 등
+# gstack 런타임 보일러플레이트라, 호출당 ~15K 토큰을 태우고도 알맹이는 더 적다.
+# 게다가 본문의 gstack 경로 참조 92곳과 frontmatter의 훅·gbrain 쿼리는
+# 아래 링크 루프가 SKILL.md 하나만 걸고 파인이 --setting-sources project로
+# 뜨는 탓에 파인에서 동작하지 않는다(= 절반이 죽은 텍스트).
+# 근거는 docs/architect-review/8_ecc-skill-overlap-review.md §5 참조.
 declare -A GSTACK_SKILL_SETS=(
     [lead]=""
     [architect]="spec diagram document-generate health plan-eng-review"
-    [researcher]="scrape browse investigate"
+    [researcher]="scrape browse"
     [designer]="design-consultation design-review design-html diagram"
-    [developer]="investigate health codex learn"
-    [reviewer]="review qa health investigate"
+    [developer]="health codex learn"
+    [reviewer]="review qa health"
 )
 
 # superpowers 스킬은 플러그인이라 소스 경로가 gstack과 다르다

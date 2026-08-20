@@ -331,17 +331,23 @@ $PROJECT_DIR/.claude-logs/
 | ---------- | --------------------------------------------------------------- |
 | lead       | (없음 — 배분·수합·git 커밋만 하므로 gstack 스킬 불필요)         |
 | architect  | `spec` `diagram` `document-generate` `health` `plan-eng-review` |
-| researcher | `scrape` `browse` `investigate`                                 |
+| researcher | `scrape` `browse`                                               |
 | designer   | `design-consultation` `design-review` `design-html` `diagram`   |
-| developer  | `investigate` `health` `codex` `learn`                          |
-| reviewer   | `review` `qa` `health` `investigate`                            |
+| developer  | `health` `codex` `learn`                                        |
+| reviewer   | `review` `qa` `health`                                          |
+
+gstack `investigate`는 superpowers `systematic-debugging`과 교리·4단계 구성이
+문구까지 거의 같은 순수 중복이라 어느 역할에도 주지 않는다. 크기는 6.6배
+(62.6KB 대 9.5KB)인데 디버깅 실체는 뒤쪽 ~250줄뿐이고, 본문의 gstack 경로 참조
+92곳과 frontmatter의 훅·gbrain 쿼리는 파인에서 동작하지 않는다.
+근거: `docs/architect-review/8_ecc-skill-overlap-review.md` §5
 
 ### superpowers 스킬
 
 [superpowers](https://github.com/obra/superpowers)는 gstack과 달리 **플러그인**이라
 `--setting-sources project`에 통째로 차단된다. 그래서 gstack과 같은 방식으로
 역할별 필요한 것만 `.team/{역할}/.claude/skills`에 링크해 되살린다
-(`setup-team.sh`의 `SUPERPOWERS_SETS`).
+(`setup-team.sh`의 `SUPERPOWERS_SKILL_SETS`).
 
 | 역할      | 배정 스킬                                                                |
 | --------- | ------------------------------------------------------------------------ |
