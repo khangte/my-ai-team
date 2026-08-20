@@ -28,3 +28,7 @@ Thumbs.db
 
 # graphify 스킬 산출물 (런타임 생성물)
 graphify-out/
+
+# 리뷰 작업 중 생성되는 로컬 문서 (커밋 대상 아님)
+docs/architect-review/*
+!docs/architect-review/.gitkeep
