@@ -119,8 +119,8 @@ start_claude_in_pane() {
     # 유저 전역·플러그인 스킬을 차단한다(빌트인 스킬은 남는다 — [4/7] 주석 참조).
     # 프로젝트 스킬 탐색은 상위로 거슬러 올라가므로
     # $PROJECT_DIR/.claude/skills 의 공용 스킬은 그대로 상속된다.
-    # SKILL_SETS에 없는 역할은 $PROJECT_DIR에서 전체 스킬로 그대로 뜬다
-    # (현재 SKILL_SETS는 6개 역할을 모두 포함하므로 해당 없음).
+    # GSTACK_SKILL_SETS에 없는 역할은 $PROJECT_DIR에서 전체 스킬로 그대로 뜬다
+    # (현재 GSTACK_SKILL_SETS는 6개 역할을 모두 포함하므로 해당 없음).
     local work_dir="$PROJECT_DIR" skills_arg=""
     if [ -n "$role" ] && [ -d "$TEAM_SKILLS_ROOT/$role/.claude/skills" ]; then
         work_dir="$TEAM_SKILLS_ROOT/$role"
@@ -407,7 +407,7 @@ fi
 # volume(claude-home) 안이라 컨테이너를 새로 만들면 사라진다. gstack과 같은
 # 이유로 런타임에 매번 맞춘다.
 #
-# 아래 [4/7]의 SUPERPOWERS_SETS가 참조하는 superpowers 스킬이 여기서 깔리고,
+# 아래 [4/7]의 SUPERPOWERS_SKILL_SETS가 참조하는 superpowers 스킬이 여기서 깔리고,
 # caveman/ponytail은 응답 스타일 규칙을, serena는 심볼 단위 코드 탐색 MCP를 제공한다.
 #
 # 여기서는 설치까지만 한다. 파인별 활성화는 start_claude_in_pane이 --settings에
@@ -517,7 +517,7 @@ echo -e "\n${YELLOW}[4/7] 역할별 스킬 제한...${NC}"
 # lead는 코드를 직접 쓰지 않고 배분·수합·git 커밋만 하므로 gstack 스킬이 필요 없다.
 # 빈 값을 줘서 디렉터리는 만들되(→ --setting-sources project 적용) gstack 스킬은
 # 하나도 주지 않는다(빌트인 스킬은 위 주석대로 남는다).
-declare -A SKILL_SETS=(
+declare -A GSTACK_SKILL_SETS=(
     [lead]=""
     [architect]="spec diagram document-generate health plan-eng-review"
     [researcher]="scrape browse investigate"
@@ -531,7 +531,7 @@ declare -A SKILL_SETS=(
 # 스킬을 통째로 차단하므로, 역할별로 필요한 것만 위 gstack 스킬과 같은 방식으로
 # .team/{역할}/.claude/skills 에 링크해서 되살린다.
 # 어떤 역할이 무엇을 왜 받는지는 team/{역할}.md의 "## 스킬" 절에 적혀 있다.
-declare -A SUPERPOWERS_SETS=(
+declare -A SUPERPOWERS_SKILL_SETS=(
     [lead]="finishing-a-development-branch"
     [architect]="brainstorming writing-plans"
     [designer]="brainstorming"
@@ -594,11 +594,11 @@ TEAM_SKILLS_ROOT="$PROJECT_DIR/.team"
 RUNTIME_DIR="$TEAM_SKILLS_ROOT/_runtime"
 rm -rf "$TEAM_SKILLS_ROOT"
 
-for role in "${!SKILL_SETS[@]}"; do
+for role in "${!GSTACK_SKILL_SETS[@]}"; do
     role_skills_dir="$TEAM_SKILLS_ROOT/$role/.claude/skills"
     mkdir -p "$role_skills_dir"
     granted=()
-    for skill in ${SKILL_SETS[$role]}; do
+    for skill in ${GSTACK_SKILL_SETS[$role]}; do
         # gstack setup이 만든 래퍼(~/.claude/skills/{skill}/SKILL.md)를 그대로 링크한다.
         # 래퍼의 SKILL.md 자체가 이미 gstack 리포를 가리키는 심볼릭 링크다.
         src="$HOME/.claude/skills/$skill/SKILL.md"
@@ -613,7 +613,7 @@ for role in "${!SKILL_SETS[@]}"; do
     done
     # superpowers 스킬은 래퍼 없이 플러그인 캐시의 스킬 디렉터리를 통째로 링크한다
     # (references/ 등 하위 파일을 런타임에 읽으므로 SKILL.md만 링크하면 깨진다).
-    for skill in ${SUPERPOWERS_SETS[$role]:-}; do
+    for skill in ${SUPERPOWERS_SKILL_SETS[$role]:-}; do
         src="$SUPERPOWERS_ROOT/$skill"
         [ -n "$SUPERPOWERS_ROOT" ] && [ -d "$src" ] || {
             echo -e "${YELLOW}  ⚠️  $role: superpowers '$skill' 없음 (플러그인 설치 확인)${NC}" >&2
