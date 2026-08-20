@@ -410,10 +410,12 @@ declare -A PLUGIN_MARKETPLACES=(
 # 토큰 고정비보다 크다는 사용자 결정이다. 비용·회수 실측은
 # docs/architect-review/6_caveman-ponytail-role-scoping.md 참조.
 #
-# ponytail은 developer에만 준다. 사다리 7단 중 2~7단(기존 헬퍼 재사용, 표준
-# 라이브러리, 네이티브 기능, 설치된 의존성, 한 줄 구현)이 전부 코드 대상이라
-# 코드를 직접 쓰지 않는 역할에서는 1단 YAGNI만 남는데, 그 한 줄은 역할 지침에
-# 문장으로 넣는 편이 100배 싸다(고정비 2.2K/호출 대 ~20토큰).
+# ponytail은 lead와 developer에 준다. 사다리 2~7단(기존 헬퍼 재사용, 표준
+# 라이브러리, 네이티브 기능, 설치된 의존성, 한 줄 구현)은 코드를 직접 쓰는
+# developer용이고, lead는 1단 YAGNI 하나로 값을 뽑는다 — 사용자 명령이 전부
+# lead를 거쳐 배분되므로, 안 만들어도 되는 일을 배분 전에 걷어내는 편이
+# developer가 받아든 뒤 줄이는 것보다 싸다. 나머지 역할은 코드를 쓰지도,
+# 일을 배분하지도 않아 2.2K/호출 고정비를 회수하지 못한다.
 #
 # serena는 고정비가 가장 크므로 코드를 직접 다루는 역할(developer·reviewer·
 # designer)에만 준다. lead는 코드를 안 쓰고, researcher는 웹 조사라 심볼 탐색이
@@ -430,7 +432,7 @@ declare -A PLUGIN_ROLES=(
     ["superpowers@claude-plugins-official"]=""
     ["frontend-design@claude-plugins-official"]=""
     ["serena@claude-plugins-official"]="developer reviewer designer"
-    ["ponytail@ponytail"]="developer"
+    ["ponytail@ponytail"]="lead developer"
     ["caveman@caveman"]="*"
 )
 
