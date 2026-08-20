@@ -451,11 +451,21 @@ gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리
 | ----------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | caveman     | 전 파인                       | 켠 파인이 아니라 lead가 이득을 회수하는 구조(파인들의 보고가 전부 lead 입력). 출력 문체를 팀 전체에서 통일하는 값이 고정비보다 크다는 사용자 결정          |
 | ponytail    | developer만                   | 사다리 7단 중 2~7단이 전부 코드 대상이라 코드를 안 쓰는 역할에는 1단 YAGNI만 남음. 그 한 줄은 역할 지침에 문장으로 넣는 편이 100배 쌈(2.2K 대 ~20토큰)     |
-| serena      | developer·reviewer만          | 고정비가 가장 큼(MCP 툴 정의 30개). lead·researcher는 코드를 안 다뤄 죽은 무게. architect는 Opus라 토큰 단가가 가장 비쌈. designer는 코드를 쓰지만 UI 작업이 파일 단위라 심볼 추적 이득이 작아 일단 제외 |
+| serena      | developer·reviewer·designer   | 고정비가 가장 큼(MCP 툴 정의 30개)이라 코드를 직접 다루는 역할에만 줌. lead·researcher는 코드를 안 다뤄 죽은 무게. architect는 Opus라 토큰 단가가 가장 비쌈                                          |
 | superpowers | 없음(`enabledPlugins` 미주입) | 위 "superpowers 스킬" 절대로 `[4/7]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 14개가 통째로 들어와 선별이 무의미해짐 |
 | frontend-design | 없음(`enabledPlugins` 미주입) | superpowers와 동일 — `[4/7]`이 designer에 직접 링크함                                                                                              |
 
 배분 근거 실측은 [docs/architect-review/6_caveman-ponytail-role-scoping.md](docs/architect-review/6_caveman-ponytail-role-scoping.md) 참조.
+
+designer에게 serena를 주는 이유: serena의 LSP 백엔드가 프론트엔드를 1급으로 지원한다 —
+typescript(`.ts/.tsx/.js/.jsx`), vue(`.vue` SFC), svelte(`.svelte` SFC), angular, html,
+some-sass(`.scss/.sass/.css`). 값이 나오는 지점은 `find_referencing_symbols`로,
+"이 컴포넌트를 고치면 어디가 깨지나"를 grep으로 찾으면 `<Button`, `Button(`,
+`import Button`, 재export를 놓치지만 심볼 탐색은 잡는다.
+
+> UI가 없는 프로젝트(이 리포처럼 bash + 문서)에 팀을 띄우면 designer 파인 자체가
+> 불필요하다. serena만 빼는 게 아니라 `team/config.sh`의 `MEMBER_NAMES`에서
+> designer를 빼는 것이 옳은 대응이다.
 
 `claude plugin enable`은 부르지 않는다 — 유저 전역 `settings.json`을 고쳐 팀 밖 세션까지 건드리는데,
 파인 활성화는 `--settings`가 이미 담당하므로 불필요하다.

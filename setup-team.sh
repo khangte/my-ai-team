@@ -452,10 +452,22 @@ declare -A PLUGIN_MARKETPLACES=(
 # 코드를 직접 쓰지 않는 역할에서는 1단 YAGNI만 남는데, 그 한 줄은 역할 지침에
 # 문장으로 넣는 편이 100배 싸다(고정비 2.2K/호출 대 ~20토큰).
 #
-# serena는 고정비가 가장 크고 용도가 명확히 갈려 코드를 직접 다루는 둘에만 준다.
-# lead는 코드를 안 쓰고, researcher는 웹 조사, designer는 디자인이 주 업무라
-# 심볼 단위 코드 탐색이 죽은 무게가 된다. architect도 뺐다 — 설계 시 기존 구조
-# 파악에 쓸 여지는 있지만 Opus라 토큰 단가가 가장 비싸다.
+# serena는 고정비가 가장 크므로 코드를 직접 다루는 역할에만 준다.
+# lead는 코드를 안 쓰고 researcher는 웹 조사라 심볼 단위 코드 탐색이 죽은 무게다.
+# architect도 뺐다 — 설계 시 기존 구조 파악에 쓸 여지는 있지만 Opus라 토큰
+# 단가가 가장 비싸다.
+#
+# designer는 프론트엔드를 구현하므로 준다. serena의 LSP 백엔드는 프론트엔드를
+# 1급으로 지원한다 — typescript(.ts/.tsx/.js/.jsx), vue(.vue SFC),
+# svelte(.svelte SFC), angular, html, some-sass(.scss/.sass/.css).
+# 값이 나오는 지점은 find_referencing_symbols다. "이 컴포넌트를 고치면 어디가
+# 깨지나"를 grep으로 찾으면 `<Button`, `Button(`, `import Button`, 재export를
+# 놓치는데 심볼 탐색은 잡는다. rename_symbol·safe_delete_symbol도 컴포넌트
+# 정리에서 grep 치환보다 안전하다.
+#
+# 단 이는 대상 프로젝트에 프론트엔드가 있을 때의 이야기다. UI가 없는 프로젝트
+# (이 리포처럼 bash+문서)에 팀을 띄우면 designer 파인 자체가 불필요하므로
+# team/config.sh의 MEMBER_NAMES에서 designer를 빼는 것이 옳은 대응이다.
 #
 # superpowers·frontend-design는 빈 값이다. [4/7]이 플러그인 캐시에서 스킬
 # 디렉터리를 직접 심볼릭 링크하므로 enabledPlugins 없이도 역할별로 이미 걸린다.
@@ -464,7 +476,7 @@ declare -A PLUGIN_MARKETPLACES=(
 declare -A PLUGIN_ROLES=(
     ["superpowers@claude-plugins-official"]=""
     ["frontend-design@claude-plugins-official"]=""
-    ["serena@claude-plugins-official"]="developer reviewer"
+    ["serena@claude-plugins-official"]="developer reviewer designer"
     ["ponytail@ponytail"]="developer"
     ["caveman@caveman"]="*"
 )
