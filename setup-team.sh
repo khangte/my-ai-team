@@ -167,6 +167,11 @@ start_claude_in_pane() {
     # pane_id는 각 role 블록에서 정의한다(lead는 Stop이 없어 별도 처리).
     local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]},{\"hooks\":[{\"type\":\"command\",\"command\":\"mkdir -p /tmp/team-busy && touch /tmp/team-busy/${pane_id}\"}]}]"
 
+    # /clear·/compact는 진행 중인 턴을 Stop 훅 없이 끊어서 busy 마커가 남는다 —
+    # 그 파인은 유휴인데 say는 30분 만료 전까지 계속 큐에 쌓는다. SessionStart는
+    # clear/compact/startup 모두에서 발화하므로 여기서 마커를 지운다.
+    local sessionstart_json="\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"rm -f /tmp/team-busy/${pane_id}\"}]}]"
+
     # 파인 간 통신은 say(tmux send-keys)가 담당하지만, Claude Code 자체의
     # cross-session messaging(SendMessage/ListAgents)도 파인마다 켜져 있다 —
     # 각 파인이 자기 인박스 소켓을 바인딩하므로 서로, 그리고 팀 밖 세션에서도 보인다.
@@ -226,7 +231,7 @@ start_claude_in_pane() {
         # --dangerously-skip-permissions 하에서도 permissions.deny는 실제로 차단됨을
         # 격리된 프로브 세션으로 별도 확인 완료.
         local lead_deny_json="\"permissions\":{\"deny\":[\"Bash(tmux send-keys:*)\"]},"
-        local lead_settings_json="{${plugins_json}${lead_deny_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"rm -f /tmp/team-busy/${pane_id}\"}]}],${pretooluse_json},${userprompt_json}}}"
+        local lead_settings_json="{${plugins_json}${lead_deny_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"rm -f /tmp/team-busy/${pane_id}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}"
         local lead_settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$lead_settings_json" > "$lead_settings_file"
@@ -241,7 +246,7 @@ start_claude_in_pane() {
         # JSON 문자열로 들어가므로 큰따옴표는 \" 로 이스케이프한다(작은따옴표는 JSON에서 무해).
         # 훅 커맨드는 이 스크립트가 만드는 고정 문자열이라 이스케이프 대상이 이것뿐이다.
         local hook_cmd="rm -f /tmp/team-busy/${pane_id}; if [ -f '${marker}' ]; then rm -f '${marker}'; else ${BIN_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\\\"; fi"
-        local settings_json="{${plugins_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json},${userprompt_json}}}"
+        local settings_json="{${plugins_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}"
         local settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$settings_json" > "$settings_file"
