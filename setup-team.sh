@@ -1,27 +1,22 @@
 #!/bin/bash
 #
-# setup-team.sh — 컨테이너 내부 Claude 멀티에이전트 팀 환경 자동 구성
+# setup-team.sh — tmux 기반 Claude/Codex 멀티에이전트 팀 환경 자동 구성
 #
 # setup-docker.sh가 컨테이너 기동 후 `docker exec`로 호출한다(직접 실행도 가능).
 # 단계:
-#   [0] tmux/claude/rtk/bun 등 사전 요구사항 및 claude 로그인 여부 확인
-#       (미로그인 시 claude를 실행해 /login을 안내하고 완료를 대기)
-#   [1] rtk 훅을 전역(-g) 초기화
-#   [2] gstack 스킬(~/.claude/skills/gstack)을 clone/pull 및 setup
-#       (CLAUDE.md의 "Skill routing"이 참조하는 /office-hours 등 슬래시 커맨드 제공)
-#   [3] 필수 마켓플레이스 플러그인 설치 (역할별 활성화는 [7]의 --settings가 담당)
-#   [4] 팀 공통 지침(이 리포 CLAUDE.md)을 $PROJECT_DIR/CLAUDE.md에 마커 블록으로 병합,
-#       이어서 역할별 스킬 제한 디렉터리(.team/{역할}/.claude/skills) 구성
+#   [0] 선택된 에이전트의 사전 요구사항 및 로그인 여부 확인
+#   [1-3] Claude 모드: rtk·gstack·Claude 플러그인 준비
+#   [4] 팀 공통 지침을 공급자별 파일에 병합하고 역할별 런타임 디렉터리 구성
 #   [5] 기존 tmux 세션 정리
 #   [6] MEMBER_NAMES/MEMBER_MODELS 배열 기준으로 파인을 분할하고 이름 부여
-#   [7] 각 파인에서 지정된 모델로 claude를 실행(최초 로그인 시 trust/terms 다이얼로그 자동 처리)
+#   [7] 각 파인에서 지정된 모델로 선택된 CLI를 실행
 #       및 tmux가 파인 타이틀을 스피너로 덮어쓰는 문제를 막기 위한 타이틀 워처 기동
 #
 # 사용:
-#   ./setup-team.sh [프로젝트_경로]
+#   ./setup-team.sh [--agent claude|codex] [프로젝트_경로]
 #   프로젝트_경로 생략 시 $PROJECT_DIR(기본 ~/project) 사용.
-#   (팀원 구성을 바꾸려면 MEMBER_NAMES/MEMBER_MODELS 배열만 수정하거나
-#    프로젝트 루트에 team/config.sh를 두면 됨)
+#   (팀원 구성을 바꾸려면 MEMBER_NAMES/MEMBER_MODELS 배열을 프로젝트 루트의
+#    team/config.sh 또는 team/config.{agent}.sh에서 바꾸면 됨)
 
 set -e
 
@@ -40,7 +35,66 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 SESSION="team1"
-PROJECT_DIR="${1:-${PROJECT_DIR:-$(pwd)}}"
+TEAM_AGENT="${TEAM_AGENT:-claude}"
+PROJECT_ARG=""
+
+usage() {
+    cat <<'EOF'
+사용법: ./setup-team.sh [--agent claude|codex] [프로젝트_경로]
+
+옵션:
+    --agent NAME       사용할 에이전트 (claude 또는 codex, 기본: claude)
+    -h, --help         이 도움말 표시
+
+환경변수:
+    TEAM_AGENT         --agent가 없을 때 사용할 에이전트
+    PROJECT_DIR        프로젝트 경로 (인자가 없을 때 사용)
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --agent)
+            [ $# -ge 2 ] || { echo -e "${RED}❌ --agent에는 값이 필요합니다.${NC}" >&2; exit 2; }
+            TEAM_AGENT="$2"
+            shift 2
+            ;;
+        --agent=*)
+            TEAM_AGENT="${1#--agent=}"
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            [ $# -le 1 ] || { echo -e "${RED}❌ 프로젝트 경로는 하나만 지정할 수 있습니다.${NC}" >&2; exit 2; }
+            PROJECT_ARG="${1:-}"
+            break
+            ;;
+        -*)
+            echo -e "${RED}❌ 알 수 없는 옵션: $1${NC}" >&2
+            usage >&2
+            exit 2
+            ;;
+        *)
+            [ -z "$PROJECT_ARG" ] || { echo -e "${RED}❌ 프로젝트 경로는 하나만 지정할 수 있습니다.${NC}" >&2; exit 2; }
+            PROJECT_ARG="$1"
+            shift
+            ;;
+    esac
+done
+
+case "$TEAM_AGENT" in
+    claude|codex) ;;
+    *)
+        echo -e "${RED}❌ 지원하지 않는 에이전트: $TEAM_AGENT (claude 또는 codex)${NC}" >&2
+        exit 2
+        ;;
+esac
+
+PROJECT_DIR="${PROJECT_ARG:-${PROJECT_DIR:-$(pwd)}}"
 PROJECT_DIR="$(realpath "$PROJECT_DIR")"
 
 # team/{role}.md 지침 파일 위치. 이 스크립트(ai-setup 리포) 기준이므로 PROJECT_DIR과 무관하다.
@@ -48,33 +102,73 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEAM_DIR="$SCRIPT_DIR/team"
 BIN_DIR="$SCRIPT_DIR/bin"   # say·log-hook — 오버라이드 대상이 아닌 고정 스크립트
 
-# ── 팀 멤버 정보 (기본값. $PROJECT_DIR/team/config.sh가 있으면 그쪽 값으로 대체됨) ──
+# ── 팀 멤버 정보 ───────────────────────────────────────────
+# 설정은 두 단계로 독립 해석한다.
+#   1) 공통 구성: 이 저장소/team/config.sh → 대상 프로젝트/team/config.sh
+#   2) 공급자 구성: 이 저장소/team/config.{agent}.sh → 대상 프로젝트/team/config.{agent}.sh
+#
+# 과거 Claude 프로젝트는 team/config.sh의 MEMBER_MODELS를 계속 쓸 수 있다. 그
+# 호환 값은 Claude에만 적용하며, Codex의 공급자 기본 모델과 절대 섞지 않는다.
 declare -a MEMBER_NAMES=("lead" "architect" "researcher" "designer" "developer" "reviewer")
-declare -a MEMBER_MODELS=(
-    # lead는 직접 작업하지 않고 배분·수합만 하지만 모든 보고가 모여 컨텍스트가
-    # 가장 빨리 불어나는 파인이다. 비싼 모델 × 최장 컨텍스트 조합을 피해 Sonnet을 쓴다.
-    # 깊은 판단이 필요한 쪽은 architect이므로 그쪽만 Opus로 둔다.
-    "claude-sonnet-5"   # lead (팀장 — 배분·수합 중심)
-    "claude-opus-4-8"   # architect (PM — 설계·추론 중심)
-    "claude-haiku-4-5"   # researcher
-    "claude-sonnet-5"   # designer
-    "claude-sonnet-5"   # developer
-    "claude-sonnet-5"   # reviewer
-)
+declare -a MEMBER_MODELS=()
+declare -a MEMBER_REASONING_EFFORTS=()
+declare -a LEGACY_CLAUDE_MEMBER_MODELS=()
 
-# 프로젝트별로 팀 구성을 다르게 하고 싶으면 $PROJECT_DIR/team/config.sh에
-# 위와 동일한 형식으로 SESSION/MEMBER_NAMES/MEMBER_MODELS를 재선언하면 된다.
-if [ -f "$PROJECT_DIR/team/config.sh" ]; then
-    echo -e "${YELLOW}team/config.sh 발견 → 프로젝트별 팀 구성 사용: $PROJECT_DIR/team/config.sh${NC}"
-    source "$PROJECT_DIR/team/config.sh"
+common_config="$TEAM_DIR/config.sh"
+[ -f "$common_config" ] && source "$common_config"
+
+project_common_config="$PROJECT_DIR/team/config.sh"
+if [ -f "$project_common_config" ]; then
+    echo -e "${YELLOW}team/config.sh 발견 → 프로젝트별 팀 구성 사용: $project_common_config${NC}"
+    source "$project_common_config"
 else
     echo -e "${CYAN}team/config.sh 없음 → 기본 팀 구성 사용${NC}"
 fi
 
+# 공통 설정에 남아 있을 수 있는 기존 Claude 모델 배열을 먼저 보관한 뒤,
+# 공급자 설정을 깨끗한 배열에 적용한다.
+if [ "$TEAM_AGENT" = "claude" ] && [ "${#MEMBER_MODELS[@]}" -gt 0 ]; then
+    LEGACY_CLAUDE_MEMBER_MODELS=("${MEMBER_MODELS[@]}")
+fi
+MEMBER_MODELS=()
+MEMBER_REASONING_EFFORTS=()
+
+provider_config="$TEAM_DIR/config.${TEAM_AGENT}.sh"
+[ -f "$provider_config" ] && source "$provider_config"
+
+if [ "$TEAM_AGENT" = "claude" ] && [ "${#LEGACY_CLAUDE_MEMBER_MODELS[@]}" -gt 0 ]; then
+    MEMBER_MODELS=("${LEGACY_CLAUDE_MEMBER_MODELS[@]}")
+fi
+
+project_provider_config="$PROJECT_DIR/team/config.${TEAM_AGENT}.sh"
+if [ -f "$project_provider_config" ]; then
+    echo -e "${YELLOW}team/config.${TEAM_AGENT}.sh 발견 → 공급자별 구성 사용: $project_provider_config${NC}"
+    source "$project_provider_config"
+fi
+
 PANE_COUNT=${#MEMBER_NAMES[@]}
+
+if [ "$TEAM_AGENT" = "codex" ] && [ "${#MEMBER_MODELS[@]}" -eq 0 ]; then
+    # 빈 모델명은 Codex CLI에 --model을 넘기지 않아 사용자의 기본 모델을 사용한다.
+    for ((i = 0; i < PANE_COUNT; i++)); do
+        MEMBER_MODELS+=("")
+    done
+fi
+
+if [ "$TEAM_AGENT" = "codex" ] && [ "${#MEMBER_REASONING_EFFORTS[@]}" -eq 0 ]; then
+    # 빈 추론 수준은 Codex의 사용자 기본 설정을 사용한다.
+    for ((i = 0; i < PANE_COUNT; i++)); do
+        MEMBER_REASONING_EFFORTS+=("")
+    done
+fi
 
 if [ "${#MEMBER_MODELS[@]}" -ne "$PANE_COUNT" ]; then
     echo -e "${RED}❌ MEMBER_NAMES(${PANE_COUNT}개)와 MEMBER_MODELS(${#MEMBER_MODELS[@]}개) 길이가 다릅니다.${NC}"
+    exit 1
+fi
+
+if [ "$TEAM_AGENT" = "codex" ] && [ "${#MEMBER_REASONING_EFFORTS[@]}" -ne "$PANE_COUNT" ]; then
+    echo -e "${RED}❌ MEMBER_NAMES(${PANE_COUNT}개)와 MEMBER_REASONING_EFFORTS(${#MEMBER_REASONING_EFFORTS[@]}개) 길이가 다릅니다.${NC}"
     exit 1
 fi
 
@@ -283,19 +377,101 @@ start_claude_in_pane() {
     return 0
 }
 
+# ── Codex 역할 지침 및 실행 ──────────────────────────────────
+# Codex는 Git 루트부터 현재 cwd까지의 AGENTS.md를 자동으로 합친다. 프로젝트
+# 루트에는 공통 규칙을 병합하고, 역할별 cwd에는 이 파일을 만들어 역할 규칙만
+# 추가한다. Claude의 --append-system-prompt-file과 같은 목적이지만, 지침 탐색은
+# Codex가 담당한다.
+write_codex_role_agents() {
+    local role="$1" work_dir="$2"
+    local role_file="$PROJECT_DIR/team/${role}.md"
+    [ -f "$role_file" ] || role_file="$TEAM_DIR/${role}.md"
+
+    if [ -z "$role" ] || [ ! -f "$role_file" ]; then
+        echo -e "${RED}⚠️  team/${role}.md 없음 → Codex 역할 지침을 만들지 않습니다 (MEMBER_NAMES 오타 확인)${NC}" >&2
+        return 1
+    fi
+
+    local role_content
+    role_content="$(cat "$role_file")"
+    role_content="${role_content}"$'\n\n'"## 작업 경로
+
+현재 셸의 cwd는 역할별 런타임 디렉터리(\`$work_dir\`)이며 작업 대상이 아니다.
+**실제 프로젝트 루트는 \`$PROJECT_DIR\` 이다.** 파일을 읽고 쓰거나 git을 다룰 때는
+그 경로를 기준으로 하고, 셸 작업이 필요하면 먼저 \`cd '$PROJECT_DIR'\` 한다."
+
+    if [ "$role" = "lead" ]; then
+        local team_table="## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 지시 방법 |"$'\n'"| --- | --- |"
+        local m
+        for ((m = 1; m < ${#MEMBER_NAMES[@]}; m++)); do
+            team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${MEMBER_NAMES[$m]} \"...\" |"
+        done
+        role_content="${role_content}"$'\n\n'"${team_table}"
+    fi
+
+    mkdir -p "$work_dir"
+    printf '%s\n\n%s\n' '# Generated by ai-setup. Edit team/{role}.md instead.' "$role_content" > "$work_dir/AGENTS.md"
+}
+
+start_codex_in_pane() {
+    local pane="$1" model="${2:-}" role="${3:-}" reasoning_effort="${4:-}"
+    local codex_bin; codex_bin="$(command -v codex)"
+
+    tmux send-keys -t "$pane" C-c 2>/dev/null; sleep 0.3
+    tmux send-keys -t "$pane" C-u 2>/dev/null; sleep 0.2
+
+    local work_dir="$PROJECT_DIR"
+    if [ -n "$role" ] && [ -d "$TEAM_SKILLS_ROOT/$role" ]; then
+        work_dir="$TEAM_SKILLS_ROOT/$role"
+    fi
+    write_codex_role_agents "$role" "$work_dir" || true
+
+    local model_arg=""
+    [ -z "$model" ] || model_arg="--model '$model'"
+
+    # Codex는 model_reasoning_effort 설정으로 지원 모델의 추론 수준을 조절한다.
+    # 빈 값은 사용자의 Codex 기본 설정을 그대로 사용한다.
+    local reasoning_arg=""
+    [ -z "$reasoning_effort" ] || reasoning_arg="-c 'model_reasoning_effort=\"$reasoning_effort\"'"
+
+    # 네이티브에서는 workspace-write 경계를 유지한다. 외부 격리된 Docker 환경 등에서
+    # 사용자가 명시적으로 CODEX_FULL_ACCESS=1을 줬을 때만 sandbox와 승인을 모두 끈다.
+    local permission_args="--ask-for-approval never --sandbox workspace-write"
+    if [ "${CODEX_FULL_ACCESS:-0}" = "1" ]; then
+        permission_args="--dangerously-bypass-approvals-and-sandbox"
+    fi
+
+    # Codex의 주 workspace는 역할별 cwd지만 실제 프로젝트도 명시적으로 writable
+    # directory에 더한다. 이로써 AGENTS.md 계층은 역할별로 유지하면서 코드 수정은
+    # 프로젝트 루트에서 가능하다.
+    tmux send-keys -t "$pane" \
+        "cd '$work_dir' && export PATH='$BIN_DIR'${NVM_BIN:+:'$NVM_BIN'}:\$PATH && $codex_bin $permission_args --add-dir '$PROJECT_DIR' $model_arg $reasoning_arg" Enter
+
+    sleep 3
+    return 0
+}
+
 # ── claude 로그인 확인 ────────────────
 check_login() {
     claude auth status >/dev/null 2>&1
 }
 
+check_codex_login() {
+    codex login status >/dev/null 2>&1
+}
+
 # ── [0/7] 사전 요구사항 확인 ────────────────────────────────
-echo -e "${YELLOW}[0/7] 사전 요구사항 확인...${NC}"
+echo -e "${YELLOW}[0/7] 사전 요구사항 확인 ($TEAM_AGENT)...${NC}"
 
 MISSING=()
-command -v tmux   &>/dev/null || MISSING+=("tmux (apt-get install -y tmux)")
-command -v claude &>/dev/null || MISSING+=("claude (npm install -g @anthropic-ai/claude-code)")
-command -v rtk    &>/dev/null || MISSING+=("rtk (curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh)")
-command -v bun    &>/dev/null || MISSING+=("bun (curl -fsSL https://bun.sh/install | bash)")
+command -v tmux &>/dev/null || MISSING+=("tmux (apt-get install -y tmux)")
+if [ "$TEAM_AGENT" = "claude" ]; then
+    command -v claude &>/dev/null || MISSING+=("claude (npm install -g @anthropic-ai/claude-code)")
+    command -v rtk    &>/dev/null || MISSING+=("rtk (curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh)")
+    command -v bun    &>/dev/null || MISSING+=("bun (curl -fsSL https://bun.sh/install | bash)")
+else
+    command -v codex &>/dev/null || MISSING+=("codex (npm install -g @openai/codex)")
+fi
 
 if [ ${#MISSING[@]} -gt 0 ]; then
     echo -e "${RED}❌ 누락된 의존성:${NC}"
@@ -304,37 +480,54 @@ if [ ${#MISSING[@]} -gt 0 ]; then
 fi
 
 echo "  ✅ tmux $(tmux -V | awk '{print $2}')"
-echo "  ✅ claude $(claude --version 2>/dev/null | head -1)"
-echo "  ✅ rtk $(rtk --version 2>/dev/null | head -1)"
-echo "  ✅ bun $(bun --version 2>/dev/null | head -1)"
+if [ "$TEAM_AGENT" = "claude" ]; then
+    echo "  ✅ claude $(claude --version 2>/dev/null | head -1)"
+    echo "  ✅ rtk $(rtk --version 2>/dev/null | head -1)"
+    echo "  ✅ bun $(bun --version 2>/dev/null | head -1)"
 
-# ── Claude 로그인 여부 확인 ───────────────────────────────
-echo -n "  Claude 로그인 확인... "
-
-if check_login; then
-    echo -e "${GREEN}✅ 로그인 완료${NC}"
-    NEED_FIRST_LOGIN=false
-else
-    NEED_FIRST_LOGIN=true
-
-    echo -e "${YELLOW}로그인이 필요합니다.${NC}"
-    echo
-    echo "Claude를 실행합니다."
-    echo "컨테이너 안에서 /login 을 완료하세요."
-    echo
-
-    claude
-
-    echo
-    read -p "로그인이 완료되었다면 Enter를 누르세요..."
-
-    if ! check_login; then
-        echo -e "${RED}❌ 로그인이 확인되지 않았습니다.${NC}"
-        exit 1
+    echo -n "  Claude 로그인 확인... "
+    if check_login; then
+        echo -e "${GREEN}✅ 로그인 완료${NC}"
+        NEED_FIRST_LOGIN=false
+    else
+        NEED_FIRST_LOGIN=true
+        echo -e "${YELLOW}로그인이 필요합니다.${NC}"
+        echo
+        echo "Claude를 실행합니다."
+        echo "컨테이너 안에서 /login 을 완료하세요."
+        echo
+        claude
+        echo
+        read -p "로그인이 완료되었다면 Enter를 누르세요..."
+        if ! check_login; then
+            echo -e "${RED}❌ 로그인이 확인되지 않았습니다.${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}✅ 로그인 확인 완료${NC}"
     fi
-
-    echo -e "${GREEN}✅ 로그인 확인 완료${NC}"
+else
+    echo "  ✅ codex $(codex --version 2>/dev/null | head -1)"
+    echo -n "  Codex 로그인 확인... "
+    if check_codex_login; then
+        echo -e "${GREEN}✅ 로그인 완료${NC}"
+    else
+        echo -e "${YELLOW}로그인이 필요합니다.${NC}"
+        echo
+        echo "codex login을 실행해 로그인을 완료하세요."
+        echo
+        codex login
+        echo
+        read -p "로그인이 완료되었다면 Enter를 누르세요..."
+        if ! check_codex_login; then
+            echo -e "${RED}❌ 로그인이 확인되지 않았습니다.${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}✅ 로그인 확인 완료${NC}"
+    fi
 fi
+
+# Claude 전용 준비. Codex는 1차 구현에서 Claude 플러그인·rtk 훅을 공유하지 않는다.
+if [ "$TEAM_AGENT" = "claude" ]; then
 
 # ── [1/7] rtk 훅 초기화 ────────────────────────────────────
 # ~/.claude 는 로그인 후 생성되고 volume(claude-home) 안에 있으므로
@@ -389,15 +582,9 @@ fi
 # 끝나므로 재실행에 안전하다.
 echo -e "\n${YELLOW}[3/7] 필수 플러그인 설치...${NC}"
 
-# 마켓플레이스 이름 → GitHub 리포. 공식 마켓플레이스가 아닌 것은 먼저 등록해야
-# install이 플러그인을 찾을 수 있다.
-declare -A PLUGIN_MARKETPLACES=(
-    [claude-plugins-official]="anthropics/claude-plugins-official"
-    [ponytail]="DietrichGebert/ponytail"
-    [caveman]="JuliusBrussee/caveman"
-)
 # 설치할 플러그인 → 그 플러그인을 켤 역할 (plugin@marketplace 형식으로 소스를
 # 못 박는다 — 같은 이름이 여러 마켓플레이스에 있을 때 엉뚱한 쪽이 깔리는 것을 막는다).
+# 실제 마켓플레이스·역할 배분 선언은 team/config.claude.sh에 둔다.
 #
 # 값의 의미:
 #   "*"          모든 파인에서 켠다
@@ -433,13 +620,6 @@ declare -A PLUGIN_MARKETPLACES=(
 # 디렉터리를 직접 심볼릭 링크하므로 enabledPlugins 없이도 역할별로 이미 걸린다.
 # 여기서 또 켜면 superpowers 스킬 14개가 통째로 들어와 [4/7]의 선별이 무의미해진다
 # (frontend-design은 스킬이 1개뿐이라 차이가 없지만, 링크로 거는 방식을 맞춘다).
-declare -A PLUGIN_ROLES=(
-    ["superpowers@claude-plugins-official"]=""
-    ["frontend-design@claude-plugins-official"]=""
-    ["serena@claude-plugins-official"]="developer reviewer designer"
-    ["ponytail@ponytail"]="lead developer"
-    ["caveman@caveman"]="*"
-)
 
 for mp in "${!PLUGIN_MARKETPLACES[@]}"; do
     # 이미 등록돼 있으면 add가 실패하지만 무해하므로 실패를 삼킨다.
@@ -498,33 +678,16 @@ echo -e "\n${YELLOW}[4/7] 역할별 스킬 제한...${NC}"
 # designer의 design-consultation도 같은 이유로 뺐다 — frontend-design과 역할이
 # 겹치면서 8.5배 비싸다. design-review·design-html·diagram은 역할이 달라 유지한다.
 # 실측 근거는 docs/architect-review/8_ecc-skill-overlap-review.md §5 참조.
-declare -A GSTACK_SKILL_SETS=(
-    [lead]=""
-    [architect]="spec diagram document-generate health plan-eng-review"
-    [researcher]="scrape browse"
-    [designer]="design-review design-html diagram"
-    [developer]="health codex learn"
-    [reviewer]="review qa health"
-)
+# 실제 역할별 배분 선언은 team/config.claude.sh에 둔다.
 
 # superpowers 스킬은 플러그인이라 소스 경로가 gstack과 다르다
 # (~/.claude/plugins/cache/.../skills/). --setting-sources project가 플러그인
 # 스킬을 통째로 차단하므로, 역할별로 필요한 것만 위 gstack 스킬과 같은 방식으로
 # .team/{역할}/.claude/skills 에 링크해서 되살린다.
 # 어떤 역할이 무엇을 왜 받는지는 team/{역할}.md의 "## 스킬" 절에 적혀 있다.
-declare -A SUPERPOWERS_SKILL_SETS=(
-    [lead]="finishing-a-development-branch"
-    [architect]="brainstorming writing-plans"
-    [designer]="brainstorming"
-    [developer]="test-driven-development systematic-debugging receiving-code-review"
-    [reviewer]="verification-before-completion"
-)
 
 # frontend-design도 플러그인이라 superpowers와 같은 방식으로 링크한다.
 # 스킬이 frontend-design 하나뿐이지만 배열로 둬서 배분 규칙을 나머지와 맞춘다.
-declare -A FRONTEND_DESIGN_SKILL_SETS=(
-    [designer]="frontend-design"
-)
 
 # 플러그인은 버전 디렉터리 아래 설치되므로 경로를 고정할 수 없다. 가장 최근
 # 버전 하나를 고른다(설치본이 없으면 빈 값 → 아래 링크 루프가 통째로 건너뛴다).
@@ -622,6 +785,79 @@ done
 
 echo -e "${GREEN}✅ 역할별 스킬 제한 완료${NC}"
 
+else
+
+# ── [1-4/7] Codex 런타임 준비 ──────────────────────────────
+# Codex에는 Claude의 rtk/gstack/마켓플레이스 플러그인을 이식하지 않는다.
+# team/config.codex.sh의 CODEX_SKILL_SETS에 명시된 호환 스킬만 역할별
+# .agents/skills에 링크한다.
+echo -e "\n${YELLOW}[1-4/7] Codex 런타임 준비...${NC}"
+
+merge_team_agents_md() {
+    local src="$SCRIPT_DIR/AGENTS.md"
+    local dst="$PROJECT_DIR/AGENTS.md"
+    [ -f "$src" ] || return 0
+    [ "$(realpath "$src")" != "$(realpath "$dst" 2>/dev/null || echo "$dst")" ] || return 0
+
+    local begin="<!-- ai-setup:codex:start -->"
+    local end="<!-- ai-setup:codex:end -->"
+    if [ -f "$dst" ] && grep -qF "$begin" "$dst"; then
+        awk -v b="$begin" -v e="$end" -v f="$src" '
+            index($0, b) { print; while ((getline line < f) > 0) print line; skip = 1; next }
+            index($0, e) { skip = 0 }
+            !skip
+        ' "$dst" > "$dst.tmp" && mv "$dst.tmp" "$dst"
+    else
+        { [ -f "$dst" ] && printf '\n'; printf '%s\n' "$begin"; cat "$src"; printf '%s\n' "$end"; } >> "$dst"
+    fi
+    echo -e "${GREEN}✅ Codex 팀 공통 지침을 $dst 에 병합${NC}"
+}
+
+merge_team_agents_md
+
+TEAM_SKILLS_ROOT="$PROJECT_DIR/.team"
+RUNTIME_DIR="$TEAM_SKILLS_ROOT/_runtime"
+rm -rf "$TEAM_SKILLS_ROOT"
+
+find_codex_skill_source() {
+    local skill="$1" candidate
+    for candidate in \
+        "$PROJECT_DIR/.agents/skills/$skill" \
+        "$HOME/.agents/skills/$skill" \
+        "$HOME/.codex/skills/$skill" \
+        "$HOME/.codex/skills/.system/$skill"; do
+        if [ -f "$candidate/SKILL.md" ]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+for role in "${MEMBER_NAMES[@]}"; do
+    role_skills_dir="$TEAM_SKILLS_ROOT/$role/.agents/skills"
+    mkdir -p "$role_skills_dir"
+    granted=()
+    for skill in ${CODEX_SKILL_SETS[$role]:-}; do
+        case "$skill" in
+            ""|.|..|*/*)
+                echo -e "${YELLOW}  ⚠️  $role: Codex 스킬 이름 '$skill'은 사용할 수 없습니다.${NC}" >&2
+                continue
+                ;;
+        esac
+        src="$(find_codex_skill_source "$skill")" || {
+            echo -e "${YELLOW}  ⚠️  $role: Codex 스킬 '$skill' 없음 (.agents/skills 또는 .codex/skills 확인)${NC}" >&2
+            continue
+        }
+        ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill"
+        granted+=("$skill")
+    done
+    echo "  $role: ${granted[*]:-(Codex 역할별 스킬 없음)}"
+done
+echo -e "${GREEN}✅ Codex 역할별 런타임 디렉터리 준비 완료${NC}"
+
+fi
+
 # ── [5/7] 기존 세션 정리 ────────────────────────────────────
 echo -e "\n${YELLOW}[5/7] 기존 세션 초기화...${NC}"
 
@@ -682,20 +918,23 @@ tmux set-option -t "$SESSION" mouse on
 
 echo "  ✅ 레이아웃 구성 완료 (${PANE_COUNT} panes)"
 
-# ── [7/7] Claude 자동 실행 ──────────────────────────────────
-echo -e "\n${YELLOW}[7/7] Claude 실행 중... (파인당 최대 1분)${NC}"
+# ── [7/7] 에이전트 자동 실행 ───────────────────────────────
+echo -e "\n${YELLOW}[7/7] ${TEAM_AGENT^} 실행 중... (파인당 최대 1분)${NC}"
 
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
     echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}): "
-    start_claude_in_pane "$SESSION:0.$pane" "${MEMBER_MODELS[$pane]}" "${MEMBER_NAMES[$pane]}"
+    if [ "$TEAM_AGENT" = "claude" ]; then
+        start_claude_in_pane "$SESSION:0.$pane" "${MEMBER_MODELS[$pane]}" "${MEMBER_NAMES[$pane]}"
+    else
+        start_codex_in_pane "$SESSION:0.$pane" "${MEMBER_MODELS[$pane]}" "${MEMBER_NAMES[$pane]}" "${MEMBER_REASONING_EFFORTS[$pane]}"
+    fi
 
     echo -e "${GREEN}✅ 실행 완료${NC}"
 done
 
 # ── 파인 타이틀 워처 ──────────────────────────────────────────
-# Claude Code가 스피너 표시용 OSC 이스케이프 시퀀스로 파인 타이틀을
-# 계속 덮어쓰기 때문에 (2026-07 기준 공식 비활성화 옵션 없음,
-# 관련 이슈: anthropics/claude-code#31107, #21677),
+# 일부 에이전트 CLI가 스피너 표시용 OSC 이스케이프 시퀀스로 파인 타이틀을
+# 덮어쓸 수 있으므로,
 # 세션 종료 시까지 주기적으로 원하는 이름으로 재설정한다.
 # select-pane -T는 호출될 때마다 파인 테두리를 다시 그려 tmux가 화면을
 # 재렌더링하므로, 매초 무조건 호출하면 그 순간 한글 IME 조합 중이던 입력이
@@ -732,5 +971,8 @@ echo "  ╚═══════════════════════
 echo -e "${NC}"
 echo "tmux attach -t $SESSION 으로 접속하세요."
 
-# 터미널에서 직접 실행한 경우 자동 attach
-[ -t 1 ] && tmux attach -t "$SESSION"
+# 터미널에서 직접 실행한 경우 자동 attach. `test && ...` 형태로 두면 비대화형
+# 스모크 테스트에서 test의 false(1)가 스크립트 전체 종료 코드가 되는 문제가 있다.
+if [ -t 1 ]; then
+    tmux attach -t "$SESSION"
+fi

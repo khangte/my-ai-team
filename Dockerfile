@@ -1,7 +1,7 @@
-# Dockerfile — Claude 멀티에이전트 팀 환경용 베이스 이미지
+# Dockerfile — Claude/Codex 멀티에이전트 팀 환경용 베이스 이미지
 #
 # 목적:
-#   setup-docker.sh가 빌드하는 이미지. Ubuntu 22.04 위에 Node.js, claude,
+#   setup-docker.sh가 빌드하는 이미지. Ubuntu 22.04 위에 Node.js, Claude, Codex,
 #   rtk, bun, tmux 등 setup-team.sh 실행에 필요한 도구를 설치한다.
 #   python3는 bin/log-hook(프롬프트·툴 로깅)이 쓴다. ubuntu:22.04에 기본
 #   포함되어 있지만, 베이스 이미지가 바뀌면 조용히 깨지므로 명시해 둔다.
@@ -60,6 +60,8 @@ RUN mkdir -p /opt/npm-global /opt/rtk-bin /opt/bun /opt/ai-setup /workspace && \
 
 COPY setup-team.sh /opt/ai-setup/setup-team.sh
 COPY team /opt/ai-setup/team
+COPY bin /opt/ai-setup/bin
+COPY CLAUDE.md AGENTS.md /opt/ai-setup/
 
 RUN chown -R user:user /opt/ai-setup
 RUN chmod +x /opt/ai-setup/setup-team.sh
@@ -67,7 +69,7 @@ RUN chmod +x /opt/ai-setup/setup-team.sh
 USER user
 WORKDIR /workspace
 
-RUN npm install -g @anthropic-ai/claude-code
+RUN npm install -g @anthropic-ai/claude-code @openai/codex
 
 # 빌드 재현성을 위해 rtk 버전 고정 (업데이트 시 이 값만 올리면 됨)
 ENV RTK_VERSION=v0.43.0

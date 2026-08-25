@@ -4,7 +4,6 @@
 .claude
 .gitignore
 README.md
-CLAUDE.md
 docs
 setup-docker.sh
 setup-native.sh
