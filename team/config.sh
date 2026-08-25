@@ -1,15 +1,9 @@
-# team/config.sh — 프로젝트 전용 팀 구성 (setup-team.sh가 있으면 자동 로드)
+# team/config.sh — 프로젝트 전용 팀 공통 구성 (setup-team.sh가 있으면 자동 로드)
 #
-# 배열 길이만 같으면 인원 수/이름/모델을 자유롭게 조정 가능.
+# 인원 수·이름은 여기에서 정하고, 모델은 team/config.claude.sh 또는
+# team/config.codex.sh에서 정한다. 기존 Claude 프로젝트는 이 파일에
+# MEMBER_MODELS를 계속 두어도 호환되지만, 새 구성은 공급자별 파일을 권장한다.
 
 SESSION="team1"   # tmux 세션 이름 (프로젝트별로 변경 가능)
 
 declare -a MEMBER_NAMES=("lead" "architect" "researcher" "designer" "developer" "reviewer")
-declare -a MEMBER_MODELS=(
-    "claude-sonnet-5"   # lead (팀장 — 판단·조율 중심)
-    "claude-opus-5"   # architect (PM — 설계·추론 중심)
-    "claude-haiku-4-5"   # researcher
-    "claude-sonnet-5"   # designer
-    "claude-sonnet-5"   # developer
-    "claude-sonnet-5"   # reviewer
-)

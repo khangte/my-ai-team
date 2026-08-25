@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# setup-docker.sh — Docker 기반 Claude 멀티에이전트 팀 환경 구성 (호스트에서 실행)
+# setup-docker.sh — Docker 기반 Claude/Codex 멀티에이전트 팀 환경 구성 (호스트에서 실행)
 #
 # 동작:
 #   1. Dockerfile로 이미지(claude-team)를 빌드
@@ -12,7 +12,7 @@
 #   4. 컨테이너 내부에서 setup-team.sh를 실행해 tmux 기반 팀 세션을 구성
 #
 # 사용:
-#   ./setup-docker.sh /path/to/project
+#   ./setup-docker.sh [--agent claude|codex] /path/to/project
 #
 # 사전 요구사항: Docker
 
@@ -25,8 +25,42 @@ NC='\033[0m'
 
 IMAGE="claude-team"
 CONTAINER="claude-env"
-# PROJECT_DIR="${PROJECT_DIR:-$HOME/project}"
-PROJECT_DIR="${1:?사용법: ./setup-docker.sh <project-path>}"
+TEAM_AGENT="${TEAM_AGENT:-claude}"
+PROJECT_ARG=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --agent)
+            [ $# -ge 2 ] || { echo "--agent에는 값이 필요합니다." >&2; exit 2; }
+            TEAM_AGENT="$2"
+            shift 2
+            ;;
+        --agent=*)
+            TEAM_AGENT="${1#--agent=}"
+            shift
+            ;;
+        -h|--help)
+            echo "사용법: ./setup-docker.sh [--agent claude|codex] <project-path>"
+            exit 0
+            ;;
+        -*)
+            echo "알 수 없는 옵션: $1" >&2
+            exit 2
+            ;;
+        *)
+            [ -z "$PROJECT_ARG" ] || { echo "프로젝트 경로는 하나만 지정할 수 있습니다." >&2; exit 2; }
+            PROJECT_ARG="$1"
+            shift
+            ;;
+    esac
+done
+
+case "$TEAM_AGENT" in
+    claude|codex) ;;
+    *) echo "지원하지 않는 에이전트: $TEAM_AGENT (claude 또는 codex)" >&2; exit 2 ;;
+esac
+
+PROJECT_DIR="${PROJECT_ARG:?사용법: ./setup-docker.sh [--agent claude|codex] <project-path>}"
 PROJECT_DIR="$(realpath "$PROJECT_DIR")"
 
 # # ── API 키 확인 ──────────────────────────────────────────────
@@ -74,4 +108,4 @@ echo -e "\n${YELLOW}팀 환경 구성 중 (컨테이너 내부)...${NC}"
 # 대화형 TTY가 필요하다.
 # docker exec -it "$CONTAINER" bash /workspace/setup-team.sh
 docker exec -it "$CONTAINER" \
-bash /opt/ai-setup/setup-team.sh /workspace
+bash /opt/ai-setup/setup-team.sh --agent "$TEAM_AGENT" /workspace

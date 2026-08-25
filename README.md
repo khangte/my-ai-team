@@ -1,6 +1,6 @@
 # My AI team
 
-- Claude Code 인스턴스 여러 개를 tmux 파인에 띄우는 오케스트레이션 셋업
+- Claude Code 또는 Codex 인스턴스 여러 개를 tmux 파인에 띄우는 오케스트레이션 셋업
 - 구성: 팀장 1명 + 팀원 5명의 멀티에이전트 팀
 
 ## 구조
@@ -20,9 +20,12 @@ designer와 developer는 프론트/백엔드로 갈린다 — designer가 화면
 필요한 API는 `say developer`로 요청한다. 상세는 각 `team/{역할}.md` 참조.
 
 ```
-CLAUDE.md          모든 파인 공통 규칙 (cwd 함정·say 통신·파일 읽기·보고 — 역할 무관)
-team/              프로젝트별 오버라이드 대상만 (--append-system-prompt로 주입)
-  ├ config.sh        팀 구성 기본값 템플릿 (세션명/인원/모델)
+CLAUDE.md          Claude 파인 공통 규칙
+AGENTS.md          Codex 파인 공통 규칙
+team/              프로젝트별 오버라이드 대상만 (역할 지침·공급자별 설정)
+  ├ config.sh        팀 공통 구성 템플릿 (세션명/인원)
+  ├ config.claude.sh Claude 모델·플러그인·스킬 기본값
+  ├ config.codex.sh  Codex 모델·추론 수준·스킬 기본값
   └ {역할}.md         역할별 지침 (lead/architect/researcher/designer/developer/reviewer)
 bin/               항상 이 저장소 기준으로 고정 실행되는 스크립트 (오버라이드 대상 아님)
   ├ say              파인 간 메시지 전송 래퍼 (setup-team.sh가 각 파인 PATH에 등록)
@@ -34,7 +37,7 @@ docs/              설계 배경·실측 분석 문서
 Dockerfile         팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
 setup-docker.sh    Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
 setup-native.sh    WSL 등 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
-setup-team.sh      tmux 세션 구성 + 각 파인에서 claude 실행 (핵심 스크립트)
+setup-team.sh      tmux 세션 구성 + 선택한 에이전트 CLI 실행 (핵심 스크립트)
 ```
 
 ### 런타임 산출물
@@ -82,9 +85,17 @@ git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
 ./setup-native.sh                       # 최초 1회: tmux/claude/rtk/bun 등 의존성 설치
 ./setup-team.sh /path/to/project        # 지정한 프로젝트로 팀 세션 실행
 
+# Codex 팀
+./setup-native.sh --agent codex          # 최초 1회: tmux/codex 의존성 설치
+./setup-team.sh --agent codex /path/to/project
+
 # 작업 디렉터리(프로젝트 루트)에서 실행
 ~/ai-setup/setup-native.sh              # 최초 1회
 ~/ai-setup/setup-team.sh .              # 현재 디렉터리를 프로젝트로 지정
+
+# Codex 팀
+~/ai-setup/setup-native.sh --agent codex
+~/ai-setup/setup-team.sh --agent codex .
 ```
 
 #### Docker
@@ -125,7 +136,9 @@ Docker 환경의 특이점:
 5. tmux 세션 구성
    - 팀 인원 수만큼 파인 분할
    - 파인 타이틀은 대문자로 표시 (예: `LEAD`, `ARCHITECT`)
-6. 각 파인에서 지정 모델로 `claude --dangerously-skip-permissions` 실행 — 역할 지침·훅 설정·플러그인 활성화 주입
+6. 각 파인에서 선택한 CLI 실행
+   - Claude: 지정 모델, 역할 지침·훅 설정·플러그인 활성화를 주입한 `claude --dangerously-skip-permissions`
+   - Codex: 역할별 `AGENTS.md`를 읽는 `codex --ask-for-approval never --sandbox workspace-write`
 7. 완료 후 `tmux attach -t [세션명]` 접속 안내
 
 ### 세션 확인 및 종료
@@ -146,7 +159,17 @@ tmux kill-session -t team1                    # 세션 종료
   `dialogExpiry`(기본 5분) 후 그대로 폐기됨 → `setup-team.sh`가 각 파인에 `crossSessionInbound: accept`를
   함께 주입 (아래 "팀 밖 세션에서 파인 호출" 참고)
 
-## CLAUDE.md와 team/ — 지침이 파인에 로딩되는 방식
+### Codex 실행 모드
+
+`setup-team.sh --agent codex` 또는 `TEAM_AGENT=codex`로 Codex 파인을 띄운다.
+
+- 대상 프로젝트의 `AGENTS.md`에는 이 저장소의 Codex 공통 규칙이 마커 블록으로 병합된다.
+- 각 파인은 `.team/{역할}/`에서 실행되며, 같은 위치의 역할별 `AGENTS.md`를 추가로 읽는다.
+- 첫 실행에서 Codex가 프로젝트 신뢰를 확인하면 사용자가 직접 승인해야 한다.
+- 1차 지원 범위에서는 Claude 전용 rtk·gstack·마켓플레이스 플러그인과 자동 Stop 훅을 Codex에 이식하지 않는다. `say` 통신과 역할 지침은 그대로 쓸 수 있다.
+- Codex 모델과 추론 수준은 기본 `team/config.codex.sh`의 역할별 값을 쓴다. 프로젝트별로 바꾸려면 같은 파일에 `MEMBER_MODELS`, `MEMBER_REASONING_EFFORTS` 배열을 선언하고, 개별 값을 비워 두면 해당 Codex 기본값을 사용한다.
+
+## Claude/Codex 지침과 team/ — 지침이 파인에 로딩되는 방식
 
 파인 지침은 두 층으로 구성된다.
 
@@ -181,13 +204,18 @@ tmux kill-session -t team1                    # 세션 종료
 ## 프로젝트별 팀 구성 커스터마이징
 
 - 기본 팀 구성은 `setup-team.sh`에 내장 — lead/architect/researcher/designer/developer/reviewer 6인
-- 인원 수·모델 배정을 프로젝트마다 다르게 하려면 **대상 프로젝트 루트**에 `team/config.sh` 배치
-- 해당 파일이 있으면 자동 로드되어 기본값을 덮어씀
+- 인원 수·세션 이름을 프로젝트마다 다르게 하려면 **대상 프로젝트 루트**에 `team/config.sh` 배치
+- 모델 배정은 `team/config.claude.sh` 또는 `team/config.codex.sh`에 둔다
+- 공통 구성과 선택한 공급자 전용 구성은 차례로 자동 로드되어 기본값을 덮어쓴다
 
 ```bash
 # <프로젝트_경로>/team/config.sh — 3인 팀으로 축소하는 예시
-SESSION="team1"                                    # tmux 세션 이름
+SESSION="team1"   # tmux 세션 이름
 declare -a MEMBER_NAMES=("lead" "developer" "reviewer")
+```
+
+```bash
+# <프로젝트_경로>/team/config.claude.sh — Claude 모델 배정
 declare -a MEMBER_MODELS=(
     "claude-sonnet-5"
     "claude-sonnet-5"
@@ -195,10 +223,11 @@ declare -a MEMBER_MODELS=(
 )
 ```
 
+- Codex는 `team/config.codex.sh`에 같은 길이의 `MEMBER_MODELS`, `MEMBER_REASONING_EFFORTS` 배열을 선언한다. 파일이 없으면 이 저장소의 역할별 기본값을 사용하며, 개별 빈 값은 사용자의 Codex 기본 설정을 따른다.
 - `MEMBER_NAMES`와 `MEMBER_MODELS`는 배열 길이가 같아야 함
 - 파인 개수는 배열 길이로 자동 계산
 - 이 저장소의 `team/config.sh`는 복사해서 수정할 템플릿 — 기본값(6인)과 동일한 내용
-- 이름을 바꾸면 대응하는 `team/{이름}.md`도 필요(없으면 역할 지침 없이 실행 — 위 "CLAUDE.md와 team/" 참고)
+- 이름을 바꾸면 대응하는 `team/{이름}.md`도 필요(없으면 역할 지침 없이 실행 — 위 "Claude/Codex 지침과 team/" 참고)
 
 ## 파인 간 통신 — `bin/say`
 
@@ -369,7 +398,7 @@ gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리
 [superpowers](https://github.com/obra/superpowers)는 gstack과 달리 **플러그인**이라
 `--setting-sources project`에 통째로 차단된다. 그래서 gstack과 같은 방식으로
 역할별 필요한 것만 `.team/{역할}/.claude/skills`에 링크해 되살린다
-(`setup-team.sh`의 `SUPERPOWERS_SKILL_SETS`).
+(`team/config.claude.sh`의 `SUPERPOWERS_SKILL_SETS`).
 
 | 역할      | 배정 스킬                                                                |
 | --------- | ------------------------------------------------------------------------ |
@@ -406,7 +435,8 @@ gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리
 ### frontend-design 스킬
 
 [frontend-design](https://github.com/anthropics/claude-plugins-official)(공식 마켓플레이스)도
-플러그인이라 superpowers와 같은 방식으로 링크한다(`FRONTEND_DESIGN_SKILL_SETS`).
+플러그인이라 superpowers와 같은 방식으로 링크한다(`team/config.claude.sh`의
+`FRONTEND_DESIGN_SKILL_SETS`).
 스킬이 1개뿐이지만 배열로 둬서 배분 규칙을 나머지와 맞췄다.
 
 | 역할     | 배정 스킬         |
@@ -442,7 +472,8 @@ gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리
   파인은 `--setting-sources project`로 뜨는 탓에 이 전역 설정을 못 읽음 → 방치하면 **세 플러그인이
   파인에서 전혀 걸리지 않음**(실측 확인)
 - 해결: `setup-team.sh`의 `[3/7]`이 플러그인을 설치하고, `start_claude_in_pane()`이 `--settings`에
-  `enabledPlugins`·`extraKnownMarketplaces`를 역할별로 명시 주입(`PLUGIN_ROLES` 배열이 배분을 결정)
+  `enabledPlugins`·`extraKnownMarketplaces`를 역할별로 명시 주입(`team/config.claude.sh`의
+  `PLUGIN_ROLES` 배열이 배분을 결정)
 
 실측 파인당 고정비 — `ponytail` ~2.2K tok / `caveman` ~3.9K tok / `serena` ~6K tok.
 파인 5개 × 매 턴이라 쓰지 않을 파인에는 주지 않는다.
