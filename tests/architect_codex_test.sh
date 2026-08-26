@@ -13,13 +13,27 @@ source "$repo_dir/team/config.codex.sh"
 test "${MEMBER_MODELS[1]}" = "gpt-5.6-sol"
 test "${MEMBER_REASONING_EFFORTS[1]}" = "high"
 
-# 공식 Codex 플러그인은 사용자 전역 상태라 런처가 standalone 스킬처럼 복제하지 않는다.
+# 자체 제작 standalone 스킬은 배정하지 않는다.
 test "${#CODEX_SKILL_SETS[@]}" -eq 0
 test ! -d "$repo_dir/skills/codex"
 
-# 런처가 세션 시작 정리 훅을 포함하고 공식 플러그인을 자동 설치하지 않아야 한다.
+# architect에는 공식 Superpowers 플러그인의 설계 스킬만 선택적으로 노출한다.
+expected_plugin_skills="superpowers@openai-curated:brainstorming superpowers@openai-curated:writing-plans"
+test "${CODEX_PLUGIN_SKILL_SETS[architect]}" = "$expected_plugin_skills"
+test "${#CODEX_PLUGIN_SETS[@]}" -eq 0
+
+# marketplace 이름이 인증 방식에 따라 달라도 공식 플러그인을 해석한다.
+fixture="$repo_dir/tests/fixtures/codex-plugin-catalog.json"
+resolved_id="$("$repo_dir/bin/resolve-codex-plugin" "$fixture" superpowers@openai-curated id)"
+resolved_source="$("$repo_dir/bin/resolve-codex-plugin" "$fixture" superpowers@openai-curated source)"
+test "$resolved_id" = "superpowers@openai-api-curated"
+test "$resolved_source" = "/catalog/plugins/superpowers"
+
+# 런처가 파인별 CODEX_HOME과 세션 시작 정리 훅을 사용해야 한다.
+grep -qF "export CODEX_HOME='\$role_codex_home'" "$repo_dir/setup-team.sh"
+grep -qF 'CODEX_HOME="$role_home" codex login status' "$repo_dir/setup-team.sh"
 grep -qF '\"SessionStart\"' "$repo_dir/setup-team.sh"
-! grep -qF 'codex plugin add' "$repo_dir/setup-team.sh"
+grep -qF 'CODEX_HOME="$role_home" codex plugin add' "$repo_dir/setup-team.sh"
 
 # README가 공식 카탈로그의 실제 대체재와 선택 적용 범위를 설명한다.
 grep -qF 'superpowers@openai-curated' "$repo_dir/README.md"

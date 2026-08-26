@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+
+const fs = require("fs");
+
+const [catalogFile, selector, field] = process.argv.slice(2);
+if (!catalogFile || !selector || !field) {
+  console.error("usage: resolve-codex-plugin CATALOG SELECTOR id|source");
+  process.exit(2);
+}
+
+const data = JSON.parse(fs.readFileSync(catalogFile, "utf8"));
+const rows = [...(data.installed || []), ...(data.available || [])];
+const name = selector.split("@")[0];
+const allowedMarketplaces = new Set(["openai-curated", "openai-api-curated"]);
+const plugin =
+  rows.find((item) => item.pluginId === selector) ||
+  rows.find(
+    (item) => item.name === name && allowedMarketplaces.has(item.marketplaceName),
+  );
+
+if (!plugin) process.exit(1);
+
+if (field === "id") {
+  process.stdout.write(plugin.pluginId);
+} else if (field === "source" && plugin.source?.path) {
+  process.stdout.write(plugin.source.path);
+} else {
+  process.exit(1);
+}
