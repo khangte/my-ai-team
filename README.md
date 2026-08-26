@@ -172,8 +172,9 @@ tmux kill-session -t team1                    # 세션 종료
   필요 없다.
 - 세션 시작 시 남은 busy 마커를 정리하고, 응답 종료 시 미보고 종료 신호를 보낸다.
   `say` 통신, 역할 지침, `.codex/hooks.json`의 `SessionStart`·`Stop` 이벤트로 이식했다.
-- 1차 지원 범위에서는 Claude 전용 rtk 토큰 절감 훅과 gstack·마켓플레이스 플러그인,
-  프롬프트·툴 JSONL 로깅(`.claude-logs/`)은 Codex에 이식하지 않는다.
+- Claude 전용 rtk 토큰 절감 훅과 gstack 플러그인, 프롬프트·툴 JSONL 로깅
+  (`.claude-logs/`)은 Codex에 이식하지 않는다. Codex 공식 플러그인은 아래 설명처럼
+  파인별로 격리한다.
 - Codex 모델과 추론 수준은 기본 `team/config.codex.sh`의 역할별 값을 쓴다. architect는 복잡한 설계 판단을 위해 `gpt-5.6-sol` / `high`를 사용한다. 프로젝트별로 바꾸려면 같은 파일에 `MEMBER_MODELS`, `MEMBER_REASONING_EFFORTS` 배열을 선언하고, 개별 값을 비워 두면 해당 Codex 기본값을 사용한다.
 
 ### 혼합 팀 — 역할별로 다른 에이전트 지정
@@ -471,28 +472,36 @@ Codex 공식 카탈로그를 기준으로 Claude architect 기능의 대체재�
 
 | 기존 기능 | Codex 네이티브 대체재 | 적용 방침 |
 | --- | --- | --- |
-| Superpowers `brainstorming`·`writing-plans` | `superpowers@openai-curated`의 동명 스킬 | 가장 가까운 대체재. 필요할 때 사용자가 설치 |
-| gstack `diagram` | `figma@openai-curated`의 `figma-generate-diagram` | FigJam을 쓰는 프로젝트에서만 설치·연결 |
-| 문서 기반 spec → plan/task | `notion@openai-curated`의 `notion-spec-to-implementation` | Notion이 source of truth일 때만 사용 |
+| Superpowers `brainstorming`·`writing-plans` | `superpowers@openai-curated`의 동명 스킬 | architect에 두 스킬만 자동 노출 |
+| gstack `diagram` | `figma@openai-curated`의 `figma-generate-diagram` | FigJam을 쓰는 프로젝트에서만 역할별 전체 설치 |
+| 문서 기반 spec → plan/task | `notion@openai-curated`의 `notion-spec-to-implementation` | Notion이 source of truth일 때만 역할별 전체 설치 |
 | GitHub issue/PR 문맥 | `github@openai-curated` | 로컬 저장소만 쓰면 불필요 |
 | lifecycle hook | Codex 네이티브 hooks | 이 저장소가 `SessionStart`·`Stop`을 자동 생성 |
 | Serena·gstack `health`·독립 plan review | 정확한 공식 대체재 없음 | Codex 기본 저장소 도구와 architect 지침으로 수행 |
 
-`superpowers@openai-curated`는 Codex용 `brainstorming`·`writing-plans`를 실제로 제공하지만,
-플러그인 기본 흐름은 사용자 직접 승인, 커밋, Codex 서브에이전트·worktree 실행을 전제한다.
-이 팀에서는 승인 주체를 lead로 바꾸고 실행은 developer에게 넘기도록 `team/architect.md`가
-우선한다. 또한 Codex 플러그인 설치·활성화 상태는 사용자 전역이므로 런처가 자동 설치하지
-않는다. 사용자가 선택적으로 설치한다.
+`setup-team.sh`는 Codex 공식 카탈로그에서 Superpowers의 두 스킬만 찾아
+`.team/architect/.agents/skills`에 링크한다. 전체 플러그인에 포함된 TDD·디버깅·worktree·
+서브에이전트 스킬은 architect에 보이지 않는다. 승인 주체를 lead로 바꾸고 실행을
+developer에게 넘기는 `team/architect.md` 규칙이 스킬의 단독 세션 지침보다 우선한다.
+
+각 Codex 파인은 `.team/{역할}/.codex-home`을 `CODEX_HOME`으로 사용한다. 인증, Codex 시스템
+스킬, 공식 marketplace 카탈로그만 공유하고 plugin 활성화 config·설치 cache는 역할마다
+분리하므로, 사용자 전역에 설치된 플러그인이나 다른 파인의 플러그인이 들어오지 않는다.
+connector·MCP·hook까지 필요한 전체 플러그인은 프로젝트의 `team/config.codex.sh`에서
+역할별로 선언한다.
 
 ```bash
-codex plugin list --available
-codex plugin add superpowers@openai-curated
-# 선택: codex plugin add figma@openai-curated
-# 선택: codex plugin add notion@openai-curated
+# <프로젝트>/team/config.codex.sh
+declare -A CODEX_PLUGIN_SETS=(
+    [architect]="figma@openai-curated notion@openai-curated"
+)
+declare -A CODEX_PLUGIN_SKILL_SETS=(
+    [architect]="superpowers@openai-curated:brainstorming superpowers@openai-curated:writing-plans"
+)
 ```
 
-architect의 기본 역량은 플러그인 유무와 무관하게 역할 지침에 들어 있으므로 설치는 필수가
-아니다. 플러그인을 설치하면 다음 Codex 세션부터 번들 스킬을 사용할 수 있다.
+전체 플러그인 설치도 해당 역할의 격리된 홈에만 적용된다. 외부 connector를 쓰는 플러그인은
+서비스 인증이 별도로 필요할 수 있으며, 미인증·설치 실패는 경고하고 나머지 팀 준비를 계속한다.
 
 ### frontend-design 스킬
 

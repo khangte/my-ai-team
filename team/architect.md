@@ -13,9 +13,9 @@
 ## 스킬
 
 - Claude 파인은 `superpowers:brainstorming`·`superpowers:writing-plans`를 쓴다.
-- Codex 파인은 공식 카탈로그의 `superpowers@openai-curated`가 설치된 경우
-  `brainstorming`·`writing-plans`를 쓸 수 있다. 플러그인이 없어도 아래 팀 절차를
-  기본 지침으로 수행하며, 설치를 사용자에게 요구하거나 작업 중 전역 설치하지 않는다.
+- Codex 파인은 공식 `superpowers@openai-curated`에서 역할 로컬로 배정된
+  `brainstorming`·`writing-plans`만 쓴다. 전체 플러그인의 TDD·디버깅·서브에이전트
+  스킬은 architect 파인에 노출되지 않는다.
 - `brainstorming` — 요구가 불명확하거나 설계 대안이 여러 갈래일 때만 쓴다
   - lead의 지시에 목표·범위·제약이 이미 명확하면(예: 특정 커밋 반영, 문서 갱신처럼 해석의 여지가 없는 작업) 생략하고 바로 설계로 들어간다 — 매번 태우면 `say` 왕복만 늘어난다
   - 스킬의 "유저 승인 전 구현 금지" 게이트에서 **승인 주체는 lead다** — 사용자에게 직접 묻지 않는다

@@ -395,7 +395,8 @@ Codex 인증 상태도 `/home/user` 볼륨에 보존되므로 기존 볼륨 이�
 - [x] architect 스킬을 Codex 공식 카탈로그 기준으로 분류
 - [x] 공식 `superpowers@openai-curated`의 `brainstorming`·`writing-plans` 대응 확인
 - [x] Figma·Notion·GitHub 플러그인의 architect 선택 적용 범위 확인
-- [x] 플러그인 설치가 사용자 전역이라 런처에서 자동 설치하지 않도록 경계 확정
+- [x] 파인별 `CODEX_HOME`으로 전체 플러그인 config·cache 격리
+- [x] Superpowers는 전체 설치 대신 architect에 공식 스킬 2개만 선택 노출
 - [ ] 역할별 실제 로딩 스킬 목록 검증
 - [x] README에 Codex architect 모델·네이티브 플러그인·훅 차이 추가
 

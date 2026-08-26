@@ -527,6 +527,7 @@ start_codex_in_pane() {
     if [ -n "$role" ] && [ -d "$TEAM_SKILLS_ROOT/$role" ]; then
         work_dir="$TEAM_SKILLS_ROOT/$role"
     fi
+    local role_codex_home="$work_dir/.codex-home"
     write_codex_role_agents "$role" "$work_dir" "$pane_id" "$state_key" || true
 
     local model_arg=""
@@ -569,7 +570,7 @@ start_codex_in_pane() {
     # 테스트로 확인).
     local tmux_tmpdir="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)"
     tmux send-keys -t "$pane" \
-        "cd '$work_dir' && export PATH='$BIN_DIR'${NVM_BIN:+:'$NVM_BIN'}:\$PATH && $codex_bin $permission_args $hook_trust_args --add-dir '$PROJECT_DIR' --add-dir '$tmux_tmpdir' --add-dir /tmp/team-busy --add-dir /tmp/team-say --add-dir /tmp/team-say-queue -c 'sandbox_workspace_write.network_access=true' $model_arg $reasoning_arg" Enter
+        "cd '$work_dir' && export CODEX_HOME='$role_codex_home' && export PATH='$BIN_DIR'${NVM_BIN:+:'$NVM_BIN'}:\$PATH && $codex_bin $permission_args $hook_trust_args --add-dir '$PROJECT_DIR' --add-dir '$tmux_tmpdir' --add-dir /tmp/team-busy --add-dir /tmp/team-say --add-dir /tmp/team-say-queue -c 'sandbox_workspace_write.network_access=true' $model_arg $reasoning_arg" Enter
 
     # 최초 실행 시 git 프로젝트 신뢰 확인 대화상자가 뜬다("Do you trust the
     # contents of this directory?"). "1. Yes, continue"가 기본 선택이므로 Enter만
@@ -949,9 +950,8 @@ fi
 if [ -n "${USED_AGENTS[codex]:-}" ]; then
 
 # ── [1-4/7] Codex 런타임 준비 ──────────────────────────────
-# Codex에는 Claude의 rtk/gstack/마켓플레이스 플러그인을 이식하지 않는다.
-# team/config.codex.sh의 CODEX_SKILL_SETS에 명시된 호환 스킬만 역할별
-# .agents/skills에 링크한다.
+# Codex에는 Claude 플러그인을 재사용하지 않는다. standalone 스킬과 Codex 공식
+# 플러그인의 허용된 기능만 역할별 .agents/skills 또는 격리된 CODEX_HOME에 넣는다.
 echo -e "\n${YELLOW}[1-4/7] Codex 런타임 준비...${NC}"
 
 merge_team_agents_md() {
@@ -978,6 +978,72 @@ merge_team_agents_md
 
 # TEAM_SKILLS_ROOT·RUNTIME_DIR·rm -rf는 위에서 공급자 공통으로 이미 처리했다.
 
+base_codex_home="${CODEX_HOME:-$HOME/.codex}"
+codex_plugin_catalog="$RUNTIME_DIR/codex-plugin-catalog.json"
+
+load_codex_plugin_catalog() {
+    [ -s "$codex_plugin_catalog" ] && return 0
+    if ! CODEX_HOME="$base_codex_home" codex plugin list --available --json > "$codex_plugin_catalog"; then
+        echo -e "${YELLOW}  ⚠️  Codex 공식 플러그인 카탈로그를 읽지 못했습니다.${NC}" >&2
+        return 1
+    fi
+}
+
+resolve_codex_plugin_field() {
+    local selector="$1" field="$2"
+    "$BIN_DIR/resolve-codex-plugin" "$codex_plugin_catalog" "$selector" "$field"
+}
+
+prepare_codex_role_home() {
+    local role="$1" role_home="$2" plugin resolved_plugin
+    mkdir -p "$role_home/skills"
+
+    # 인증만 공유하고 config·plugin cache는 역할별로 분리한다.
+    if [ -f "$base_codex_home/auth.json" ]; then
+        ln -sfn "$(realpath "$base_codex_home/auth.json")" "$role_home/auth.json"
+    fi
+    if [ -d "$base_codex_home/skills/.system" ]; then
+        ln -sfn "$(realpath "$base_codex_home/skills/.system")" "$role_home/skills/.system"
+    fi
+    if ! CODEX_HOME="$role_home" codex login status >/dev/null 2>&1; then
+        echo -e "${RED}❌ $role: 격리된 CODEX_HOME에서 기존 Codex 인증을 사용할 수 없습니다.${NC}" >&2
+        return 1
+    fi
+
+    [ -n "${CODEX_PLUGIN_SETS[$role]:-}" ] || return 0
+    load_codex_plugin_catalog || return 0
+
+    # 공식 marketplace snapshot은 카탈로그로 공유한다. 설치 활성화 config와
+    # 설치된 plugin cache는 role_home 아래에 생겨 역할별로 분리된다.
+    mkdir -p "$role_home/.tmp"
+    if [ -d "$base_codex_home/.tmp/plugins" ] && [ -f "$base_codex_home/.tmp/plugins.sha" ]; then
+        ln -sfn "$(realpath "$base_codex_home/.tmp/plugins")" "$role_home/.tmp/plugins"
+        ln -sfn "$(realpath "$base_codex_home/.tmp/plugins.sha")" "$role_home/.tmp/plugins.sha"
+    else
+        echo -e "${YELLOW}  ⚠️  $role: Codex 공식 marketplace snapshot이 없어 플러그인을 설치하지 못했습니다.${NC}" >&2
+        return 0
+    fi
+
+    for plugin in ${CODEX_PLUGIN_SETS[$role]:-}; do
+        case "$plugin" in
+            *@openai-curated) ;;
+            *)
+                echo -e "${YELLOW}  ⚠️  $role: 공식 Codex 플러그인 ID가 아닙니다: $plugin${NC}" >&2
+                continue
+                ;;
+        esac
+        resolved_plugin="$(resolve_codex_plugin_field "$plugin" id)" || {
+            echo -e "${YELLOW}  ⚠️  $role: Codex 플러그인을 찾지 못했습니다: $plugin${NC}" >&2
+            continue
+        }
+        if CODEX_HOME="$role_home" codex plugin add "$resolved_plugin" >/dev/null; then
+            echo "  $role: 전체 플러그인 $plugin"
+        else
+            echo -e "${YELLOW}  ⚠️  $role: Codex 플러그인 설치 실패: $plugin${NC}" >&2
+        fi
+    done
+}
+
 find_codex_skill_source() {
     local skill="$1" candidate
     for candidate in \
@@ -993,9 +1059,12 @@ find_codex_skill_source() {
     return 1
 }
 
-for role in "${MEMBER_NAMES[@]}"; do
+for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
+    [ "${MEMBER_AGENTS[$role_index]}" = "codex" ] || continue
+    role="${MEMBER_NAMES[$role_index]}"
     role_skills_dir="$TEAM_SKILLS_ROOT/$role/.agents/skills"
     mkdir -p "$role_skills_dir"
+    prepare_codex_role_home "$role" "$TEAM_SKILLS_ROOT/$role/.codex-home"
     granted=()
     for skill in ${CODEX_SKILL_SETS[$role]:-}; do
         case "$skill" in
@@ -1010,6 +1079,40 @@ for role in "${MEMBER_NAMES[@]}"; do
         }
         ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill"
         granted+=("$skill")
+    done
+
+    for plugin_skill in ${CODEX_PLUGIN_SKILL_SETS[$role]:-}; do
+        plugin="${plugin_skill%%:*}"
+        skill="${plugin_skill#*:}"
+        if [ "$plugin" = "$plugin_skill" ] || [ -z "$skill" ]; then
+            echo -e "${YELLOW}  ⚠️  $role: Codex 플러그인 스킬 형식 오류: $plugin_skill${NC}" >&2
+            continue
+        fi
+        case "$plugin" in
+            *@openai-curated) ;;
+            *)
+                echo -e "${YELLOW}  ⚠️  $role: 공식 Codex 플러그인 ID가 아닙니다: $plugin${NC}" >&2
+                continue
+                ;;
+        esac
+        case "$skill" in
+            ""|.|..|*/*)
+                echo -e "${YELLOW}  ⚠️  $role: Codex 플러그인 스킬 이름 오류: $skill${NC}" >&2
+                continue
+                ;;
+        esac
+        load_codex_plugin_catalog || continue
+        plugin_source="$(resolve_codex_plugin_field "$plugin" source)" || {
+            echo -e "${YELLOW}  ⚠️  $role: Codex 플러그인을 찾지 못했습니다: $plugin${NC}" >&2
+            continue
+        }
+        src="$plugin_source/skills/$skill"
+        if [ ! -f "$src/SKILL.md" ]; then
+            echo -e "${YELLOW}  ⚠️  $role: $plugin에 Codex 스킬 '$skill'이 없습니다.${NC}" >&2
+            continue
+        fi
+        ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill"
+        granted+=("$plugin:$skill")
     done
     echo "  $role: ${granted[*]:-(Codex 역할별 스킬 없음)}"
 done

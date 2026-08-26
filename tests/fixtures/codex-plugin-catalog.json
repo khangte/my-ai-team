@@ -1,0 +1,14 @@
+{
+  "installed": [],
+  "available": [
+    {
+      "pluginId": "superpowers@openai-api-curated",
+      "name": "superpowers",
+      "marketplaceName": "openai-api-curated",
+      "source": {
+        "source": "local",
+        "path": "/catalog/plugins/superpowers"
+      }
+    }
+  ]
+}
