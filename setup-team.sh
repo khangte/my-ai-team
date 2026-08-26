@@ -3,20 +3,27 @@
 # setup-team.sh — tmux 기반 Claude/Codex 멀티에이전트 팀 환경 자동 구성
 #
 # setup-docker.sh가 컨테이너 기동 후 `docker exec`로 호출한다(직접 실행도 가능).
+# --agent/TEAM_AGENT는 팀 전체의 기본 공급자를 정하고, team/config.sh의
+# MEMBER_AGENTS 배열로 파인별로 다른 공급자를 지정할 수 있다(혼합 팀). 예:
+# reviewer 파인만 Codex, 나머지는 기본값(Claude)으로 띄우는 구성.
+#
 # 단계:
-#   [0] 선택된 에이전트의 사전 요구사항 및 로그인 여부 확인
-#   [1-3] Claude 모드: rtk·gstack·Claude 플러그인 준비
-#   [4] 팀 공통 지침을 공급자별 파일에 병합하고 역할별 런타임 디렉터리 구성
+#   [0] 실제로 사용되는 공급자(USED_AGENTS) 전부의 사전 요구사항·로그인 확인
+#   [1-3] Claude 사용 시: rtk·gstack·Claude 플러그인 준비
+#   [1-4] Codex 사용 시: AGENTS.md 병합, 역할별 스킬·Stop 훅 준비
+#         (두 블록은 혼합 팀에서 순서대로 모두 실행되며 .team/ 삭제는 한 번만 한다)
+#   [4] Claude 사용 시: 팀 공통 지침을 CLAUDE.md에 병합하고 역할별 런타임 디렉터리 구성
 #   [5] 기존 tmux 세션 정리
-#   [6] MEMBER_NAMES/MEMBER_MODELS 배열 기준으로 파인을 분할하고 이름 부여
-#   [7] 각 파인에서 지정된 모델로 선택된 CLI를 실행
+#   [6] MEMBER_NAMES 배열 기준으로 파인을 분할하고 이름 부여
+#   [7] 각 파인에서 파인별 MEMBER_AGENTS[i]가 가리키는 CLI를 해당 모델로 실행
 #       및 tmux가 파인 타이틀을 스피너로 덮어쓰는 문제를 막기 위한 타이틀 워처 기동
 #
 # 사용:
 #   ./setup-team.sh [--agent claude|codex] [프로젝트_경로]
 #   프로젝트_경로 생략 시 $PROJECT_DIR(기본 ~/project) 사용.
-#   (팀원 구성을 바꾸려면 MEMBER_NAMES/MEMBER_MODELS 배열을 프로젝트 루트의
-#    team/config.sh 또는 team/config.{agent}.sh에서 바꾸면 됨)
+#   (팀원 구성을 바꾸려면 MEMBER_NAMES 배열을, 파인별 공급자를 바꾸려면
+#    MEMBER_AGENTS 배열을 프로젝트 루트의 team/config.sh에서 선언하면 됨.
+#    모델은 team/config.{agent}.sh에서 정한다)
 
 set -e
 
@@ -105,13 +112,17 @@ BIN_DIR="$SCRIPT_DIR/bin"   # say·log-hook — 오버라이드 대상이 아닌
 # ── 팀 멤버 정보 ───────────────────────────────────────────
 # 설정은 두 단계로 독립 해석한다.
 #   1) 공통 구성: 이 저장소/team/config.sh → 대상 프로젝트/team/config.sh
-#   2) 공급자 구성: 이 저장소/team/config.{agent}.sh → 대상 프로젝트/team/config.{agent}.sh
+#   2) 공급자 구성: 이 저장소/team/config.claude.sh, config.codex.sh
+#      → 대상 프로젝트의 같은 파일
+#
+# MEMBER_AGENTS는 파인별로 다른 에이전트를 지정한다(혼합 팀). 빈 문자열은
+# $TEAM_AGENT(전역 기본값)를 따른다. 미선언 프로젝트는 전부 빈 값과 동일하게
+# 취급되어 기존 단일 공급자 동작이 유지된다.
 #
 # 과거 Claude 프로젝트는 team/config.sh의 MEMBER_MODELS를 계속 쓸 수 있다. 그
 # 호환 값은 Claude에만 적용하며, Codex의 공급자 기본 모델과 절대 섞지 않는다.
 declare -a MEMBER_NAMES=("lead" "architect" "researcher" "designer" "developer" "reviewer")
-declare -a MEMBER_MODELS=()
-declare -a MEMBER_REASONING_EFFORTS=()
+declare -a MEMBER_AGENTS=()
 declare -a LEGACY_CLAUDE_MEMBER_MODELS=()
 
 common_config="$TEAM_DIR/config.sh"
@@ -125,52 +136,87 @@ else
     echo -e "${CYAN}team/config.sh 없음 → 기본 팀 구성 사용${NC}"
 fi
 
-# 공통 설정에 남아 있을 수 있는 기존 Claude 모델 배열을 먼저 보관한 뒤,
-# 공급자 설정을 깨끗한 배열에 적용한다.
-if [ "$TEAM_AGENT" = "claude" ] && [ "${#MEMBER_MODELS[@]}" -gt 0 ]; then
+# 공통 설정에 남아 있을 수 있는 기존 Claude 모델 배열을 보관해 둔다 — 아래
+# config.claude.sh 로딩 뒤 MEMBER_MODELS가 비어 있으면 이 값으로 되돌린다.
+if [ "${#MEMBER_MODELS[@]}" -gt 0 ]; then
     LEGACY_CLAUDE_MEMBER_MODELS=("${MEMBER_MODELS[@]}")
-fi
-MEMBER_MODELS=()
-MEMBER_REASONING_EFFORTS=()
-
-provider_config="$TEAM_DIR/config.${TEAM_AGENT}.sh"
-[ -f "$provider_config" ] && source "$provider_config"
-
-if [ "$TEAM_AGENT" = "claude" ] && [ "${#LEGACY_CLAUDE_MEMBER_MODELS[@]}" -gt 0 ]; then
-    MEMBER_MODELS=("${LEGACY_CLAUDE_MEMBER_MODELS[@]}")
-fi
-
-project_provider_config="$PROJECT_DIR/team/config.${TEAM_AGENT}.sh"
-if [ -f "$project_provider_config" ]; then
-    echo -e "${YELLOW}team/config.${TEAM_AGENT}.sh 발견 → 공급자별 구성 사용: $project_provider_config${NC}"
-    source "$project_provider_config"
 fi
 
 PANE_COUNT=${#MEMBER_NAMES[@]}
 
-if [ "$TEAM_AGENT" = "codex" ] && [ "${#MEMBER_MODELS[@]}" -eq 0 ]; then
-    # 빈 모델명은 Codex CLI에 --model을 넘기지 않아 사용자의 기본 모델을 사용한다.
+if [ "${#MEMBER_AGENTS[@]}" -eq 0 ]; then
     for ((i = 0; i < PANE_COUNT; i++)); do
-        MEMBER_MODELS+=("")
+        MEMBER_AGENTS+=("")
     done
 fi
 
-if [ "$TEAM_AGENT" = "codex" ] && [ "${#MEMBER_REASONING_EFFORTS[@]}" -eq 0 ]; then
-    # 빈 추론 수준은 Codex의 사용자 기본 설정을 사용한다.
+if [ "${#MEMBER_AGENTS[@]}" -ne "$PANE_COUNT" ]; then
+    echo -e "${RED}❌ MEMBER_NAMES(${PANE_COUNT}개)와 MEMBER_AGENTS(${#MEMBER_AGENTS[@]}개) 길이가 다릅니다.${NC}"
+    exit 1
+fi
+
+# 실제로 파인에 배정된 공급자 집합. 미선언 파인은 $TEAM_AGENT로 해석한다.
+# 이 집합이 이후 사전 요구사항 확인, 인증, 런타임 준비 단계가 어떤 공급자
+# 블록을 돌릴지 정한다.
+declare -A USED_AGENTS=()
+for ((i = 0; i < PANE_COUNT; i++)); do
+    a="${MEMBER_AGENTS[$i]:-$TEAM_AGENT}"
+    case "$a" in
+        claude|codex) ;;
+        *)
+            echo -e "${RED}❌ 지원하지 않는 에이전트: '$a' (역할 '${MEMBER_NAMES[$i]}', claude 또는 codex만 허용)${NC}" >&2
+            exit 2
+            ;;
+    esac
+    MEMBER_AGENTS[$i]="$a"
+    USED_AGENTS["$a"]=1
+done
+
+# 공급자별 모델·추론 수준 배열을 파인 수만큼, 공급자별 이름공간에 각각 로딩한다.
+# 혼합 팀은 두 공급자 설정을 모두 읽어야 하므로 하나의 $TEAM_AGENT 분기가 아니라
+# USED_AGENTS에 실제로 쓰이는 공급자마다 독립적으로 해석한다.
+declare -A PROVIDER_MEMBER_MODELS=()
+declare -A PROVIDER_MEMBER_REASONING_EFFORTS=()
+
+for agent in "${!USED_AGENTS[@]}"; do
+    MEMBER_MODELS=()
+    MEMBER_REASONING_EFFORTS=()
+
+    provider_config="$TEAM_DIR/config.${agent}.sh"
+    [ -f "$provider_config" ] && source "$provider_config"
+
+    if [ "$agent" = "claude" ] && [ "${#MEMBER_MODELS[@]}" -eq 0 ] && [ "${#LEGACY_CLAUDE_MEMBER_MODELS[@]}" -gt 0 ]; then
+        MEMBER_MODELS=("${LEGACY_CLAUDE_MEMBER_MODELS[@]}")
+    fi
+
+    project_provider_config="$PROJECT_DIR/team/config.${agent}.sh"
+    if [ -f "$project_provider_config" ]; then
+        echo -e "${YELLOW}team/config.${agent}.sh 발견 → 공급자별 구성 사용: $project_provider_config${NC}"
+        source "$project_provider_config"
+    fi
+
+    if [ "${#MEMBER_MODELS[@]}" -eq 0 ]; then
+        # 빈 모델명은 CLI에 --model을 넘기지 않아 사용자의 기본 모델을 사용한다.
+        for ((i = 0; i < PANE_COUNT; i++)); do MEMBER_MODELS+=(""); done
+    fi
+    if [ "${#MEMBER_REASONING_EFFORTS[@]}" -eq 0 ]; then
+        for ((i = 0; i < PANE_COUNT; i++)); do MEMBER_REASONING_EFFORTS+=(""); done
+    fi
+
+    if [ "${#MEMBER_MODELS[@]}" -ne "$PANE_COUNT" ]; then
+        echo -e "${RED}❌ MEMBER_NAMES(${PANE_COUNT}개)와 $agent MEMBER_MODELS(${#MEMBER_MODELS[@]}개) 길이가 다릅니다.${NC}"
+        exit 1
+    fi
+    if [ "${#MEMBER_REASONING_EFFORTS[@]}" -ne "$PANE_COUNT" ]; then
+        echo -e "${RED}❌ MEMBER_NAMES(${PANE_COUNT}개)와 $agent MEMBER_REASONING_EFFORTS(${#MEMBER_REASONING_EFFORTS[@]}개) 길이가 다릅니다.${NC}"
+        exit 1
+    fi
+
     for ((i = 0; i < PANE_COUNT; i++)); do
-        MEMBER_REASONING_EFFORTS+=("")
+        PROVIDER_MEMBER_MODELS["${agent}:${i}"]="${MEMBER_MODELS[$i]}"
+        PROVIDER_MEMBER_REASONING_EFFORTS["${agent}:${i}"]="${MEMBER_REASONING_EFFORTS[$i]}"
     done
-fi
-
-if [ "${#MEMBER_MODELS[@]}" -ne "$PANE_COUNT" ]; then
-    echo -e "${RED}❌ MEMBER_NAMES(${PANE_COUNT}개)와 MEMBER_MODELS(${#MEMBER_MODELS[@]}개) 길이가 다릅니다.${NC}"
-    exit 1
-fi
-
-if [ "$TEAM_AGENT" = "codex" ] && [ "${#MEMBER_REASONING_EFFORTS[@]}" -ne "$PANE_COUNT" ]; then
-    echo -e "${RED}❌ MEMBER_NAMES(${PANE_COUNT}개)와 MEMBER_REASONING_EFFORTS(${#MEMBER_REASONING_EFFORTS[@]}개) 길이가 다릅니다.${NC}"
-    exit 1
-fi
+done
 
 # ── 유틸: 파인에 패턴이 나타날 때까지 대기 ──────────────────
 wait_for_pane() {
@@ -180,6 +226,38 @@ wait_for_pane() {
         sleep 1; waited=$((waited + 1))
     done
     return 1
+}
+
+# ── 유틸: Stop 시점 종료 신호 커맨드 조립 (Claude·Codex 공용) ──
+# 결과는 전역 변수 STOP_HOOK_CMD에 담는다. Claude·Codex 양쪽의 Stop 훅이
+# "command" 타입으로 셸 커맨드를 그대로 실행하는 동일한 계약이라, 종료
+# 신호 로직을 공급자별로 복제하지 않고 여기 한 곳에서만 만든다.
+#
+# lead는 신호 수신처가 자기 자신(:0.0)이라 보내면 무한 루프가 되므로 rm만 한다.
+# 그 외 역할은 say가 남긴 본 보고 마커(/tmp/team-say/{pane_id})가 있으면
+# 소비하고 조용히 끝내고, 없으면 lead에 자동 종료 신호를 보낸다.
+#
+# STOP_HOOK_CMD는 순수 셸 커맨드 문자열이다(JSON 이스케이프 이전 상태) — say에
+# 넘길 메시지는 보통 큰따옴표로 감싸 하나의 인자로 만든다. 이 값을 실제 훅
+# JSON의 "command" 필드에 넣는 쪽(Claude·Codex 각자)이 json_escape로 이스케이프
+# 한다. 예전에는 이 함수가 이미 이스케이프된 값(\\\" 리터럴)을 만들어 Claude
+# JSON에 그대로 박았는데, Codex의 훅 실행기는 그 리터럴 백슬래시를 그대로 셸에
+# 넘겨 "syntax error near unexpected token `('" 로 깨졌다(실측). 순수 문자열 +
+# 소비자별 이스케이프로 바꿔 두 CLI 모두에서 안전하게 재사용한다.
+stop_hook_cmd_for_role() {
+    local role="$1" pane_id="$2"
+    if [ "$role" = "lead" ]; then
+        STOP_HOOK_CMD="rm -f /tmp/team-busy/${pane_id}"
+    else
+        local marker="/tmp/team-say/${pane_id}"
+        STOP_HOOK_CMD="rm -f /tmp/team-busy/${pane_id}; if [ -f '${marker}' ]; then rm -f '${marker}'; else ${BIN_DIR}/say ${SESSION}:0.0 \"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\"; fi"
+    fi
+}
+
+# ── 유틸: JSON 문자열 값으로 안전하게 넣을 수 있게 이스케이프 ──
+# 백슬래시 → 큰따옴표 순서로 처리해야 이중 이스케이프를 피한다.
+json_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
 # ── 유틸: Claude 실행 + 다이얼로그 자동 처리 ────────────────
@@ -314,6 +392,14 @@ start_claude_in_pane() {
         fi
     fi
 
+    # Stop 시점에 실행할 셸 커맨드를 조립한다. Claude·Codex 양쪽의 Stop 훅이
+    # 같은 문자열을 쓴다 — 두 CLI 모두 "command" 타입 훅에 셸 커맨드를
+    # 그대로 넘기는 동일한 계약이라, 종료 신호 로직을 공급자별로 복제하지
+    # 않고 여기 한 곳에서만 유지한다. STOP_HOOK_CMD는 순수 셸 커맨드이므로
+    # 아래 JSON에 넣기 직전 json_escape로 이스케이프한다.
+    stop_hook_cmd_for_role "$role" "$pane_id"
+    local stop_hook_cmd_json; stop_hook_cmd_json="$(json_escape "$STOP_HOOK_CMD")"
+
     local settings_arg=""
     if [ "$role" = "lead" ]; then
         # lead는 say 종료 신호용 Stop 훅을 받으면 안 된다 — 수신처가 lead 자신(:0.0)이라
@@ -325,22 +411,13 @@ start_claude_in_pane() {
         # --dangerously-skip-permissions 하에서도 permissions.deny는 실제로 차단됨을
         # 격리된 프로브 세션으로 별도 확인 완료.
         local lead_deny_json="\"permissions\":{\"deny\":[\"Bash(tmux send-keys:*)\"]},"
-        local lead_settings_json="{${plugins_json}${lead_deny_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"rm -f /tmp/team-busy/${pane_id}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}"
+        local lead_settings_json="{${plugins_json}${lead_deny_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${stop_hook_cmd_json}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}"
         local lead_settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$lead_settings_json" > "$lead_settings_file"
         settings_arg="--settings '$lead_settings_file'"
     elif [ -n "$role" ]; then
-        # 중복 신호 가드: 이 파인이 방금 say로 본 보고를 보냈다면 종료 신호를 생략한다.
-        # 본 보고에 이미 작업 내용이 담겨 있어 신호는 lead 턴만 한 번 더 태우기 때문이다.
-        # say가 남긴 마커를 소비(삭제)하므로, 보고 없이 끝난 응답에서는 신호가 정상 발송된다.
-        local marker="/tmp/team-say/${pane_id}"
-        # busy 마커도 같은 Stop 훅에서 지운다 — 신호 발송 여부와 무관하게 턴은
-        # 끝났으므로 항상 rm한다. say의 is_busy()가 이 파일로 유휴를 판정한다.
-        # JSON 문자열로 들어가므로 큰따옴표는 \" 로 이스케이프한다(작은따옴표는 JSON에서 무해).
-        # 훅 커맨드는 이 스크립트가 만드는 고정 문자열이라 이스케이프 대상이 이것뿐이다.
-        local hook_cmd="rm -f /tmp/team-busy/${pane_id}; if [ -f '${marker}' ]; then rm -f '${marker}'; else ${BIN_DIR}/say ${SESSION}:0.0 \\\"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\\\"; fi"
-        local settings_json="{${plugins_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}"
+        local settings_json="{${plugins_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${stop_hook_cmd_json}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}"
         local settings_file="$RUNTIME_DIR/${role}.settings.json"
         mkdir -p "$RUNTIME_DIR"
         printf '%s' "$settings_json" > "$settings_file"
@@ -383,7 +460,7 @@ start_claude_in_pane() {
 # 추가한다. Claude의 --append-system-prompt-file과 같은 목적이지만, 지침 탐색은
 # Codex가 담당한다.
 write_codex_role_agents() {
-    local role="$1" work_dir="$2"
+    local role="$1" work_dir="$2" pane_id="$3"
     local role_file="$PROJECT_DIR/team/${role}.md"
     [ -f "$role_file" ] || role_file="$TEAM_DIR/${role}.md"
 
@@ -411,6 +488,18 @@ write_codex_role_agents() {
 
     mkdir -p "$work_dir"
     printf '%s\n\n%s\n' '# Generated by ai-setup. Edit team/{role}.md instead.' "$role_content" > "$work_dir/AGENTS.md"
+
+    # Stop 훅: busy 마커 정리 + 미보고 종료 신호. Claude와 같은 로직을
+    # stop_hook_cmd_for_role 한 곳에서 만들어 양쪽이 쓴다(위 유틸 참조).
+    # Codex hooks.json은 프로젝트 로컬 훅이라 기본적으로 신뢰 검토를
+    # 거쳐야 실행되므로, start_codex_in_pane이 --dangerously-bypass-hook-trust로
+    # 띄워 무인 파인에서 승인 대기 없이 곧바로 동작하게 한다.
+    [ -n "$pane_id" ] || return 0
+    stop_hook_cmd_for_role "$role" "$pane_id"
+    local hook_cmd_json; hook_cmd_json="$(json_escape "$STOP_HOOK_CMD")"
+    local hooks_json="{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd_json}\"}]}]}}"
+    mkdir -p "$work_dir/.codex"
+    printf '%s' "$hooks_json" > "$work_dir/.codex/hooks.json"
 }
 
 start_codex_in_pane() {
@@ -420,11 +509,13 @@ start_codex_in_pane() {
     tmux send-keys -t "$pane" C-c 2>/dev/null; sleep 0.3
     tmux send-keys -t "$pane" C-u 2>/dev/null; sleep 0.2
 
+    local pane_id="${pane##*:}"   # busy 마커·say 큐 키와 형식을 맞춘다(Claude와 동일).
+
     local work_dir="$PROJECT_DIR"
     if [ -n "$role" ] && [ -d "$TEAM_SKILLS_ROOT/$role" ]; then
         work_dir="$TEAM_SKILLS_ROOT/$role"
     fi
-    write_codex_role_agents "$role" "$work_dir" || true
+    write_codex_role_agents "$role" "$work_dir" "$pane_id" || true
 
     local model_arg=""
     [ -z "$model" ] || model_arg="--model '$model'"
@@ -441,13 +532,45 @@ start_codex_in_pane() {
         permission_args="--dangerously-bypass-approvals-and-sandbox"
     fi
 
+    # write_codex_role_agents가 만든 role별 .codex/hooks.json은 기본적으로
+    # "review and trust" 절차를 거쳐야 실행되는 프로젝트 로컬 훅이다.
+    # --dangerously-bypass-hook-trust는 CLI 배너에 "may run without review"라고
+    # 뜨지만, 실측 결과 /hooks 화면의 review 배지는 사라지지 않고 Stop 훅이
+    # Active 0인 채로 남는다(Stop hook (blocked): syntax error가 아니라 조용히
+    # 아무 것도 안 실행되는 형태로 실패). /hooks에서 사람이 't'(trust all)를
+    # 눌러야 Active 1로 바뀌고 busy 마커 정리·종료 신호가 실제로 동작한다.
+    # 파인에는 승인할 사람이 없으므로 아래에서 이 키 입력을 자동화한다.
+    local hook_trust_args="--dangerously-bypass-hook-trust"
+
     # Codex의 주 workspace는 역할별 cwd지만 실제 프로젝트도 명시적으로 writable
     # directory에 더한다. 이로써 AGENTS.md 계층은 역할별로 유지하면서 코드 수정은
     # 프로젝트 루트에서 가능하다.
     tmux send-keys -t "$pane" \
-        "cd '$work_dir' && export PATH='$BIN_DIR'${NVM_BIN:+:'$NVM_BIN'}:\$PATH && $codex_bin $permission_args --add-dir '$PROJECT_DIR' $model_arg $reasoning_arg" Enter
+        "cd '$work_dir' && export PATH='$BIN_DIR'${NVM_BIN:+:'$NVM_BIN'}:\$PATH && $codex_bin $permission_args $hook_trust_args --add-dir '$PROJECT_DIR' $model_arg $reasoning_arg" Enter
 
-    sleep 3
+    # 최초 실행 시 git 프로젝트 신뢰 확인 대화상자가 뜬다("Do you trust the
+    # contents of this directory?"). "1. Yes, continue"가 기본 선택이므로 Enter만
+    # 보내면 된다.
+    wait_for_pane "$pane" "Do you trust the contents" 20 && {
+        tmux send-keys -t "$pane" Enter
+        sleep 1
+    }
+
+    # 훅 신뢰 승인 자동화: /hooks를 열고 't'로 전부 신뢰한 뒤 esc로 닫는다.
+    # 프롬프트 자체가 뜰 때까지 기다렸다가 보내야 한다 — codex TUI가 아직
+    # 입력을 받을 준비가 안 된 상태에서 보내면 무시된다.
+    wait_for_pane "$pane" "Ask Codex to do anything" 30 && {
+        tmux send-keys -t "$pane" -l "/hooks"
+        sleep 0.3
+        tmux send-keys -t "$pane" Enter
+        sleep 1
+        tmux send-keys -t "$pane" -l "t"
+        sleep 1
+        tmux send-keys -t "$pane" Escape
+        sleep 1
+    }
+
+    sleep 2
     return 0
 }
 
@@ -461,15 +584,22 @@ check_codex_login() {
 }
 
 # ── [0/7] 사전 요구사항 확인 ────────────────────────────────
-echo -e "${YELLOW}[0/7] 사전 요구사항 확인 ($TEAM_AGENT)...${NC}"
+# 혼합 팀에서는 실제로 파인에 배정된 공급자(USED_AGENTS) 전부를 검사한다 —
+# $TEAM_AGENT 하나만 보면 reviewer만 codex인 팀에서 codex 설치·로그인 확인이
+# 통째로 생략된다.
+used_agents_list="${!USED_AGENTS[*]}"
+echo -e "${YELLOW}[0/7] 사전 요구사항 확인 (${used_agents_list})...${NC}"
+
+NEED_FIRST_LOGIN=false
 
 MISSING=()
 command -v tmux &>/dev/null || MISSING+=("tmux (apt-get install -y tmux)")
-if [ "$TEAM_AGENT" = "claude" ]; then
+if [ -n "${USED_AGENTS[claude]:-}" ]; then
     command -v claude &>/dev/null || MISSING+=("claude (npm install -g @anthropic-ai/claude-code)")
     command -v rtk    &>/dev/null || MISSING+=("rtk (curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh)")
     command -v bun    &>/dev/null || MISSING+=("bun (curl -fsSL https://bun.sh/install | bash)")
-else
+fi
+if [ -n "${USED_AGENTS[codex]:-}" ]; then
     command -v codex &>/dev/null || MISSING+=("codex (npm install -g @openai/codex)")
 fi
 
@@ -480,7 +610,7 @@ if [ ${#MISSING[@]} -gt 0 ]; then
 fi
 
 echo "  ✅ tmux $(tmux -V | awk '{print $2}')"
-if [ "$TEAM_AGENT" = "claude" ]; then
+if [ -n "${USED_AGENTS[claude]:-}" ]; then
     echo "  ✅ claude $(claude --version 2>/dev/null | head -1)"
     echo "  ✅ rtk $(rtk --version 2>/dev/null | head -1)"
     echo "  ✅ bun $(bun --version 2>/dev/null | head -1)"
@@ -488,7 +618,6 @@ if [ "$TEAM_AGENT" = "claude" ]; then
     echo -n "  Claude 로그인 확인... "
     if check_login; then
         echo -e "${GREEN}✅ 로그인 완료${NC}"
-        NEED_FIRST_LOGIN=false
     else
         NEED_FIRST_LOGIN=true
         echo -e "${YELLOW}로그인이 필요합니다.${NC}"
@@ -505,7 +634,8 @@ if [ "$TEAM_AGENT" = "claude" ]; then
         fi
         echo -e "${GREEN}✅ 로그인 확인 완료${NC}"
     fi
-else
+fi
+if [ -n "${USED_AGENTS[codex]:-}" ]; then
     echo "  ✅ codex $(codex --version 2>/dev/null | head -1)"
     echo -n "  Codex 로그인 확인... "
     if check_codex_login; then
@@ -526,8 +656,16 @@ else
     fi
 fi
 
+# .team/ 런타임 루트는 두 공급자 블록이 공유한다. 혼합 팀에서 각 블록이
+# 자기 시작점에서 매번 rm -rf하면 먼저 실행된 블록의 결과물이 지워지므로,
+# 삭제는 여기서 한 번만 하고 두 블록은 각자 자기 역할분만 채운다.
+TEAM_SKILLS_ROOT="$PROJECT_DIR/.team"
+RUNTIME_DIR="$TEAM_SKILLS_ROOT/_runtime"
+rm -rf "$TEAM_SKILLS_ROOT"
+
 # Claude 전용 준비. Codex는 1차 구현에서 Claude 플러그인·rtk 훅을 공유하지 않는다.
-if [ "$TEAM_AGENT" = "claude" ]; then
+# 혼합 팀에서는 아래 두 블록이 각각 독립 조건으로 순서대로 실행된다.
+if [ -n "${USED_AGENTS[claude]:-}" ]; then
 
 # ── [1/7] rtk 훅 초기화 ────────────────────────────────────
 # ~/.claude 는 로그인 후 생성되고 volume(claude-home) 안에 있으므로
@@ -736,11 +874,7 @@ merge_team_claude_md() {
 }
 merge_team_claude_md
 
-TEAM_SKILLS_ROOT="$PROJECT_DIR/.team"
-# 조립된 역할 지침(.prompt.md)과 훅 설정(.settings.json)을 두는 곳.
-# 커맨드에 내용을 싣지 않고 이 경로만 넘긴다(tmux send-keys 길이 제한 회피).
-RUNTIME_DIR="$TEAM_SKILLS_ROOT/_runtime"
-rm -rf "$TEAM_SKILLS_ROOT"
+# TEAM_SKILLS_ROOT·RUNTIME_DIR·rm -rf는 위에서 공급자 공통으로 이미 처리했다.
 
 for role in "${!GSTACK_SKILL_SETS[@]}"; do
     role_skills_dir="$TEAM_SKILLS_ROOT/$role/.claude/skills"
@@ -785,7 +919,11 @@ done
 
 echo -e "${GREEN}✅ 역할별 스킬 제한 완료${NC}"
 
-else
+fi
+
+# Codex 전용 준비. USED_AGENTS[claude]와 독립 조건이므로 혼합 팀에서는
+# 위 Claude 블록에 이어 이 블록도 실행된다(reviewer만 codex인 경우 등).
+if [ -n "${USED_AGENTS[codex]:-}" ]; then
 
 # ── [1-4/7] Codex 런타임 준비 ──────────────────────────────
 # Codex에는 Claude의 rtk/gstack/마켓플레이스 플러그인을 이식하지 않는다.
@@ -815,9 +953,7 @@ merge_team_agents_md() {
 
 merge_team_agents_md
 
-TEAM_SKILLS_ROOT="$PROJECT_DIR/.team"
-RUNTIME_DIR="$TEAM_SKILLS_ROOT/_runtime"
-rm -rf "$TEAM_SKILLS_ROOT"
+# TEAM_SKILLS_ROOT·RUNTIME_DIR·rm -rf는 위에서 공급자 공통으로 이미 처리했다.
 
 find_codex_skill_source() {
     local skill="$1" candidate
@@ -919,14 +1055,15 @@ tmux set-option -t "$SESSION" mouse on
 echo "  ✅ 레이아웃 구성 완료 (${PANE_COUNT} panes)"
 
 # ── [7/7] 에이전트 자동 실행 ───────────────────────────────
-echo -e "\n${YELLOW}[7/7] ${TEAM_AGENT^} 실행 중... (파인당 최대 1분)${NC}"
+echo -e "\n${YELLOW}[7/7] 파인별 에이전트 실행 중 (${used_agents_list})... (파인당 최대 1분)${NC}"
 
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
-    echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}): "
-    if [ "$TEAM_AGENT" = "claude" ]; then
-        start_claude_in_pane "$SESSION:0.$pane" "${MEMBER_MODELS[$pane]}" "${MEMBER_NAMES[$pane]}"
+    pane_agent="${MEMBER_AGENTS[$pane]}"
+    echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}, ${pane_agent}): "
+    if [ "$pane_agent" = "claude" ]; then
+        start_claude_in_pane "$SESSION:0.$pane" "${PROVIDER_MEMBER_MODELS[claude:$pane]}" "${MEMBER_NAMES[$pane]}"
     else
-        start_codex_in_pane "$SESSION:0.$pane" "${MEMBER_MODELS[$pane]}" "${MEMBER_NAMES[$pane]}" "${MEMBER_REASONING_EFFORTS[$pane]}"
+        start_codex_in_pane "$SESSION:0.$pane" "${PROVIDER_MEMBER_MODELS[codex:$pane]}" "${MEMBER_NAMES[$pane]}" "${PROVIDER_MEMBER_REASONING_EFFORTS[codex:$pane]}"
     fi
 
     echo -e "${GREEN}✅ 실행 완료${NC}"
