@@ -126,8 +126,10 @@ Docker 환경의 특이점:
 ### setup-team.sh 실행되면
 
 1. 의존성·인증 확인
-   - tmux/claude/rtk/bun 설치 여부 확인
-   - `claude auth status`로 로그인 여부 확인 (미로그인 시 `/login` 안내 후 대기)
+   - tmux 설치 여부는 항상 확인
+   - 실제로 팀에 쓰이는 공급자마다 필요한 도구·인증을 확인 (혼합 팀이면 둘 다)
+     - Claude: claude/rtk/bun 설치, `claude auth status` 로그인 확인 (미로그인 시 `/login` 안내 후 대기)
+     - Codex: codex 설치, `codex login status` 로그인 확인 (미로그인 시 `codex login` 안내 후 대기)
 2. 도구 준비
    - rtk 훅 초기화
    - gstack 스킬(`/office-hours`, `/review` 등 슬래시 커맨드) 설치
@@ -165,9 +167,36 @@ tmux kill-session -t team1                    # 세션 종료
 
 - 대상 프로젝트의 `AGENTS.md`에는 이 저장소의 Codex 공통 규칙이 마커 블록으로 병합된다.
 - 각 파인은 `.team/{역할}/`에서 실행되며, 같은 위치의 역할별 `AGENTS.md`를 추가로 읽는다.
-- 첫 실행에서 Codex가 프로젝트 신뢰를 확인하면 사용자가 직접 승인해야 한다.
-- 1차 지원 범위에서는 Claude 전용 rtk·gstack·마켓플레이스 플러그인과 자동 Stop 훅을 Codex에 이식하지 않는다. `say` 통신과 역할 지침은 그대로 쓸 수 있다.
+- 첫 실행에서 Codex가 프로젝트 신뢰를 확인하는 대화상자와, `.codex/hooks.json`의
+  훅 신뢰 승인(`/hooks` 화면)은 `setup-team.sh`가 자동으로 처리한다 — 사람이 개입할
+  필요 없다.
+- busy 마커 정리와 미보고 종료 신호(Stop 훅)는 Claude와 동일하게 동작한다.
+  `say` 통신, 역할 지침, `.codex/hooks.json`의 `Stop` 이벤트로 이식했다.
+- 1차 지원 범위에서는 Claude 전용 rtk 토큰 절감 훅과 gstack·마켓플레이스 플러그인,
+  프롬프트·툴 JSONL 로깅(`.claude-logs/`)은 Codex에 이식하지 않는다.
 - Codex 모델과 추론 수준은 기본 `team/config.codex.sh`의 역할별 값을 쓴다. 프로젝트별로 바꾸려면 같은 파일에 `MEMBER_MODELS`, `MEMBER_REASONING_EFFORTS` 배열을 선언하고, 개별 값을 비워 두면 해당 Codex 기본값을 사용한다.
+
+### 혼합 팀 — 역할별로 다른 에이전트 지정
+
+역할 하나만 다른 공급자로 띄우고 싶을 때(예: reviewer만 Codex로 돌려 코드를 쓴 모델과
+리뷰하는 모델을 분리) `team/config.sh`에 `MEMBER_AGENTS` 배열을 선언한다.
+
+```bash
+# <프로젝트_경로>/team/config.sh
+SESSION="team1"
+declare -a MEMBER_NAMES=("lead" "architect" "researcher" "designer" "developer" "reviewer")
+declare -a MEMBER_AGENTS=("" "" "" "" "" "codex")   # reviewer만 Codex, 나머지는 기본값
+```
+
+- 빈 문자열은 `--agent`/`TEAM_AGENT` 기본값을 따른다. 배열 자체를 선언하지 않으면
+  기존처럼 팀 전체가 같은 공급자로 뜬다(회귀 없음).
+- 배열 길이는 `MEMBER_NAMES`와 같아야 한다.
+- 모델은 그 파인의 공급자에 맞는 설정 파일(`config.claude.sh` 또는 `config.codex.sh`)의
+  같은 인덱스에서 읽는다 — 혼합 팀에서는 두 파일이 모두 필요할 수 있다.
+- 인증 확인(`[0/7]`)은 실제로 팀에 쓰이는 공급자 전부에 대해 이루어진다. reviewer만
+  Codex를 쓰면 Codex 로그인도 함께 확인한다.
+- Codex로 지정된 파인은 위 "Codex 실행 모드"와 동일하게 신뢰 프롬프트·훅 승인이
+  자동 처리되고, busy 마커·Stop 훅도 Claude 파인과 동일하게 동작한다.
 
 ## Claude/Codex 지침과 team/ — 지침이 파인에 로딩되는 방식
 
@@ -224,7 +253,8 @@ declare -a MEMBER_MODELS=(
 ```
 
 - Codex는 `team/config.codex.sh`에 같은 길이의 `MEMBER_MODELS`, `MEMBER_REASONING_EFFORTS` 배열을 선언한다. 파일이 없으면 이 저장소의 역할별 기본값을 사용하며, 개별 빈 값은 사용자의 Codex 기본 설정을 따른다.
-- `MEMBER_NAMES`와 `MEMBER_MODELS`는 배열 길이가 같아야 함
+- 파인마다 다른 에이전트를 쓰려면 같은 `team/config.sh`에 `MEMBER_AGENTS` 배열을 추가한다 — 위 "혼합 팀" 참고
+- `MEMBER_NAMES`와 `MEMBER_MODELS`(그리고 선언했다면 `MEMBER_AGENTS`)는 배열 길이가 같아야 함
 - 파인 개수는 배열 길이로 자동 계산
 - 이 저장소의 `team/config.sh`는 복사해서 수정할 템플릿 — 기본값(6인)과 동일한 내용
 - 이름을 바꾸면 대응하는 `team/{이름}.md`도 필요(없으면 역할 지침 없이 실행 — 위 "Claude/Codex 지침과 team/" 참고)
@@ -302,6 +332,7 @@ Enter 누락부터 큐 도입까지, 통신이 깨졌던 유형과 각각의 대
 
 - 파인이 `say` 실행을 잊어도 lead가 완료를 알 수 있도록, `setup-team.sh`가 lead를 뺀 각 파인에 Stop 훅을 주입해 응답 종료 시 완료 신호를 자동 전달 (폴링 불필요)
 - 예외: 방금 `say`로 보고했으면 생략 / lead 자신은 대상 제외 (무한루프 방지)
+- Claude·Codex 양쪽에서 동일하게 동작 — Codex는 `.codex/hooks.json`의 `Stop` 이벤트로 이식했다. 파인에는 승인할 사람이 없으므로 Codex의 훅 신뢰 승인(`/hooks` 화면)도 `setup-team.sh`가 자동 처리한다.
 
 ## 프롬프트·툴 로깅 — 재현성과 추적
 
