@@ -10,7 +10,7 @@
 # 단계:
 #   [0] 실제로 사용되는 공급자(USED_AGENTS) 전부의 사전 요구사항·로그인 확인
 #   [1-3] Claude 사용 시: rtk·gstack·Claude 플러그인 준비
-#   [1-4] Codex 사용 시: AGENTS.md 병합, 역할별 스킬·Stop 훅 준비
+#   [1-4] Codex 사용 시: AGENTS.md 병합, 역할별 스킬·lifecycle 훅 준비
 #         (두 블록은 혼합 팀에서 순서대로 모두 실행되며 .team/ 삭제는 한 번만 한다)
 #   [4] Claude 사용 시: 팀 공통 지침을 CLAUDE.md에 병합하고 역할별 런타임 디렉터리 구성
 #   [5] 기존 tmux 세션 정리
@@ -507,7 +507,8 @@ write_codex_role_agents() {
     [ -n "$pane_id" ] || return 0
     stop_hook_cmd_for_role "$role" "$pane_id" "$state_key"
     local hook_cmd_json; hook_cmd_json="$(json_escape "$STOP_HOOK_CMD")"
-    local hooks_json="{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd_json}\"}]}]}}"
+    local session_start_cmd_json; session_start_cmd_json="$(json_escape "rm -f /tmp/team-busy/${state_key}")"
+    local hooks_json="{\"hooks\":{\"SessionStart\":[{\"matcher\":\"startup|resume|clear|compact\",\"hooks\":[{\"type\":\"command\",\"command\":\"${session_start_cmd_json}\"}]}],\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd_json}\"}]}]}}"
     mkdir -p "$work_dir/.codex"
     printf '%s' "$hooks_json" > "$work_dir/.codex/hooks.json"
 }
@@ -944,7 +945,7 @@ echo -e "${GREEN}✅ 역할별 스킬 제한 완료${NC}"
 fi
 
 # Codex 전용 준비. USED_AGENTS[claude]와 독립 조건이므로 혼합 팀에서는
-# 위 Claude 블록에 이어 이 블록도 실행된다(reviewer만 codex인 경우 등).
+# 위 Claude 블록에 이어 이 블록도 실행된다(일부 역할만 codex인 경우 등).
 if [ -n "${USED_AGENTS[codex]:-}" ]; then
 
 # ── [1-4/7] Codex 런타임 준비 ──────────────────────────────

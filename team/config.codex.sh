@@ -14,14 +14,14 @@ declare -a MEMBER_MODELS=(
 
 declare -a MEMBER_REASONING_EFFORTS=(
     "medium"
-    "medium"
+    "high"
     "medium"
     "high"
     "high"
     "high"
 )
 
-# 역할 → 역할 전용으로 추가할 Codex 스킬. 기본값은 빈 배분표다. Claude용
-# 플러그인/스킬을 호환성 확인 없이 재사용하지 않으며, 대상 프로젝트는 검증된
-# 스킬 이름을 여기에 선언할 수 있다.
+# 역할 → 역할 전용으로 추가할 standalone Codex 스킬. 공식 Codex 플러그인은
+# 사용자 전역으로 설치·활성화되므로 여기서 자동 설치하거나 역할별 링크하지 않는다.
+# architect 권장 플러그인은 README의 "Codex architect 네이티브 확장"을 참고한다.
 declare -A CODEX_SKILL_SETS=()
