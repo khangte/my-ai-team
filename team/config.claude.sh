@@ -15,6 +15,17 @@ declare -a MEMBER_MODELS=(
     "claude-sonnet-5"   # reviewer
 )
 
+# 역할별 추론 강도. 값: low, medium, high, xhigh, max. 빈 문자열이면 --effort를
+# 넘기지 않아 CLI 기본값(사용자 settings.json의 effortLevel)을 그대로 쓴다.
+declare -a MEMBER_REASONING_EFFORTS=(
+    "medium"    # lead
+    "high"      # architect
+    "medium"    # researcher
+    "medium"    # designer
+    "high"      # developer
+    "high"      # reviewer
+)
+
 # 마켓플레이스 이름 → GitHub 리포. 설치할 플러그인은 PLUGIN_ROLES에서
 # plugin@marketplace 형식으로 지정한다.
 declare -A PLUGIN_MARKETPLACES=(
