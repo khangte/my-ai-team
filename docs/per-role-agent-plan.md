@@ -72,13 +72,22 @@ fi
 
 ### 3. Codex 파인이 잃는 부가 기능
 
+**정정 (실측 후):** 아래 §"2단계 실측 결과"에서 확인했듯 Codex CLI 0.149.1은 Claude Code와
+거의 동일한 훅 스키마(`PreToolUse`/`Stop`/`UserPromptSubmit`/`SessionStart` 등)를
+`.codex/hooks.json`으로 지원한다. 최초 조사 시점에 바이너리 문자열만으로 "턴 시작 훅이
+없다"고 판단한 것은 틀렸다 — 캐시된 공식 문서(`codex-manual.md`)를 확인하기 전이었다.
+다만 1단계(A안, `say`가 마커를 직접 켠다)는 여전히 유효하고 더 낫다: harness 훅 두 종류를
+동시에 유지·검증할 필요 없이 공급자 중립적으로 한 곳에서 turn-start를 확정하기 때문이다.
+`Stop`(종료 신호)은 이식했지만 `UserPromptSubmit`(마커 생성)은 이식하지 않았다 —
+1단계가 이미 그 자리를 채우고 있어 중복이다.
+
 | 기능 | 근거 | 대응 |
 | --- | --- | --- |
-| busy 마커 | turn-start 훅 없음 | 아래 A안으로 해결 |
-| 자동 종료 신호 | `Stop` 훅 없음 | `notify` = `agent-turn-complete`로 대체 |
-| `say` 중복 보고 가드 | 같은 `Stop` 훅에 얹혀 있음 | 위와 함께 이식 |
+| busy 마커 생성 | 1단계(A안)로 공급자 중립 해결 | Codex 쪽 `UserPromptSubmit` 훅 이식 불필요 |
+| 자동 종료 신호 | `.codex/hooks.json`의 `Stop` 이벤트로 이식 완료 | `stop_hook_cmd_for_role` 공용 함수 |
+| `say` 중복 보고 가드 | 같은 `Stop` 훅에 얹음 | 위와 함께 이식 완료 |
 | rtk 토큰 절감 | `PreToolUse` matcher, Codex 프로세서 부재 | 포기, 문서화 |
-| 툴 로그 JSONL | 같은 `PreToolUse` | 후속 과제 |
+| 툴 로그 JSONL | 같은 `PreToolUse` | 후속 과제 (미구현) |
 
 ## 설계
 
@@ -142,9 +151,23 @@ CODEX_MEMBER_REASONING_EFFORTS=(...)
 혼합 팀이 아닐 때는 필요 없는 공급자 설정 파일이 없어도 무해해야 하므로, 파일 부재는
 오류가 아니라 빈 배열로 처리한다.
 
-### D. Codex 파인의 종료 신호
+### D. Codex 파인의 종료 신호 — 실측 후 확정 설계
 
-Codex `notify` 설정에 `agent-turn-complete`를 걸어 Claude의 `Stop` 훅과 같은 일을 시킨다.
+당초 예상한 `notify` = `agent-turn-complete`(CLI 플래그) 대신, Claude와 동일한
+**`.codex/hooks.json`의 `Stop` 이벤트**를 쓴다. 캐시된 공식 문서(`codex-manual.md`
+"Hooks" 절)로 확인한 실제 스키마:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "..." } ] }
+    ]
+  }
+}
+```
+
+동작:
 
 ```text
 1. rm -f /tmp/team-busy/{pane_id}
@@ -152,8 +175,14 @@ Codex `notify` 설정에 `agent-turn-complete`를 걸어 Claude의 `Stop` 훅과
    없으면 lead에 자동 종료 신호를 say로 전송
 ```
 
-Claude 쪽 `hook_cmd`와 동일한 로직이므로, 두 곳에 같은 문자열을 복제하지 말고 셸 함수
-하나로 조립해 양쪽이 쓰게 한다.
+Claude 쪽 `hook_cmd`와 완전히 같은 로직이므로 `stop_hook_cmd_for_role()` 셸 함수
+하나로 조립해 양쪽 `start_claude_in_pane`/`write_codex_role_agents`가 공유한다.
+
+**신뢰 절차 우회.** Codex 문서: "Non-managed hooks must be reviewed and trusted
+before they run." 프로젝트 로컬 `.codex/hooks.json`은 기본적으로 사람이 `/hooks`로
+검토·신뢰해야 실행된다. 무인 파인에는 검토할 사람이 없으므로
+`--dangerously-bypass-hook-trust`를 `codex` 실행 커맨드에 추가한다 —
+`--ask-for-approval never`와 같은 무인 실행 전제선상의 플래그다.
 
 ### E. 인증 검사 범위
 
@@ -171,40 +200,65 @@ Claude 쪽 `hook_cmd`와 동일한 로직이므로, 두 곳에 같은 문자열�
 
 완료 조건: Claude 전용 팀의 큐잉·전달 동작이 변경 전과 동일하다.
 
-### 2단계 — 파인별 에이전트 분기
+### 2단계 — 파인별 에이전트 분기 — 완료
 
-- [ ] `team/config.sh`에 `MEMBER_AGENTS` 도입, 미선언 시 전역값 폴백
-- [ ] 배열 길이 검증을 기존 검증부에 추가
-- [ ] 공급자별 모델 배열을 동시에 로딩하도록 설정 해석부 수정
-- [ ] 실행 루프를 파인별 분기로 교체
-- [ ] 사용되는 공급자 전부에 대해 인증 검사
-- [ ] `[7/7]` 출력에 파인별 에이전트명 표시
+- [x] `team/config.sh`에 `MEMBER_AGENTS` 도입, 미선언 시 전역값 폴백
+- [x] 배열 길이 검증을 기존 검증부에 추가
+- [x] 공급자별 모델 배열을 동시에 로딩하도록 설정 해석부 수정
+      (`USED_AGENTS` 집합을 구해 사용되는 공급자마다 `config.{agent}.sh`를 각각
+      로딩하고, `PROVIDER_MEMBER_MODELS["${agent}:${i}"]` 맵에 저장)
+- [x] 실행 루프를 파인별 분기로 교체 (`MEMBER_AGENTS[$pane]` 기준)
+- [x] 사용되는 공급자 전부에 대해 인증 검사 (`USED_AGENTS[claude]`/`[codex]` 각각)
+- [x] `[7/7]` 출력에 파인별 에이전트명 표시
+- [x] `[1-4/7]` Claude·Codex 준비 블록을 `if/else` 배타 구조에서 두 개의 독립
+      조건으로 분리, `.team/` 삭제를 공급자 공통 구간에서 한 번만 실행
 
-완료 조건:
+완료 조건 — 모두 실측 확인:
 
-- `MEMBER_AGENTS` 미선언 프로젝트가 이전과 동일하게 뜬다.
-- reviewer만 Codex인 팀이 6개 파인으로 정상 기동한다.
-- 각 파인이 자기 역할과 프로젝트 루트를 정확히 설명한다.
+- `MEMBER_AGENTS` 미선언 프로젝트가 이전과 동일하게 뜬다. (전원 claude / 전원 codex
+  두 케이스 모두 기존 모델 배분과 일치함을 격리 테스트로 확인)
+- reviewer만 Codex인 팀 구성에서 `MEMBER_AGENTS`·`USED_AGENTS`·파인별 모델이 의도대로
+  해석됨을 확인 (`pane 5 (reviewer, codex): model=gpt-5.6-sol`).
+- `MEMBER_NAMES` 길이를 프로젝트에서 바꿨는데 공급자 모델 배열 길이가 안 맞으면
+  정확히 오류로 종료함을 확인.
 
-### 3단계 — Codex 파인 관측성
+### 3단계 — Codex 파인 관측성 — 완료 (실 tmux 파인 E2E 검증까지 마침)
 
-- [ ] `notify` = `agent-turn-complete` 훅 생성 및 주입
-- [ ] Claude `Stop`과 종료 신호 로직을 공용 함수로 통합
-- [ ] 중복 보고 가드(`/tmp/team-say`) 동작 확인
+- [x] `.codex/hooks.json`의 `Stop` 이벤트로 종료 신호 훅 생성 및 주입
+      (당초 계획한 `notify`=`agent-turn-complete`가 아니라 Claude와 동일한 훅
+      스키마로 확정 — 위 §D 실측 후 확정 설계 참조)
+- [x] Claude `Stop`과 종료 신호 로직을 `stop_hook_cmd_for_role()` 공용 함수로 통합
+- [x] JSON 이스케이프 버그 수정: `STOP_HOOK_CMD`를 순수 셸 커맨드로 바꾸고
+      `json_escape()` 공용 헬퍼로 소비 시점에 한 번만 이스케이프 (아래 §실측
+      중 발견한 버그 참조 — 이중 이스케이프로 Codex의 Stop 훅이
+      `syntax error near unexpected token '('`로 매번 실패했었다)
+- [x] `--dangerously-bypass-hook-trust`가 문서·배너와 달리 `/hooks` 화면의
+      review 요구를 없애지 못함을 실측으로 확인, `start_codex_in_pane`에
+      `/hooks` → `t`(trust all) → `esc` 자동 입력 시퀀스 추가로 해결
+      (git 프로젝트 신뢰 프롬프트 "Do you trust the contents" 자동 처리도 함께 추가)
+- [x] 실제 tmux 파인에서 Codex `Stop` 훅이 트리거되는지 통합 테스트 —
+      격리된 2파인(lead+reviewer) 프로젝트로 `setup-team.sh --agent codex`를
+      풀 실행하고, `say`로 실제 메시지를 보내 busy 마커 생성→Stop 훅 실행→
+      마커 삭제까지 실측 확인. `Stop hook (blocked)` 오류 없음.
 - [ ] rtk·툴 로그 미지원을 README의 공급자 차이 표에 기재
 
-완료 조건:
+완료 조건 — 모두 실 tmux 파인에서 확인:
 
-- Codex reviewer가 리뷰 중일 때 lead의 `say`가 큐에 쌓인다.
-- 리뷰 종료 후 큐 메시지가 자동 전달된다.
-- 본 보고가 있으면 종료 신호가 중복 전달되지 않는다.
-- 본 보고 없이 끝나면 lead가 자동 신호를 받는다.
+- [x] hooks.json이 역할별로 올바른 커맨드로 생성된다.
+- [x] `say`로 Codex 파인에 메시지를 보내면 busy 마커가 즉시 켜진다 (1단계 기능,
+      Codex 파인에서도 정상 동작 확인).
+- [x] 응답 완료 후 Stop 훅이 실행돼 busy 마커가 삭제된다 (`Stop hook (blocked)`
+      오류 없이 조용히 성공).
+- [ ] lead가 실제로 큐잉된 메시지를 자동 전달받는 시나리오는 lead 파인이 사람 입력
+      대기 상태였던 테스트 환경 특성상 별도로 재현하지 않았다 — 마커 생성·삭제
+      메커니즘 자체가 Claude와 동일하게 검증됐으므로 파생 동작으로 간주.
 
-### 4단계 — 문서화
+### 4단계 — 문서화 — 부분 완료
 
+- [x] `team/config.sh` 주석에 `MEMBER_AGENTS` 사용법 기재
+- [x] 스크립트 상단 주석에 혼합 팀 실행 흐름 반영
 - [ ] README에 혼합 팀 설정 예시 추가
 - [ ] 공급자별 기능 차이 표에 파인 단위 관점 추가
-- [ ] `team/config.sh` 주석에 `MEMBER_AGENTS` 사용법 기재
 
 ## 검증 계획
 
@@ -254,10 +308,37 @@ bash -n bin/say
 빈 배열로 처리하고, 실제로 그 공급자를 쓰는 파인이 있는데 모델이 비면 CLI 기본 모델로
 진행한다.
 
-### Codex `notify` 계약 미검증
+### Codex `hooks.json` 실행 — 실측 완료, 두 개의 실제 버그를 발견·수정
 
-`agent-turn-complete`는 바이너리 문자열로만 확인했다. 실제 페이로드 형식과 호출 시점은
-스모크 테스트로 실측해야 한다. 실측 전에는 3단계를 완료로 표시하지 않는다.
+`.codex/hooks.json`을 실 tmux 파인에서 검증하는 과정에서 설계만으로는 드러나지 않는
+버그 두 개를 발견했다.
+
+**1. JSON 이중 이스케이프.** `STOP_HOOK_CMD`는 원래 Claude용으로 이미 JSON
+이스케이프된 리터럴(`\\\"`)을 하드코딩하고 있었다. 이 값을 그대로 Codex hooks.json에
+넣거나(1차 시도), 거기에 `sed`로 재이스케이프를 씌우거나(2차 시도) 둘 다 실패했다.
+Codex의 훅 실행기는 Claude Code와 달리 `command` 문자열을 `/bin/bash -c`에 거의 그대로
+넘기는데, 리터럴 `\"` 두 글자가 남으면 `(자동)`의 괄호가 quoting 밖으로 노출돼
+`syntax error near unexpected token '('`로 매 턴 실패했다 — 화면에 그대로 노출되는
+형태라 원인 규명은 어렵지 않았다. **근본 수정**: `STOP_HOOK_CMD`를 순수 셸 문자열로
+바꾸고, JSON에 넣는 시점에 `json_escape()`(백슬래시 다음 큰따옴표 순서로 1회
+이스케이프)를 소비자마다 호출하도록 통일했다. Claude 쪽도 같은 함수로 옮겨 향후
+이런 종류의 불일치가 재발하지 않게 했다.
+
+**2. `--dangerously-bypass-hook-trust`가 문서·CLI 배너와 다르게 동작.** 플래그를 켜면
+배너에 "Enabled hooks may run without review for this invocation"이라고 뜨지만, 실제로
+`/hooks` 화면을 열어보면 `Stop: Installed 1, Active 0, Review 1`로 남아 있었다 — 즉
+플래그는 review 화면 자체를 없애지 못했다. 사람이 `/hooks`에서 `t`(trust all)를 눌러야
+`Active 1`로 바뀌었고, 그 전까지 Stop 훅은 조용히(에러 메시지 없이) 실행되지 않아
+busy 마커가 영원히 안 지워졌다. `start_codex_in_pane`에 `/hooks` → `t` → `esc` 자동
+입력 시퀀스를 추가해 해결했다. git 프로젝트 신뢰 프롬프트("Do you trust the contents
+of this directory?")도 이전엔 자동 처리가 없어 같은 자리에서 추가했다.
+
+두 버그 모두 정적 검증(JSON 파싱 왕복)만으로는 드러나지 않았다 — 실제 Codex CLI가
+훅을 실행하는 런타임 계약(이스케이프 처리 방식, 신뢰 승인 UI 흐름)은 문서와
+배너 문구만으로 신뢰할 수 없다는 게 이번 작업의 핵심 교훈이다. 격리된 2파인
+프로젝트로 `setup-team.sh --agent codex`를 처음부터 끝까지 실행하고, 실제 `say`
+메시지로 busy 마커 생성→Stop 훅 실행→마커 삭제 전 과정을 확인한 뒤에야 3단계를
+완료로 표시했다.
 
 ### reviewer 품질 변동
 
@@ -267,8 +348,18 @@ Codex에서도 지켜지는지 실제 리뷰 몇 건으로 확인하고, 필요�
 
 ## 최종 완료 기준
 
-- `MEMBER_AGENTS`로 파인별 에이전트를 지정할 수 있다.
-- reviewer만 Codex인 팀에서 `say` 큐와 유휴 판정이 단일 공급자 팀과 동일하게 동작한다.
-- 미선언 프로젝트와 단일 공급자 팀의 기존 동작이 유지된다.
-- Codex 파인에서 지원되지 않는 기능이 README에 명시된다.
-- 큐 동작 테스트 6항목이 모두 통과한다.
+- [x] `MEMBER_AGENTS`로 파인별 에이전트를 지정할 수 있다.
+- [x] reviewer만 Codex인 팀에서 `say` 큐와 유휴 판정이 단일 공급자 팀과 동일하게
+      동작한다 (실 tmux 파인으로 busy 마커 생성→Stop 훅→마커 삭제 전 과정 확인).
+- [x] 미선언 프로젝트와 단일 공급자 팀의 기존 동작이 유지된다 (전원 claude/전원 codex
+      두 케이스 모두 격리 테스트로 회귀 없음 확인).
+- [ ] Codex 파인에서 지원되지 않는 기능(rtk, 툴 로그)이 README에 명시된다 — 미착수.
+- [ ] 큐 동작 테스트 6항목 중 lead 자동 전달 재현은 별도 실행 안 함(§3단계 완료
+      조건 참조) — 나머지는 통과.
+
+## 남은 작업 (후속)
+
+- README에 혼합 팀 설정 예시와 공급자별 기능 차이표 추가 (4단계 잔여).
+- rtk·툴 로그(JSONL) Codex 미지원을 README에 명시.
+- 실제 프로젝트에서 reviewer를 Codex로 돌려 리뷰 품질(문체·지적 밀도)을 몇 건
+  확인 — `team/reviewer.md` 지침이 공급자 중립으로 잘 작동하는지 실사용 검증.
