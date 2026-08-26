@@ -245,13 +245,22 @@ wait_for_pane() {
 # 넘겨 "syntax error near unexpected token `('" 로 깨졌다(실측). 순수 문자열 +
 # 소비자별 이스케이프로 바꿔 두 CLI 모두에서 안전하게 재사용한다.
 stop_hook_cmd_for_role() {
-    local role="$1" pane_id="$2"
+    local role="$1" pane_id="$2" state_key="$3"
     if [ "$role" = "lead" ]; then
-        STOP_HOOK_CMD="rm -f /tmp/team-busy/${pane_id}"
+        STOP_HOOK_CMD="rm -f /tmp/team-busy/${state_key}"
     else
-        local marker="/tmp/team-say/${pane_id}"
-        STOP_HOOK_CMD="rm -f /tmp/team-busy/${pane_id}; if [ -f '${marker}' ]; then rm -f '${marker}'; else ${BIN_DIR}/say ${SESSION}:0.0 \"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\"; fi"
+        local marker="/tmp/team-say/${state_key}"
+        STOP_HOOK_CMD="rm -f /tmp/team-busy/${state_key}; if [ -f '${marker}' ]; then rm -f '${marker}'; else ${BIN_DIR}/say ${SESSION}:0.0 \"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\"; fi"
     fi
+}
+
+# busy/report marker는 논리적 파인 번호가 아니라 tmux의 세션·파인 고유 ID를
+# 사용한다. 같은 SESSION 이름으로 팀을 다시 만들어도 이전 실행의 marker와
+# 충돌하지 않는다. say의 resolved_state/state_key 계산과 동일한 규약이다.
+pane_state_key() {
+    local state
+    state="$(tmux display-message -p -t "$1" '#{session_id}:#{pane_id}')"
+    printf '%s' "${state//[^0-9A-Za-z]/_}"
 }
 
 # ── 유틸: JSON 문자열 값으로 안전하게 넣을 수 있게 이스케이프 ──
@@ -265,6 +274,7 @@ start_claude_in_pane() {
     local pane="$1" model="${2:-claude-sonnet-4-6}" role="${3:-}"
     local claude_bin; claude_bin="$(command -v claude)"
     local pane_id="${pane##*:}"   # "team1:0.4" → "0.4". busy 마커·say 큐 키와 형식을 맞춘다.
+    local state_key; state_key="$(pane_state_key "$pane")"
 
     # C-c로 파인에 떠 있을 수 있는 이전 프로세스를 중단하고, C-u로 입력 줄을 비워
     # 아래 send-keys가 이전 입력 잔여물과 섞이지 않게 한다.
@@ -337,12 +347,12 @@ start_claude_in_pane() {
     # 좁혀도 못 막는다). UserPromptSubmit(턴 시작)에서 찍고 Stop(턴 종료)에서
     # 지운다 — harness가 실행하는 실제 턴 경계라 화면 상태와 무관하다.
     # pane_id는 각 role 블록에서 정의한다(lead는 Stop이 없어 별도 처리).
-    local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]},{\"hooks\":[{\"type\":\"command\",\"command\":\"mkdir -p /tmp/team-busy && touch /tmp/team-busy/${pane_id}\"}]}]"
+    local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]},{\"hooks\":[{\"type\":\"command\",\"command\":\"mkdir -p /tmp/team-busy && touch /tmp/team-busy/${state_key}\"}]}]"
 
     # /clear·/compact는 진행 중인 턴을 Stop 훅 없이 끊어서 busy 마커가 남는다 —
     # 그 파인은 유휴인데 say는 30분 만료 전까지 계속 큐에 쌓는다. SessionStart는
     # clear/compact/startup 모두에서 발화하므로 여기서 마커를 지운다.
-    local sessionstart_json="\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"rm -f /tmp/team-busy/${pane_id}\"}]}]"
+    local sessionstart_json="\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"rm -f /tmp/team-busy/${state_key}\"}]}]"
 
     # 파인 간 통신은 say(tmux send-keys)가 담당하지만, Claude Code 자체의
     # cross-session messaging(SendMessage/ListAgents)도 파인마다 켜져 있다 —
@@ -397,7 +407,7 @@ start_claude_in_pane() {
     # 그대로 넘기는 동일한 계약이라, 종료 신호 로직을 공급자별로 복제하지
     # 않고 여기 한 곳에서만 유지한다. STOP_HOOK_CMD는 순수 셸 커맨드이므로
     # 아래 JSON에 넣기 직전 json_escape로 이스케이프한다.
-    stop_hook_cmd_for_role "$role" "$pane_id"
+    stop_hook_cmd_for_role "$role" "$pane_id" "$state_key"
     local stop_hook_cmd_json; stop_hook_cmd_json="$(json_escape "$STOP_HOOK_CMD")"
 
     local settings_arg=""
@@ -460,7 +470,7 @@ start_claude_in_pane() {
 # 추가한다. Claude의 --append-system-prompt-file과 같은 목적이지만, 지침 탐색은
 # Codex가 담당한다.
 write_codex_role_agents() {
-    local role="$1" work_dir="$2" pane_id="$3"
+    local role="$1" work_dir="$2" pane_id="$3" state_key="$4"
     local role_file="$PROJECT_DIR/team/${role}.md"
     [ -f "$role_file" ] || role_file="$TEAM_DIR/${role}.md"
 
@@ -495,7 +505,7 @@ write_codex_role_agents() {
     # 거쳐야 실행되므로, start_codex_in_pane이 --dangerously-bypass-hook-trust로
     # 띄워 무인 파인에서 승인 대기 없이 곧바로 동작하게 한다.
     [ -n "$pane_id" ] || return 0
-    stop_hook_cmd_for_role "$role" "$pane_id"
+    stop_hook_cmd_for_role "$role" "$pane_id" "$state_key"
     local hook_cmd_json; hook_cmd_json="$(json_escape "$STOP_HOOK_CMD")"
     local hooks_json="{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd_json}\"}]}]}}"
     mkdir -p "$work_dir/.codex"
@@ -510,12 +520,13 @@ start_codex_in_pane() {
     tmux send-keys -t "$pane" C-u 2>/dev/null; sleep 0.2
 
     local pane_id="${pane##*:}"   # busy 마커·say 큐 키와 형식을 맞춘다(Claude와 동일).
+    local state_key; state_key="$(pane_state_key "$pane")"
 
     local work_dir="$PROJECT_DIR"
     if [ -n "$role" ] && [ -d "$TEAM_SKILLS_ROOT/$role" ]; then
         work_dir="$TEAM_SKILLS_ROOT/$role"
     fi
-    write_codex_role_agents "$role" "$work_dir" "$pane_id" || true
+    write_codex_role_agents "$role" "$work_dir" "$pane_id" "$state_key" || true
 
     local model_arg=""
     [ -z "$model" ] || model_arg="--model '$model'"
@@ -1080,6 +1091,10 @@ for ((pane = 0; pane < PANE_COUNT; pane++)); do
     else
         start_codex_in_pane "$SESSION:0.$pane" "${PROVIDER_MEMBER_MODELS[codex:$pane]}" "${MEMBER_NAMES[$pane]}" "${PROVIDER_MEMBER_REASONING_EFFORTS[codex:$pane]}"
     fi
+
+    # 이전 watcher가 비정상 종료돼 큐와 lock만 남았더라도 새 파인이 준비된
+    # 시점에 lock 소유자를 검증하고 보존된 큐를 자동으로 다시 가동한다.
+    "$BIN_DIR/say" --drain "$SESSION:0.$pane"
 
     echo -e "${GREEN}✅ 실행 완료${NC}"
 done

@@ -8,7 +8,14 @@
 #   say developer "[lead] 로그인 기능 구현해줘"   # 파인 타이틀로도 지정 가능
 set -e
 
-[ $# -ge 2 ] || { echo "usage: say <pane|role> <message...>" >&2; exit 1; }
+drain_only=false
+if [ "${1:-}" = "--drain" ]; then
+    [ $# -eq 2 ] || { echo "usage: say --drain <pane|role>" >&2; exit 1; }
+    drain_only=true
+    shift
+else
+    [ $# -ge 2 ] || { echo "usage: say <pane|role> <message...>" >&2; exit 1; }
+fi
 
 target="${1#:}"; shift
 
@@ -75,11 +82,12 @@ fi
 # 기록하면 그 사이 Stop 훅이 돌아 불필요한 종료 신호가 나간다.
 record_marker() {
     [ -n "${TMUX_PANE:-}" ] || return 0
-    local sender
-    sender="$(tmux display-message -p -t "$TMUX_PANE" '#{window_index}.#{pane_index}' 2>/dev/null || true)"
+    local sender sender_key
+    sender="$(tmux display-message -p -t "$TMUX_PANE" '#{session_id}:#{pane_id}' 2>/dev/null || true)"
     [ -n "$sender" ] || return 0
-    mkdir -p /tmp/team-say
-    : > "/tmp/team-say/$sender"
+    sender_key="${sender//[^0-9A-Za-z]/_}"
+    mkdir -p "$REPORT_DIR"
+    : > "$REPORT_DIR/$sender_key"
 }
 
 # 대상 파인이 지금 작업 중인가.
@@ -98,7 +106,7 @@ record_marker() {
 # 표시는 작업 중에만 나타난다 — 기존 "esc to interrupt" 전체 문구보다
 # 오탐 표면이 좁다(힌트줄에는 없고 스피너 줄에만 나오는 패턴이라서).
 is_busy() {
-    local marker="/tmp/team-busy/${busy_key}"
+    local marker="$BUSY_DIR/${state_key}"
     if [ -f "$marker" ]; then
         # Stop 훅이 못 지운 stale 마커(파인 크래시 등) 대비 만료를 둔다.
         # 아래 큐 대기 상한(600회×3초=30분)과 같은 취지 — 감지가 고장 나도
@@ -108,7 +116,7 @@ is_busy() {
         [ "$age" -lt 1800 ] && return 0
         return 1
     fi
-    if [ -d "/tmp/team-busy" ]; then
+    if [ -d "$BUSY_DIR" ]; then
         return 1
     fi
     tmux capture-pane -t "$pane" -p 2>/dev/null | tail -5 | grep -qE '\([0-9]+s( |·|$)'
@@ -122,10 +130,19 @@ resolved_pane="$(tmux display-message -t "$pane" -p '#{session_name}:#{window_in
 if [[ ! "$resolved_pane" =~ ^[^:]+:[0-9]+\.[0-9]+$ ]]; then
     resolved_pane=""
 fi
-# busy 마커는 setup-team.sh가 세션 없는 "윈도우.파인"(예: "0.4")을 키로 쓴다
-# (pane_id="${pane##*:}"). resolved_pane은 세션까지 붙으므로 앞을 잘라 맞춘다.
-busy_key="${resolved_pane##*:}"
-[ -n "$busy_key" ] || busy_key="${target##*:}"
+
+# busy/report 상태는 세션 이름이나 파인 인덱스가 아니라 tmux가 새 세션·파인을
+# 만들 때마다 부여하는 불변 ID로 격리한다. 같은 이름의 팀을 재시작해도 이전
+# 세션의 marker가 새 파인을 busy로 만드는 일을 막는다. 큐는 아래에서 계속
+# 논리적 세션명+인덱스를 써 재시작 후 명시적으로 복구할 수 있게 한다.
+resolved_state="$(tmux display-message -t "$pane" -p '#{session_id}:#{pane_id}' 2>/dev/null || true)"
+if [[ ! "$resolved_state" =~ ^\$[0-9]+:%[0-9]+$ ]]; then
+    resolved_state="${resolved_pane:-$pane}"
+fi
+state_key="${resolved_state//[^0-9A-Za-z]/_}"
+
+BUSY_DIR="${SAY_BUSY_DIR:-/tmp/team-busy}"
+REPORT_DIR="${SAY_REPORT_DIR:-/tmp/team-say}"
 
 # 실제 전송 + 검증. 유휴를 확인한 뒤에만 호출한다.
 deliver() {
@@ -133,7 +150,7 @@ deliver() {
     # UserPromptSubmit)에 기대지 않고 say가 직접 확정한다. Codex는 이런 훅이
     # 없어 그 파인은 항상 마커 없이 "유휴"로 오판되던 문제의 근본 수정이다.
     # Claude 파인에서는 기존 훅의 touch와 중복될 뿐 무해하다(같은 파일).
-    mkdir -p /tmp/team-busy && touch "/tmp/team-busy/${busy_key}"
+    mkdir -p "$BUSY_DIR" && touch "$BUSY_DIR/${state_key}"
     # -l: 메시지를 리터럴로 보내 "Enter" 같은 단어가 키 이름으로 해석되지 않게 한다.
     tmux send-keys -t "$pane" -l -- "$msg"
     # Claude Code 입력창이 텍스트를 반영하기 전에 Enter가 도착하면 무시되므로 한 박자 쉰다.
@@ -166,7 +183,7 @@ deliver() {
 #
 # SAY_NOWAIT=1 이면 큐를 거치지 않고 즉시 보낸다 — 작업을 중단시키려는
 # 의도적 개입(예: lead의 긴급 중지 지시)에는 기다리는 쪽이 오히려 방해다.
-QUEUE_DIR="/tmp/team-say-queue"
+QUEUE_DIR="${SAY_QUEUE_DIR:-/tmp/team-say-queue}"
 # 큐 파일 키는 $pane 문자열이 아니라 tmux가 실제로 해석한 세션:윈도우.파인
 # 인덱스로 만든다(위 is_busy 앞에서 이미 계산한 resolved_pane 재사용). 파인
 # 내부 호출("say :0.0" → session="")과 파인 밖(훅) 호출("say team1:0.0" →
@@ -177,6 +194,39 @@ QUEUE_DIR="/tmp/team-say-queue"
 queue_key="${resolved_pane:-$pane}"
 queue_file="$QUEUE_DIR/${queue_key//[^0-9A-Za-z]/_}"
 lock_file="$queue_file.lock"
+
+# watcher lock에는 소유 프로세스와 그 프로세스의 시작 시각을 기록한다. PID가
+# 없거나 죽었거나 재사용된 lock은 다음 say/--drain 호출이 자동 회수한다.
+# owner 파일 기록 직전의 짧은 구간은 정상 생성 중일 수 있어 5초 유예한다.
+process_start_time() {
+    [ -r "/proc/$1/stat" ] || return 1
+    awk '{print $22}' "/proc/$1/stat" 2>/dev/null
+}
+
+watcher_lock_is_orphaned() {
+    [ -d "$lock_file" ] || return 1
+    local owner pid started actual age
+    owner="$(cat "$lock_file/owner" 2>/dev/null || true)"
+    read -r pid started <<< "$owner"
+    if [[ "$pid" =~ ^[0-9]+$ ]] && [[ "$started" =~ ^[0-9]+$ ]]; then
+        actual="$(process_start_time "$pid" || true)"
+        [ "$actual" != "$started" ]
+        return
+    fi
+    age=$(( $(date +%s) - $(stat -c %Y "$lock_file" 2>/dev/null || stat -f %m "$lock_file" 2>/dev/null || echo 0) ))
+    [ "$age" -ge 5 ]
+}
+
+reclaim_orphan_watcher_lock() {
+    watcher_lock_is_orphaned || return 0
+    local reclaim_lock="$lock_file.reclaim"
+    mkdir "$reclaim_lock" 2>/dev/null || return 0
+    if watcher_lock_is_orphaned; then
+        rm -f "$lock_file/owner"
+        rmdir "$lock_file" 2>/dev/null || true
+    fi
+    rmdir "$reclaim_lock" 2>/dev/null || true
+}
 
 # 락 없이 큐 파일을 "읽고 나서 쓰면"(append, dequeue, 빈 큐 판정+rm) 그 사이에
 # 다른 프로세스가 끼어들어 메시지가 유실될 수 있다 — 워처가 dequeue 스냅샷으로
@@ -201,7 +251,7 @@ queue_unlock() {
     rmdir "$queue_file.oplock" 2>/dev/null || true
 }
 
-if [ -n "${SAY_NOWAIT:-}" ] || ! is_busy; then
+if [ "$drain_only" = false ] && { [ -n "${SAY_NOWAIT:-}" ] || ! is_busy; }; then
     # 유휴이고 큐도 비어 있으면 곧바로 보낸다(가장 흔한 경로).
     # 큐에 밀린 메시지가 있으면 순서가 뒤집히므로 큐에 넣는다.
     if [ -n "${SAY_NOWAIT:-}" ] || [ ! -s "$queue_file" ]; then
@@ -213,21 +263,40 @@ fi
 
 # 여기부터: 상대가 작업 중이거나, 앞서 밀린 메시지가 있다.
 mkdir -p "$QUEUE_DIR"
-queue_lock
-printf '%s\n' "$msg" >> "$queue_file"
-queue_unlock
-record_marker
-echo "say: '$pane'이 작업 중 — 큐에 넣고 유휴가 되면 전송합니다(대기 $(grep -c '' "$queue_file")건)." >&2
+if [ "$drain_only" = false ]; then
+    queue_lock
+    printf '%s\n' "$msg" >> "$queue_file"
+    queue_unlock
+    record_marker
+    echo "say: '$pane'이 작업 중 — 큐에 넣고 유휴가 되면 전송합니다(대기 $(grep -c '' "$queue_file")건)." >&2
+elif [ ! -s "$queue_file" ]; then
+    exit 0
+fi
 
 # 감시 프로세스는 파인당 하나만 띄운다. mkdir은 원자적이라 락으로 쓴다.
-if mkdir "$lock_file" 2>/dev/null; then
-    (
-        trap 'rmdir "$lock_file" 2>/dev/null' EXIT
+# 기존 lock의 owner가 없거나 죽었으면 회수한 뒤 큐만 다시 가동할 수 있다.
+reclaim_orphan_watcher_lock
+(
+    if mkdir "$lock_file" 2>/dev/null; then
+        watcher_pid="$BASHPID"
+        watcher_started="$(process_start_time "$watcher_pid")"
+        printf '%s %s\n' "$watcher_pid" "$watcher_started" > "$lock_file/owner"
+        trap 'rm -f "$lock_file/owner"; rmdir "$lock_file" 2>/dev/null' EXIT
         # 큐가 빌 때까지: 유휴를 기다렸다가 한 건씩 꺼내 보낸다.
         # 빈 큐 판정과 rm을 dequeue와 같은 락 안에서 처리한다 — 그래야
         # "비었다고 판단한 시점"과 "실제로 rm하는 시점" 사이에 새 메시지가
         # append될 틈이 없다(있으면 그 메시지가 rm과 함께 조용히 사라진다).
         while true; do
+            # 마지막 메시지를 보낸 뒤에는 대상 턴의 종료를 기다릴 이유가 없다.
+            # 큐가 이미 비었는지 먼저 확인해 watcher/lock을 즉시 정리한다.
+            queue_lock
+            if [ ! -s "$queue_file" ]; then
+                rm -f "$queue_file"
+                queue_unlock
+                break
+            fi
+            queue_unlock
+
             # 상한을 둔다. 상태 문구 감지가 어떤 이유로든 계속 참이면
             # 무한 대기로 메시지가 영영 전달되지 않는다 — 늦게라도 보내는 편이 낫다.
             waited=0
@@ -258,7 +327,7 @@ if mkdir "$lock_file" 2>/dev/null; then
             # 연속 전송 시 입력창이 따라오도록 간격을 준다.
             sleep 1
         done
-    ) </dev/null >/dev/null 2>&1 &
-    disown 2>/dev/null || true
-fi
+    fi
+) </dev/null >/dev/null 2>&1 &
+disown 2>/dev/null || true
 exit 0
