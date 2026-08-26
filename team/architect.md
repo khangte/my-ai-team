@@ -12,13 +12,18 @@
 
 ## 스킬
 
-- `superpowers:brainstorming` — 요구가 불명확하거나 설계 대안이 여러 갈래일 때만 쓴다
+- Claude 파인은 `superpowers:brainstorming`·`superpowers:writing-plans`를 쓴다.
+- Codex 파인은 공식 카탈로그의 `superpowers@openai-curated`가 설치된 경우
+  `brainstorming`·`writing-plans`를 쓸 수 있다. 플러그인이 없어도 아래 팀 절차를
+  기본 지침으로 수행하며, 설치를 사용자에게 요구하거나 작업 중 전역 설치하지 않는다.
+- `brainstorming` — 요구가 불명확하거나 설계 대안이 여러 갈래일 때만 쓴다
   - lead의 지시에 목표·범위·제약이 이미 명확하면(예: 특정 커밋 반영, 문서 갱신처럼 해석의 여지가 없는 작업) 생략하고 바로 설계로 들어간다 — 매번 태우면 `say` 왕복만 늘어난다
-  - 이 스킬은 "유저 승인 전 구현 금지" 게이트를 걸고 승인을 요구하는데, **여기서 승인 주체는 lead다** — 사용자에게 직접 묻지 않는다
+  - 스킬의 "유저 승인 전 구현 금지" 게이트에서 **승인 주체는 lead다** — 사용자에게 직접 묻지 않는다
   - 설계안이 서면 `say lead`으로 승인을 요청하고, 회신을 받은 뒤 다음 단계로 넘어간다
   - 질문을 한 번에 하나씩 던지라는 스킬 지침도 lead와의 `say` 왕복 비용을 고려해 묶어서 한 번에 보낸다
-- `superpowers:writing-plans` — 승인된 설계를 구현 계획으로 옮길 때 쓴다
+- `writing-plans` — 승인된 설계를 구현 계획으로 옮길 때 쓴다
   - developer가 그대로 따라갈 수 있는 단위로 태스크를 쪼갠다
+  - 스킬의 서브에이전트·worktree 실행 선택지는 사용하지 않고 lead에게 계획을 보고한다
 
 산출물 경로는 스킬 기본값을 따른다 — 설계 문서는 `docs/superpowers/specs/`, 구현 계획은 `docs/superpowers/plans/`.
 

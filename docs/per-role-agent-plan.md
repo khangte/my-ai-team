@@ -3,11 +3,12 @@
 ## 목적
 
 현재 `--agent claude|codex`는 팀 전체에 하나의 CLI를 강제한다. 이 문서는 **파인별로 서로
-다른 에이전트를 띄우는** 구조를 설계한다. 첫 대상은 reviewer다.
+다른 에이전트를 띄우는** 구조를 설계한다. 첫 대상은 reviewer였고, 설계 판단을 독립시키기
+위해 architect까지 Codex로 확장한다.
 
-reviewer만 Codex로 돌리면 코드를 쓴 모델과 리뷰하는 모델이 달라져, 같은 모델끼리 공유하는
-맹점을 구조적으로 줄일 수 있다. `team/config.codex.sh`는 이미 reviewer에 `gpt-5.6-sol` /
-추론 수준 `high`를 선언하고 있어 의도 자체는 존재하지만, 현재 런처는 그 조합을 만들 수 없다.
+reviewer를 Codex로 돌리면 코드를 쓴 모델과 리뷰하는 모델이 달라져 같은 모델끼리 공유하는
+맹점을 줄일 수 있다. architect도 `gpt-5.6-sol` / 추론 수준 `high`로 분리해 Claude developer와
+다른 모델이 설계 대안·정합성·장기 영향을 판단하도록 한다.
 
 Codex 백엔드 자체의 도입 계획은 [codex-support-plan.md](codex-support-plan.md)가 다룬다.
 이 문서는 그 위에서 **혼합 실행**만 다룬다.
@@ -15,7 +16,7 @@ Codex 백엔드 자체의 도입 계획은 [codex-support-plan.md](codex-support
 ## 목표
 
 - 파인마다 독립적으로 에이전트를 선택할 수 있게 한다.
-- reviewer를 Codex로 띄워도 `say` 큐·유휴 판정이 지금과 동일하게 동작한다.
+- architect·reviewer를 Codex로 띄워도 `say` 큐·유휴 판정이 지금과 동일하게 동작한다.
 - 기존 `--agent` 플래그와 단일 공급자 팀 동작을 깨뜨리지 않는다.
 - 혼합 팀에서 각 파인이 무엇으로 떴는지 실행 로그에 드러난다.
 
@@ -215,8 +216,8 @@ before they run." 프로젝트 로컬 `.codex/hooks.json`은 기본적으로 사
 
 - `MEMBER_AGENTS` 미선언 프로젝트가 이전과 동일하게 뜬다. (전원 claude / 전원 codex
   두 케이스 모두 기존 모델 배분과 일치함을 격리 테스트로 확인)
-- reviewer만 Codex인 팀 구성에서 `MEMBER_AGENTS`·`USED_AGENTS`·파인별 모델이 의도대로
-  해석됨을 확인 (`pane 5 (reviewer, codex): model=gpt-5.6-sol`).
+- architect·reviewer가 Codex인 기본 팀 구성에서 `MEMBER_AGENTS`·역할별 모델·추론 수준이
+  의도대로 해석됨을 회귀 테스트로 확인한다.
 - `MEMBER_NAMES` 길이를 프로젝트에서 바꿨는데 공급자 모델 배열 길이가 안 맞으면
   정확히 오류로 종료함을 확인.
 
