@@ -253,6 +253,7 @@ declare -a MEMBER_MODELS=(
 )
 ```
 
+- Claude도 같은 `config.claude.sh`에 `MEMBER_REASONING_EFFORTS` 배열(`low`/`medium`/`high`/`xhigh`/`max`)을 선언하면 파인별 `--effort`로 넘어간다. 개별 빈 값은 사용자의 `settings.json`(`effortLevel`) 기본값을 따른다.
 - Codex는 `team/config.codex.sh`에 같은 길이의 `MEMBER_MODELS`, `MEMBER_REASONING_EFFORTS` 배열을 선언한다. 파일이 없으면 이 저장소의 역할별 기본값을 사용하며, 개별 빈 값은 사용자의 Codex 기본 설정을 따른다.
 - 파인마다 다른 에이전트를 쓰려면 같은 `team/config.sh`에 `MEMBER_AGENTS` 배열을 추가한다 — 위 "혼합 팀" 참고
 - `MEMBER_NAMES`와 `MEMBER_MODELS`(그리고 선언했다면 `MEMBER_AGENTS`)는 배열 길이가 같아야 함

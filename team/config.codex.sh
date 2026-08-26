@@ -8,7 +8,7 @@ declare -a MEMBER_MODELS=(
     "gpt-5.6-sol"       # architect
     "gpt-5.6-luna"      # researcher
     "gpt-5.6-terra"     # designer
-    "gpt-5.6-terra"     # developer
+    "gpt-5.6-sol"     # developer
     "gpt-5.6-sol"       # reviewer
 )
 

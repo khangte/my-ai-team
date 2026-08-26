@@ -271,7 +271,9 @@ json_escape() {
 
 # ── 유틸: Claude 실행 + 다이얼로그 자동 처리 ────────────────
 start_claude_in_pane() {
-    local pane="$1" model="${2:-claude-sonnet-4-6}" role="${3:-}"
+    local pane="$1" model="${2:-claude-sonnet-4-6}" role="${3:-}" reasoning_effort="${4:-}"
+    local effort_arg=""
+    [ -z "$reasoning_effort" ] || effort_arg="--effort $reasoning_effort"
     local claude_bin; claude_bin="$(command -v claude)"
     local pane_id="${pane##*:}"   # "team1:0.4" → "0.4". busy 마커·say 큐 키와 형식을 맞춘다.
     local state_key; state_key="$(pane_state_key "$pane")"
@@ -438,7 +440,7 @@ start_claude_in_pane() {
     # 남아있는 CLAUDECODE 환경변수가 파인 내부의 claude 실행에 영향을 주지 않도록 제거한다.
     # PATH에 BIN_DIR: 파인들이 `say`를 경로 없이 호출할 수 있게 한다.
     tmux send-keys -t "$pane" \
-        "cd '$work_dir' && unset CLAUDECODE && export PATH='$BIN_DIR'${NVM_BIN:+:'$NVM_BIN'}:\$PATH && export CAVEMAN_DEFAULT_MODE=full && $claude_bin --model $model --dangerously-skip-permissions $skills_arg $system_prompt_arg $settings_arg" Enter
+        "cd '$work_dir' && unset CLAUDECODE && export PATH='$BIN_DIR'${NVM_BIN:+:'$NVM_BIN'}:\$PATH && export CAVEMAN_DEFAULT_MODE=full && $claude_bin --model $model $effort_arg --dangerously-skip-permissions $skills_arg $system_prompt_arg $settings_arg" Enter
 
     if [ "$NEED_FIRST_LOGIN" = true ]; then
 
@@ -1191,7 +1193,7 @@ for ((pane = 0; pane < PANE_COUNT; pane++)); do
     pane_agent="${MEMBER_AGENTS[$pane]}"
     echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}, ${pane_agent}): "
     if [ "$pane_agent" = "claude" ]; then
-        start_claude_in_pane "$SESSION:0.$pane" "${PROVIDER_MEMBER_MODELS[claude:$pane]}" "${MEMBER_NAMES[$pane]}"
+        start_claude_in_pane "$SESSION:0.$pane" "${PROVIDER_MEMBER_MODELS[claude:$pane]}" "${MEMBER_NAMES[$pane]}" "${PROVIDER_MEMBER_REASONING_EFFORTS[claude:$pane]}"
     else
         start_codex_in_pane "$SESSION:0.$pane" "${PROVIDER_MEMBER_MODELS[codex:$pane]}" "${MEMBER_NAMES[$pane]}" "${PROVIDER_MEMBER_REASONING_EFFORTS[codex:$pane]}"
     fi
