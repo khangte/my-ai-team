@@ -274,7 +274,9 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 
 유휴 판정은 화면 문구가 아니라 훅 기반 busy 마커로 함 — `--dangerously-skip-permissions` 모드는
 힌트줄 "esc to interrupt"가 유휴 상태에서도 남는 경우가 있어, UserPromptSubmit/Stop 훅이
-`/tmp/team-busy/{pane_id}` 마커를 찍고 지우는 방식으로 실제 턴 경계를 판정.
+`/tmp/team-busy/{tmux_session_id}_{tmux_pane_id}` 마커를 찍고 지우는 방식으로
+실제 턴 경계를 판정한다. tmux가 새 세션·파인마다 부여하는 고유 ID를 쓰므로,
+같은 팀 세션 이름을 재사용해도 이전 실행의 stale 마커와 충돌하지 않는다.
 
 파인 밖(호스트 셸)에서 호출:
 
