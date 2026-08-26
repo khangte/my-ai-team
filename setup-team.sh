@@ -545,8 +545,19 @@ start_codex_in_pane() {
     # Codex의 주 workspace는 역할별 cwd지만 실제 프로젝트도 명시적으로 writable
     # directory에 더한다. 이로써 AGENTS.md 계층은 역할별로 유지하면서 코드 수정은
     # 프로젝트 루트에서 가능하다.
+    # say(bin/say)가 IPC로 쓰는 경로들도 명시적으로 writable에 더한다 —
+    # 안 그러면 sandbox가 막아 codex 파인에서 say lead 보고가 조용히 실패한다.
+    # codex tmux IPC(AF_UNIX 소켓) 때문에 network_access가 필요하다: tmux 소켓
+    # connect는 Landlock 경로 허용과 별개로 seccomp 네트워크 필터(EPERM)에 막힌다.
+    # FS는 계속 add-dir로 제약한다 — network_access는 socket()만 열 뿐, 마커 파일
+    # write는 여전히 Landlock 소관이라 위 --add-dir 4개(마커 3경로+tmux 소켓
+    # 디렉터리)가 없으면 그대로 막힌다. 주의: network_access=true는 workspace-write
+    # sandbox의 outbound 네트워크 전체를 여는 것이지 이 소켓 하나로 국한되지
+    # 않는다 — 의도된 sandbox boundary 확대다(architect 승인, say 왕복 스모크
+    # 테스트로 확인).
+    local tmux_tmpdir="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)"
     tmux send-keys -t "$pane" \
-        "cd '$work_dir' && export PATH='$BIN_DIR'${NVM_BIN:+:'$NVM_BIN'}:\$PATH && $codex_bin $permission_args $hook_trust_args --add-dir '$PROJECT_DIR' $model_arg $reasoning_arg" Enter
+        "cd '$work_dir' && export PATH='$BIN_DIR'${NVM_BIN:+:'$NVM_BIN'}:\$PATH && $codex_bin $permission_args $hook_trust_args --add-dir '$PROJECT_DIR' --add-dir '$tmux_tmpdir' --add-dir /tmp/team-busy --add-dir /tmp/team-say --add-dir /tmp/team-say-queue -c 'sandbox_workspace_write.network_access=true' $model_arg $reasoning_arg" Enter
 
     # 최초 실행 시 git 프로젝트 신뢰 확인 대화상자가 뜬다("Do you trust the
     # contents of this directory?"). "1. Yes, continue"가 기본 선택이므로 Enter만
@@ -1056,6 +1067,10 @@ echo "  ✅ 레이아웃 구성 완료 (${PANE_COUNT} panes)"
 
 # ── [7/7] 에이전트 자동 실행 ───────────────────────────────
 echo -e "\n${YELLOW}[7/7] 파인별 에이전트 실행 중 (${used_agents_list})... (파인당 최대 1분)${NC}"
+
+# codex의 --add-dir는 존재하는 경로만 받는다. say의 lazy mkdir은
+# codex sandbox(workspace-write) 안에서 막히므로 파인 기동 전에 미리 만든다.
+mkdir -p /tmp/team-busy /tmp/team-say /tmp/team-say-queue
 
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
     pane_agent="${MEMBER_AGENTS[$pane]}"
