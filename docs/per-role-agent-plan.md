@@ -49,11 +49,11 @@ Claude 모델명과 Codex 모델명이 공존할 자리가 없다.
 `bin/say`의 `is_busy()`는 `/tmp/team-busy/{pane_id}` 마커로 파인의 작업 여부를 판정한다.
 이 마커의 생명주기는 전적으로 Claude harness 훅이 만든다.
 
-| 시점 | 훅 | 동작 |
-| --- | --- | --- |
-| 턴 시작 | `UserPromptSubmit` | 마커 생성 |
-| 턴 종료 | `Stop` | 마커 삭제 |
-| `/clear`·`/compact`·재시작 | `SessionStart` | stale 마커 삭제 |
+| 시점                       | 훅                 | 동작            |
+| -------------------------- | ------------------ | --------------- |
+| 턴 시작                    | `UserPromptSubmit` | 마커 생성       |
+| 턴 종료                    | `Stop`             | 마커 삭제       |
+| `/clear`·`/compact`·재시작 | `SessionStart`     | stale 마커 삭제 |
 
 Codex CLI(0.149.1)에서 확인한 결과, 턴 종료에 대응하는 `agent-turn-complete` 이벤트는
 존재하지만 **턴 시작에 대응하는 이벤트가 없다.** 즉 Codex 파인은 마커를 켤 방법이 없다.
@@ -81,13 +81,13 @@ fi
 `Stop`(종료 신호)은 이식했지만 `UserPromptSubmit`(마커 생성)은 이식하지 않았다 —
 1단계가 이미 그 자리를 채우고 있어 중복이다.
 
-| 기능 | 근거 | 대응 |
-| --- | --- | --- |
-| busy 마커 생성 | 1단계(A안)로 공급자 중립 해결 | Codex 쪽 `UserPromptSubmit` 훅 이식 불필요 |
-| 자동 종료 신호 | `.codex/hooks.json`의 `Stop` 이벤트로 이식 완료 | `stop_hook_cmd_for_role` 공용 함수 |
-| `say` 중복 보고 가드 | 같은 `Stop` 훅에 얹음 | 위와 함께 이식 완료 |
-| rtk 토큰 절감 | `PreToolUse` matcher, Codex 프로세서 부재 | 포기, 문서화 |
-| 툴 로그 JSONL | 같은 `PreToolUse` | 후속 과제 (미구현) |
+| 기능                 | 근거                                            | 대응                                       |
+| -------------------- | ----------------------------------------------- | ------------------------------------------ |
+| busy 마커 생성       | 1단계(A안)로 공급자 중립 해결                   | Codex 쪽 `UserPromptSubmit` 훅 이식 불필요 |
+| 자동 종료 신호       | `.codex/hooks.json`의 `Stop` 이벤트로 이식 완료 | `stop_hook_cmd_for_role` 공용 함수         |
+| `say` 중복 보고 가드 | 같은 `Stop` 훅에 얹음                           | 위와 함께 이식 완료                        |
+| rtk 토큰 절감        | `PreToolUse` matcher, Codex 프로세서 부재       | 포기, 문서화                               |
+| 툴 로그 JSONL        | 같은 `PreToolUse`                               | 후속 과제 (미구현)                         |
 
 ## 설계
 
@@ -160,9 +160,7 @@ CODEX_MEMBER_REASONING_EFFORTS=(...)
 ```json
 {
   "hooks": {
-    "Stop": [
-      { "hooks": [ { "type": "command", "command": "..." } ] }
-    ]
+    "Stop": [{ "hooks": [{ "type": "command", "command": "..." }] }]
   }
 }
 ```

@@ -13,3 +13,4 @@ declare -a MEMBER_NAMES=("lead" "architect" "researcher" "designer" "developer" 
 # 예: reviewer만 codex로 띄우고 나머지는 기본값 사용
 #   declare -a MEMBER_AGENTS=("" "" "" "" "" "codex")
 # 미선언 시 전체가 빈 값과 동일하게 취급되어 기존 단일 공급자 동작이 유지된다.
+declare -a MEMBER_AGENTS=("" "" "" "" "" "codex")
