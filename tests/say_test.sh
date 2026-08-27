@@ -18,10 +18,21 @@ case "$1" in
         esac
         ;;
     capture-pane)
-        printf '\n'
+        if [ -n "${FAKE_CAPTURE_MSG:-}" ]; then
+            enter_count="$(cat "$FAKE_ENTER_COUNT_FILE" 2>/dev/null || printf '0')"
+            if [ "$enter_count" -lt "${FAKE_TMUX_STICKY_UNTIL:-0}" ]; then
+                printf '%s\n' "$FAKE_CAPTURE_MSG"
+            fi
+        else
+            printf '\n'
+        fi
         ;;
     send-keys)
         printf '%s\n' "$*" >> "$FAKE_TMUX_LOG"
+        if [ "${*: -1}" = "Enter" ] && [ -n "${FAKE_ENTER_COUNT_FILE:-}" ]; then
+            enter_count="$(cat "$FAKE_ENTER_COUNT_FILE" 2>/dev/null || printf '0')"
+            printf '%s\n' "$((enter_count + 1))" > "$FAKE_ENTER_COUNT_FILE"
+        fi
         ;;
     list-panes)
         printf '1 ARCHITECT\n'
@@ -35,12 +46,34 @@ export SAY_BUSY_DIR="$test_dir/busy"
 export SAY_REPORT_DIR="$test_dir/report"
 export SAY_QUEUE_DIR="$test_dir/queue"
 export FAKE_TMUX_LOG="$test_dir/tmux.log"
+export FAKE_ENTER_COUNT_FILE="$test_dir/enter-count"
 
 # 이전 세대 marker는 현재 tmux 고유 ID와 키가 다르므로 전송을 막지 않는다.
 touch "$test_dir/busy/_6__10"
 FAKE_TMUX_STATE='$7:%11' "$repo_dir/bin/say" demo:0.1 'new generation message'
 test -f "$test_dir/busy/_7__11"
 test "$(grep -c 'new generation message' "$test_dir/tmux.log")" -eq 1
+
+# TUI가 앞선 Enter들을 무시해도 say는 간격을 두고 다시 제출한다.
+printf '0\n' > "$FAKE_ENTER_COUNT_FILE"
+FAKE_CAPTURE_MSG='retry message' FAKE_TMUX_STICKY_UNTIL=2 \
+    FAKE_TMUX_STATE='$7:%12' "$repo_dir/bin/say" demo:0.1 'retry message'
+test "$(cat "$FAKE_ENTER_COUNT_FILE")" -eq 3
+
+# 큐 전송의 첫 deliver가 실패해도 dequeue하지 않고 다음 루프에서 재시도한다.
+rm -f "$test_dir/busy/_7__12"
+printf '0\n' > "$FAKE_ENTER_COUNT_FILE"
+printf '%s\n' 'queued retry message' > "$test_dir/queue/demo_0_1"
+FAKE_CAPTURE_MSG='queued retry message' FAKE_TMUX_STICKY_UNTIL=5 \
+    FAKE_TMUX_STATE='$7:%13' "$repo_dir/bin/say" --drain demo:0.1
+
+for _ in $(seq 1 100); do
+    [ ! -e "$test_dir/queue/demo_0_1" ] && break
+    sleep 0.1
+done
+
+test ! -e "$test_dir/queue/demo_0_1"
+test "$(cat "$FAKE_ENTER_COUNT_FILE")" -ge 6
 
 # 살아 있는 owner의 lock은 오래됐더라도 회수하지 않는다.
 rm -f "$test_dir/busy/_7__11"
