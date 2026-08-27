@@ -152,10 +152,19 @@ deliver() {
     # Claude 파인에서는 기존 훅의 touch와 중복될 뿐 무해하다(같은 파일).
     mkdir -p "$BUSY_DIR" && touch "$BUSY_DIR/${state_key}"
     # -l: 메시지를 리터럴로 보내 "Enter" 같은 단어가 키 이름으로 해석되지 않게 한다.
-    tmux send-keys -t "$pane" -l -- "$msg"
-    # Claude Code 입력창이 텍스트를 반영하기 전에 Enter가 도착하면 무시되므로 한 박자 쉰다.
-    sleep 0.3
-    tmux send-keys -t "$pane" Enter
+    if ! tmux send-keys -t "$pane" -l -- "$msg"; then
+        rm -f "$BUSY_DIR/${state_key}"
+        return 1
+    fi
+    # TUI가 긴 입력을 아직 처리 중이면 첫 Enter를 무시할 수 있다. tmux의
+    # send-keys 성공은 대상 애플리케이션이 입력을 소비했다는 뜻이 아니므로,
+    # 충분한 간격을 둔 Enter를 반복한다. 이미 제출된 뒤의 빈 Enter는 Claude와
+    # Codex 양쪽에서 no-op이라 재시도해도 새 턴을 만들지 않는다.
+    local enter_attempt
+    for enter_attempt in 1 2 3; do
+        sleep 0.3
+        tmux send-keys -t "$pane" Enter || true
+    done
 
     # 전송 검증: 화면 갱신을 기다린 뒤 대상 파인 입력창에 방금 보낸 메시지가
     # 그대로 남아있으면 Enter가 무시됐거나 대상 파인 지정이 잘못된 것이다.
@@ -164,6 +173,9 @@ deliver() {
     probe="${msg:0:40}"
     if [ -n "$probe" ] && tmux capture-pane -t "$pane" -p | tail -5 | grep -qF -- "$probe"; then
         echo "say: WARNING - '$pane'에 메시지가 전달되지 않고 입력창에 남아있는 것으로 보입니다: $probe..." >&2
+        # 실제 턴이 시작되지 않았으므로 다음 큐 재시도가 30분 동안 stale busy
+        # 마커에 막히지 않게 되돌린다.
+        rm -f "$BUSY_DIR/${state_key}"
         return 1
     fi
     return 0
@@ -311,19 +323,27 @@ reclaim_orphan_watcher_lock
                 queue_unlock
                 break
             fi
-            # 첫 줄을 꺼내고 나머지를 되쓴다. 이 구간이 실패하면(디스크풀 등)
-            # set -e가 서브셸을 즉시 끝내 아래 queue_unlock에 못 미친다 —
-            # 195행 lock_file의 trap ... EXIT와 같은 이유로, 실패해도
-            # queue_unlock이 반드시 실행되도록 명시적으로 가드한다.
+            # 첫 줄은 전송 성공 전까지 큐에서 제거하지 않는다. 먼저 dequeue하면
+            # Enter가 끝내 먹지 않은 경우에도 deliver 실패를 삼키며 메시지가
+            # 영구 유실된다. append는 항상 끝에만 붙으므로 락 밖에서 전송한 뒤
+            # 성공 시 같은 첫 줄을 안전하게 제거할 수 있다.
             msg="$(head -n 1 "$queue_file")"
-            if ! { tail -n +2 "$queue_file" > "$queue_file.tmp" && mv "$queue_file.tmp" "$queue_file"; }; then
-                queue_unlock
-                continue
-            fi
             queue_unlock
 
             [ -n "$msg" ] || continue
-            deliver || true
+            if deliver; then
+                queue_lock
+                if ! { tail -n +2 "$queue_file" > "$queue_file.tmp" && mv "$queue_file.tmp" "$queue_file"; }; then
+                    queue_unlock
+                    continue
+                fi
+                queue_unlock
+            else
+                # 원문은 큐 첫 줄에 그대로 있다. busy 마커도 deliver가
+                # 되돌렸으므로 다음 루프에서 다시 제출을 시도한다.
+                sleep 1
+                continue
+            fi
             # 연속 전송 시 입력창이 따라오도록 간격을 준다.
             sleep 1
         done
