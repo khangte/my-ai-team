@@ -246,11 +246,15 @@ wait_for_pane() {
 # 소비자별 이스케이프로 바꿔 두 CLI 모두에서 안전하게 재사용한다.
 stop_hook_cmd_for_role() {
     local role="$1" pane_id="$2" state_key="$3"
+    # watcher가 Codex의 도구 실행 수명과 함께 종료돼도 큐가 고아가 되지 않도록,
+    # 수신 파인이 유휴로 전환될 때 tmux 서버가 FIFO 한 건을 다시 가동한다.
+    # 훅 본문이 끝난 뒤 입력창이 준비되도록 짧게 늦춰 같은 파인에 전달한다.
+    local drain_cmd="tmux run-shell -b \"sleep 1; ${BIN_DIR}/say --drain-one ${SESSION}:0.${pane_id#*.}\""
     if [ "$role" = "lead" ]; then
-        STOP_HOOK_CMD="rm -f /tmp/team-busy/${state_key}"
+        STOP_HOOK_CMD="rm -f /tmp/team-busy/${state_key}; ${drain_cmd}"
     else
         local marker="/tmp/team-say/${state_key}"
-        STOP_HOOK_CMD="rm -f /tmp/team-busy/${state_key}; if [ -f '${marker}' ]; then rm -f '${marker}'; else ${BIN_DIR}/say ${SESSION}:0.0 \"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\"; fi"
+        STOP_HOOK_CMD="rm -f /tmp/team-busy/${state_key}; if [ -f '${marker}' ]; then rm -f '${marker}'; else ${BIN_DIR}/say ${SESSION}:0.0 \"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\"; fi; ${drain_cmd}"
     fi
 }
 
