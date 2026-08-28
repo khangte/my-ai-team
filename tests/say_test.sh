@@ -103,4 +103,15 @@ test ! -e "$test_dir/queue/demo_0_1"
 test ! -e "$test_dir/queue/demo_0_1.lock"
 test "$(grep -c 'queued message' "$test_dir/tmux.log")" -eq 1
 
+# Stop 훅용 drain-one은 FIFO의 첫 메시지만 전달하고 나머지는 다음 Stop까지 보존한다.
+rm -f "$test_dir/busy/_7__11"
+printf '%s\n' 'first after stop' 'second after stop' > "$test_dir/queue/demo_0_1"
+FAKE_TMUX_STATE='$7:%11' "$repo_dir/bin/say" --drain-one demo:0.1
+test -s "$test_dir/queue/demo_0_1"
+test "$(wc -l < "$test_dir/queue/demo_0_1")" -eq 1
+test "$(sed -n '1p' "$test_dir/queue/demo_0_1")" = 'second after stop'
+test "$(grep -c 'first after stop' "$test_dir/tmux.log")" -eq 1
+test "$(grep -c 'second after stop' "$test_dir/tmux.log" || true)" -eq 0
+test ! -e "$test_dir/queue/demo_0_1.lock"
+
 echo 'say tests passed'

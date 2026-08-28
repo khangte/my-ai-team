@@ -9,9 +9,11 @@
 set -e
 
 drain_only=false
-if [ "${1:-}" = "--drain" ]; then
-    [ $# -eq 2 ] || { echo "usage: say --drain <pane|role>" >&2; exit 1; }
+drain_once=false
+if [ "${1:-}" = "--drain" ] || [ "${1:-}" = "--drain-one" ]; then
+    [ $# -eq 2 ] || { echo "usage: say [--drain|--drain-one] <pane|role>" >&2; exit 1; }
     drain_only=true
+    [ "$1" = "--drain-one" ] && drain_once=true
     shift
 else
     [ $# -ge 2 ] || { echo "usage: say <pane|role> <message...>" >&2; exit 1; }
@@ -263,7 +265,18 @@ queue_unlock() {
     rmdir "$queue_file.oplock" 2>/dev/null || true
 }
 
-if [ "$drain_only" = false ] && { [ -n "${SAY_NOWAIT:-}" ] || ! is_busy; }; then
+target_busy=false
+if [ -z "${SAY_NOWAIT:-}" ] && is_busy; then
+    target_busy=true
+fi
+
+# Stop 훅은 오래 대기하면 안 된다. 유휴 확인 뒤 다른 전달이 먼저 시작된 경합은
+# 현재 턴의 다음 Stop이나 기존 watcher가 처리하게 두고 즉시 반환한다.
+if [ "$drain_once" = true ] && [ "$target_busy" = true ]; then
+    exit 0
+fi
+
+if [ "$drain_only" = false ] && { [ -n "${SAY_NOWAIT:-}" ] || [ "$target_busy" = false ]; }; then
     # 유휴이고 큐도 비어 있으면 곧바로 보낸다(가장 흔한 경로).
     # 큐에 밀린 메시지가 있으면 순서가 뒤집히므로 큐에 넣는다.
     if [ -n "${SAY_NOWAIT:-}" ] || [ ! -s "$queue_file" ]; then
@@ -280,15 +293,20 @@ if [ "$drain_only" = false ]; then
     printf '%s\n' "$msg" >> "$queue_file"
     queue_unlock
     record_marker
-    echo "say: '$pane'이 작업 중 — 큐에 넣고 유휴가 되면 전송합니다(대기 $(grep -c '' "$queue_file")건)." >&2
+    if [ "$target_busy" = true ]; then
+        echo "say: '$pane'이 작업 중 — 큐에 넣고 유휴가 되면 전송합니다(대기 $(grep -c '' "$queue_file")건)." >&2
+    else
+        echo "say: '$pane'의 기존 큐 뒤에 넣고 순서대로 전송합니다(대기 $(grep -c '' "$queue_file")건)." >&2
+    fi
 elif [ ! -s "$queue_file" ]; then
     exit 0
 fi
 
 # 감시 프로세스는 파인당 하나만 띄운다. mkdir은 원자적이라 락으로 쓴다.
 # 기존 lock의 owner가 없거나 죽었으면 회수한 뒤 큐만 다시 가동할 수 있다.
-reclaim_orphan_watcher_lock
-(
+# --drain-one은 Stop 훅에서 호출되어 한 건만 동기적으로 전달한다. 일반 watcher가
+# 호출 셸과 함께 종료되더라도 다음 Stop에서 보존된 FIFO 큐를 계속 소비한다.
+process_queue() {
     if mkdir "$lock_file" 2>/dev/null; then
         watcher_pid="$BASHPID"
         watcher_started="$(process_start_time "$watcher_pid")"
@@ -344,10 +362,18 @@ reclaim_orphan_watcher_lock
                 sleep 1
                 continue
             fi
+            [ "$drain_once" = true ] && break
             # 연속 전송 시 입력창이 따라오도록 간격을 준다.
             sleep 1
         done
     fi
-) </dev/null >/dev/null 2>&1 &
-disown 2>/dev/null || true
+}
+
+reclaim_orphan_watcher_lock
+if [ "$drain_once" = true ]; then
+    process_queue
+else
+    process_queue </dev/null >/dev/null 2>&1 &
+    disown 2>/dev/null || true
+fi
 exit 0
