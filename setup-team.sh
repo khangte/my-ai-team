@@ -688,6 +688,7 @@ fi
 TEAM_SKILLS_ROOT="$PROJECT_DIR/.team"
 RUNTIME_DIR="$TEAM_SKILLS_ROOT/_runtime"
 rm -rf "$TEAM_SKILLS_ROOT"
+mkdir -p "$RUNTIME_DIR"
 
 # Claude 전용 준비. Codex는 1차 구현에서 Claude 플러그인·rtk 훅을 공유하지 않는다.
 # 혼합 팀에서는 아래 두 블록이 각각 독립 조건으로 순서대로 실행된다.
