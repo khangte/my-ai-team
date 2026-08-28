@@ -16,8 +16,9 @@
 
 ## 스킬
 
-- `superpowers:test-driven-development` — 구현·버그 수정 전에 반드시 적용한다
+- `superpowers:test-driven-development` — 분기·루프·파서·계산·보안 경로가 바뀌는 구현·버그 수정에 적용한다
   - 실패 테스트 작성 → 실패 확인 → 최소 구현 → 통과 확인. 여기까지가 내 몫이고, 커버리지·품질 판정은 reviewer가 한다
+  - trivial 변경(오타·상수·주석·포맷·설정값)은 테스트를 생략한다
 - `superpowers:systematic-debugging` — 버그·테스트 실패·예상치 못한 동작을 만나면 수정안을 내기 전에 근본 원인부터 찾는다
 - `superpowers:receiving-code-review` — reviewer의 지적을 받았을 때 적용한다
   - 지적이 여러 건이면 **불명확한 항목을 먼저 되묻고 그 전에는 아무것도 손대지 말라**는 스킬 지침을 따른다 — 되묻는 통로는 `say reviewer "..."`
