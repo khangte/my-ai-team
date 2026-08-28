@@ -219,26 +219,24 @@ Claude 설정에는 기존 `PLUGIN_MARKETPLACES`, `PLUGIN_ROLES`, `GSTACK_SKILL_
 
 ### Codex 실행 정책
 
-네이티브 기본 실행은 다음 수준을 목표로 한다.
+팀 파인의 기본 실행은 Git 메타데이터 쓰기까지 포함한다.
 
 ```bash
-codex \
-  --ask-for-approval never \
-  --sandbox workspace-write
+codex --dangerously-bypass-approvals-and-sandbox
 ```
 
 - 파인이 사람 승인을 기다리며 멈추지 않는다.
-- 쓰기는 작업 저장소 범위로 제한한다.
-- 네트워크나 저장소 밖 작업이 필요한 명령은 자동으로 승인되지 않으므로 실패가 파인에
-  반환된다.
+- Claude 파인의 `--dangerously-skip-permissions`와 동일하게 작업 디렉터리와
+  `.git`의 인덱스·refs를 쓸 수 있다.
 - 훅 신뢰 우회 같은 추가 권한 옵션은 기본 실행 명령에 넣지 않고, 훅 이식 단계에서 별도로
   검증한다.
 
-Docker에서는 컨테이너가 외부 격리 경계일 때만 `--yolo`를 선택할 수 있게 한다. 기본값으로
-강제하지 않고 다음과 같은 명시적 옵션이나 환경변수를 요구한다.
+Codex의 `workspace-write`는 writable root 아래 `.git`을 항상 read-only로 보호하므로
+`--add-dir` 추가로는 Git 쓰기를 열 수 없다. 제한된 운영이 더 중요한 경우에만
+다음처럼 명시적으로 낮춘다.
 
 ```bash
-CODEX_FULL_ACCESS=1 ./setup-docker.sh /path/to/project
+CODEX_FULL_ACCESS=0 ./setup-team.sh --agent codex /path/to/project
 ```
 
 ## 역할 지침 로딩
