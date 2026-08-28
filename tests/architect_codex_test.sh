@@ -35,6 +35,12 @@ grep -qF 'CODEX_HOME="$role_home" codex login status' "$repo_dir/setup-team.sh"
 grep -qF '\"SessionStart\"' "$repo_dir/setup-team.sh"
 grep -qF 'CODEX_HOME="$role_home" codex plugin add' "$repo_dir/setup-team.sh"
 
+# 무인 Codex 파인은 .git을 쓸 수 있게 full access가 기본이고,
+# 필요할 때만 명시적으로 workspace-write로 낮춘다.
+grep -qF 'local permission_args="--dangerously-bypass-approvals-and-sandbox"' "$repo_dir/setup-team.sh"
+grep -qF 'if [ "${CODEX_FULL_ACCESS:-1}" = "0" ]; then' "$repo_dir/setup-team.sh"
+grep -qF 'permission_args="--ask-for-approval never --sandbox workspace-write"' "$repo_dir/setup-team.sh"
+
 # README가 공식 카탈로그의 실제 대체재와 선택 적용 범위를 설명한다.
 grep -qF 'superpowers@openai-curated' "$repo_dir/README.md"
 grep -qF 'figma@openai-curated' "$repo_dir/README.md"

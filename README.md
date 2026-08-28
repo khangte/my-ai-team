@@ -140,7 +140,10 @@ Docker 환경의 특이점:
    - 파인 타이틀은 대문자로 표시 (예: `LEAD`, `ARCHITECT`)
 6. 각 파인에서 선택한 CLI 실행
    - Claude: 지정 모델, 역할 지침·훅 설정·플러그인 활성화를 주입한 `claude --dangerously-skip-permissions`
-   - Codex: 역할별 `AGENTS.md`를 읽는 `codex --ask-for-approval never --sandbox workspace-write`
+   - Codex: 역할별 `AGENTS.md`를 읽고 Git 메타데이터까지 쓸 수 있는
+     `codex --dangerously-bypass-approvals-and-sandbox`
+     - 읽기·코드 수정만 허용하려면 `CODEX_FULL_ACCESS=0`으로 실행
+       (`workspace-write`는 `.git`을 항상 read-only로 보호하므로 `git add/commit`은 불가)
 7. 완료 후 `tmux attach -t [세션명]` 접속 안내
 
 ### 세션 확인 및 종료

@@ -544,11 +544,15 @@ start_codex_in_pane() {
     local reasoning_arg=""
     [ -z "$reasoning_effort" ] || reasoning_arg="-c 'model_reasoning_effort=\"$reasoning_effort\"'"
 
-    # 네이티브에서는 workspace-write 경계를 유지한다. 외부 격리된 Docker 환경 등에서
-    # 사용자가 명시적으로 CODEX_FULL_ACCESS=1을 줬을 때만 sandbox와 승인을 모두 끈다.
-    local permission_args="--ask-for-approval never --sandbox workspace-write"
-    if [ "${CODEX_FULL_ACCESS:-0}" = "1" ]; then
-        permission_args="--dangerously-bypass-approvals-and-sandbox"
+    # 파인은 사람 승인 없이 git add/commit까지 수행해야 한다. Codex의
+    # workspace-write는 writable root 아래의 .git을 항상 read-only로 보호하므로
+    # --add-dir "$PROJECT_DIR"만으로는 인덱스·refs를 쓸 수 없다. 따라서 Claude의
+    # --dangerously-skip-permissions와 동일하게 팀 기본값은 full access로 둔다.
+    # 제한된 파인이 필요한 경우 CODEX_FULL_ACCESS=0으로 기존 경계를 복원한다
+    # (이 모드에서는 git status/diff는 되지만 add/commit은 안 된다).
+    local permission_args="--dangerously-bypass-approvals-and-sandbox"
+    if [ "${CODEX_FULL_ACCESS:-1}" = "0" ]; then
+        permission_args="--ask-for-approval never --sandbox workspace-write"
     fi
 
     # write_codex_role_agents가 만든 role별 .codex/hooks.json은 기본적으로
