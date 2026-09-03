@@ -1,5 +1,7 @@
 # AGENTS.md
 
+Always write Korean (and other non-ASCII) strings in tool-call parameters as literal UTF-8; never as `\uXXXX` unicode escapes.
+
 ## Multi-Agent Team
 
 - **현재 cwd는 프로젝트 루트가 아니라 `.team/{역할}/`일 수 있다.** 파일·git 작업은
