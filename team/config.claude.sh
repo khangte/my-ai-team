@@ -18,7 +18,7 @@ declare -a MEMBER_MODELS=(
 # 역할별 추론 강도. 값: low, medium, high, xhigh, max. 빈 문자열이면 --effort를
 # 넘기지 않아 CLI 기본값(사용자 settings.json의 effortLevel)을 그대로 쓴다.
 declare -a MEMBER_REASONING_EFFORTS=(
-    "high"    # lead
+    "medium"    # lead
     "high"      # architect
     "low"    # researcher
     "medium"    # designer
