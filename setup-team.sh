@@ -253,6 +253,10 @@ stop_hook_cmd_for_role() {
     if [ "$role" = "lead" ]; then
         STOP_HOOK_CMD="rm -f /tmp/team-busy/${state_key}; ${drain_cmd}"
     else
+        # 마커는 "이번 턴에 보고했나" 1비트다. 한 턴에 여러 번 보고해도 파일은
+        # 하나이므로 여기서 무조건 지운다(있었으면 신호 생략, 없었으면 신호 전송).
+        # Claude 파인은 UserPromptSubmit에서도 비우지만, 그 훅이 없는 Codex
+        # 파인은 이 삭제가 유일한 초기화 지점이다.
         local marker="/tmp/team-say/${state_key}"
         STOP_HOOK_CMD="rm -f /tmp/team-busy/${state_key}; if [ -f '${marker}' ]; then rm -f '${marker}'; else ${BIN_DIR}/say ${SESSION}:0.0 \"[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요\"; fi; ${drain_cmd}"
     fi
@@ -353,7 +357,13 @@ start_claude_in_pane() {
     # 좁혀도 못 막는다). UserPromptSubmit(턴 시작)에서 찍고 Stop(턴 종료)에서
     # 지운다 — harness가 실행하는 실제 턴 경계라 화면 상태와 무관하다.
     # pane_id는 각 role 블록에서 정의한다(lead는 Stop이 없어 별도 처리).
-    local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]},{\"hooks\":[{\"type\":\"command\",\"command\":\"mkdir -p /tmp/team-busy && touch /tmp/team-busy/${state_key}\"}]}]"
+    #
+    # 본 보고 마커(/tmp/team-say)도 여기서 함께 비운다. 이 마커는 "이번 턴에
+    # 보고했나"를 뜻하는 1비트인데, 턴 경계에서 초기화하지 않으면 한 턴에 두 번
+    # 보고한 경우(say architect + say lead)에 Stop 훅이 한 번만 소비해 다음 턴의
+    # 종료 신호를 잘못 억제하거나, 반대로 이전 턴에 소비된 상태가 남아 보고를
+    # 했는데도 "미보고" 신호가 나간다(실측: reviewer 14:02 보고 → 14:04 오탐 신호).
+    local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]},{\"hooks\":[{\"type\":\"command\",\"command\":\"mkdir -p /tmp/team-busy && touch /tmp/team-busy/${state_key} && rm -f /tmp/team-say/${state_key}\"}]}]"
 
     # /clear·/compact는 진행 중인 턴을 Stop 훅 없이 끊어서 busy 마커가 남는다 —
     # 그 파인은 유휴인데 say는 30분 만료 전까지 계속 큐에 쌓는다. SessionStart는

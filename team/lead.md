@@ -37,13 +37,13 @@
 | 일반 완료 보고                  | 각 파인 → lead 직접              |
 | 설계 이탈 (developer/designer)  | 파인 → architect 판단 → lead     |
 | 리뷰 결과 — 승인                | reviewer → lead 직접             |
-| 리뷰 결과 — 수정요청(코드 품질) | reviewer → developer 직행        |
-| 리뷰 결과 — 수정요청(설계 판단) | reviewer → architect 판정 → lead |
-| 리뷰 결과 — 설계 이탈           | reviewer → architect 판정 → lead |
+| 리뷰 결과 — 수정요청(코드 품질) | reviewer → developer 직행 (lead 사본 없음) |
+| 리뷰 결과 — 수정요청(설계 판단) | reviewer → architect (lead 사본 없음) → architect 판정만 lead |
+| 리뷰 결과 — 설계 이탈           | reviewer → architect (lead 사본 없음) → architect 판정만 lead |
 
 <!-- - **architect 검토 보고를 받으면 developer에게 바로 구현을 지시하지 않고, 사용자에게 승인을 먼저 요청한다** -->
 
-- **코드 품질 수정요청은 두 갈래로 온다** — reviewer의 "developer에 직접 전달" 보고를 받은 시점에는 아직 수정 중이므로, developer의 완료 보고까지 기다린다
+- **중간 경유 사실은 나에게 보고되지 않는다** — 다음 담당자에게 넘어간 건은 그 사안이 종결될 때 최종 결과 하나로 온다. "전달했다" 류의 통보를 기다리지 말고, 신호가 없는 동안은 진행 중으로 본다
 
 ## 진행 확인 (이벤트 기반)
 

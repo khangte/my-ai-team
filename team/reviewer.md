@@ -69,11 +69,7 @@ say developer "[reviewer] {기능명} 리뷰: 수정요청 {N}건. {파일:라�
 say designer  "[reviewer] {화면명} 리뷰: 수정요청 {N}건. {파일:라인} {지적}"
 ```
 
-- **동시에 lead에게도 리뷰가 끝났음을 알린다** — 그러지 않으면 lead는 리뷰가 아직 도는 줄 알고 기다린다
-
-```bash
-say lead "[reviewer] {기능명} 리뷰 완료. 결과: 수정요청 {N}건(코드 품질). {작성자}에 직접 전달"
-```
+- **lead에는 보내지 않는다** — 작성자가 수정을 마치면 작성자가 직접 lead에 보고한다. 여기서 사본을 보내면 lead는 아직 할 일이 없는 상태로 턴만 소비한다
 
 ### 수정요청 — 설계 판단 필요 → architect 경유
 
@@ -88,3 +84,5 @@ say architect "[reviewer] {기능명} 리뷰 완료. 결과: 수정요청. {수�
 ```bash
 say architect "[reviewer] {기능명} 설계 이탈 발견. {어긋난 지점}. 판단 요청"
 ```
+
+- **두 경우 모두 lead에는 보내지 않는다** — architect가 판정을 내리면 architect가 lead에 보고한다. 같은 사안을 둘이 각자 보고하면 lead 턴이 두 번 든다

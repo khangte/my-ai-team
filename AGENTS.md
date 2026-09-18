@@ -4,15 +4,15 @@ Always write Korean (and other non-ASCII) strings in tool-call parameters as lit
 
 ## Multi-Agent Team
 
-- **현재 cwd는 프로젝트 루트가 아니라 `.team/{역할}/`일 수 있다.** 파일·git 작업은
-  시스템 지침이 알려주는 실제 프로젝트 루트를 기준으로 한다.
-- 파인 간 통신은 `say`로만 한다. `say`는 PATH에 등록되어 있어 경로 없이 쓸 수 있다.
-- 상대 파인이 작업 중이면 `say` 메시지는 큐에 쌓였다가 유휴 상태가 되면 전달된다.
-  긴급 중단 지시만 `SAY_NOWAIT=1`을 사용한다.
-- Codex의 네이티브 서브에이전트·메시징 도구는 tmux 파인 사이의 통신에 사용하지 않는다.
-  이 팀의 보고와 지시는 `say` 규약을 따른다.
-- `tmux send-keys`를 직접 호출하지 않는다. Enter 누락으로 메시지가 입력창에 남는 문제를
-  `say`가 방지한다.
+- **cwd는 프로젝트 루트가 아니라 `.team/{역할}/`**
+  - 파일·git 작업은 시스템 프롬프트가 알려주는 실제 프로젝트 루트 기준으로 한다
+- 자기 역할 지침은 `.team/_runtime/{역할}.prompt.md`에서 확인할 수 있다
+- 파인끼리는 `say`로만 소통한다 (PATH에 등록되어 있어 경로 없이 호출, 사용 예시는 역할 지침 참조)
+- 상대가 작업 중이면 큐에 쌓였다가 유휴가 되면 자동 전송된다 (발신 파인은 대기하지 않음)
+  - 진행 중인 작업을 중단시켜야 하면 `SAY_NOWAIT=1`로 즉시 전송
+- 프롬프트·툴 로그는 `$PROJECT_DIR/.claude-logs/{역할}.jsonl`. 원인 추적이 필요할 때 읽어라.
+- lead가 architect/developer에게 보내는 작업지시·검토요청 파일은 스크래치 경로에 쓴다.
+- `docs/`에 커밋하는 건 `docs/architect-review/`의 architect 판정 문서뿐이다.
 
 ### 파일 읽기 규칙
 
@@ -25,9 +25,11 @@ Always write Korean (and other non-ASCII) strings in tool-call parameters as lit
 - **`say`를 실제로 실행해야 보고다.** 응답 텍스트만으로는 다른 파인에 전달되지 않는다.
 - `say`로 보낸 내용을 응답 텍스트에 반복하지 않는다.
 - 작업 근거와 상세는 `say`와 산출물 문서에 남기고, 응답은 실행한 `say` 한 줄로 끝낸다.
-
-### Multi-Agent 작업 파일
-
-- lead가 architect·developer에게 보내는 작업지시·검토요청 파일은 스크래치 경로에 쓴다.
-  `docs/`에 커밋하지 않는다. `docs/architect-review/`에는 architect가 직접 남기는
-  판정·검토 결과 문서만 둔다.
+- **다음 담당자에게 직접 전달한 건은 lead에 사본을 보내지 않는다**
+  - "developer에 전달했다", "architect 경유함" 같은 통보는 lead가 할 일이 없는 턴을 만든다
+  - lead는 그 사안이 **종결될 때** 최종 결과만 받는다
+  - 예외: 사용자 승인이 필요하거나, 일정·범위·우선순위가 바뀌는 경우
+- **작업 단위가 끝날 때 한 번만 보고한다**
+  - "기록 완료", "갱신 확인", "재확인 완료" 같은 중간 상태는 다음 보고에 합쳐 보낸다
+  - 같은 사안을 여러 역할이 각자 lead에 보고하지 않는다 — 마지막 판정자만 보고한다
+- 한 턴에 lead로 두 번 이상 `say` 하지 않는다 — 나눠 보낼 내용이면 하나로 합친다
