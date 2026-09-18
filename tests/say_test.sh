@@ -18,7 +18,9 @@ case "$1" in
         esac
         ;;
     capture-pane)
-        if [ -n "${FAKE_CAPTURE_MSG:-}" ]; then
+        if [ -n "${FAKE_CAPTURE_SCREEN:-}" ]; then
+            printf '%s\n' "$FAKE_CAPTURE_SCREEN"
+        elif [ -n "${FAKE_CAPTURE_MSG:-}" ]; then
             enter_count="$(cat "$FAKE_ENTER_COUNT_FILE" 2>/dev/null || printf '0')"
             if [ "$enter_count" -lt "${FAKE_TMUX_STICKY_UNTIL:-0}" ]; then
                 printf '%s\n' "$FAKE_CAPTURE_MSG"
@@ -113,5 +115,22 @@ test "$(sed -n '1p' "$test_dir/queue/demo_0_1")" = 'second after stop'
 test "$(grep -c 'first after stop' "$test_dir/tmux.log")" -eq 1
 test "$(grep -c 'second after stop' "$test_dir/tmux.log" || true)" -eq 0
 test ! -e "$test_dir/queue/demo_0_1.lock"
+
+# Esc 인터럽트로 Stop 훅 없이 끊긴 파인은 마커가 남아 있어도 유휴로 보고 바로 보낸다.
+rm -f "$test_dir/queue/demo_0_1"
+touch "$test_dir/busy/_7__14"
+FAKE_CAPTURE_SCREEN=$'  ⎿  Interrupted · What should Claude do instead?\n\n> \n  ⏵⏵ bypass permissions on\n\n\n' \
+    FAKE_TMUX_STATE='$7:%14' "$repo_dir/bin/say" demo:0.1 'after interrupt'
+test "$(grep -c 'after interrupt' "$test_dir/tmux.log")" -eq 1
+test ! -e "$test_dir/queue/demo_0_1"
+
+# 인터럽트 문구가 남아 있어도 스피너가 돌면(새 턴 진행 중) busy로 본다.
+touch "$test_dir/busy/_7__15"
+printf '%s\n' 'wait for turn' > "$test_dir/queue/demo_0_1"
+FAKE_CAPTURE_SCREEN=$'  ⎿  Interrupted · What should Claude do instead?\n> next task\n✻ Working… (3s · esc to interrupt)' \
+    FAKE_TMUX_STATE='$7:%15' "$repo_dir/bin/say" --drain-one demo:0.1
+test -f "$test_dir/busy/_7__15"
+test "$(grep -c 'wait for turn' "$test_dir/tmux.log" || true)" -eq 0
+rm -f "$test_dir/queue/demo_0_1"
 
 echo 'say tests passed'
