@@ -8,7 +8,11 @@
 # 설치 후 setup-team.sh를 그대로 실행해 tmux 팀 세션을 구성한다.
 #
 # 사용:
-#   ./setup-native.sh [--agent claude|codex]
+#   ./setup-native.sh [--agent claude|codex] [프로젝트_경로]
+#
+# 설치 대상 공급자는 setup-team.sh와 같은 규칙으로 정한다 — 이 저장소의
+# team/config.sh, 이어서 프로젝트의 team/config.sh를 읽고 MEMBER_AGENTS에
+# 실제로 배정된 공급자(빈 값은 --agent 기본값)를 모두 설치한다.
 
 set -e
 
@@ -17,6 +21,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 TEAM_AGENT="${TEAM_AGENT:-claude}"
+PROJECT_ARG=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --agent)
@@ -29,12 +34,17 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         -h|--help)
-            echo "사용법: ./setup-native.sh [--agent claude|codex]"
+            echo "사용법: ./setup-native.sh [--agent claude|codex] [프로젝트_경로]"
             exit 0
             ;;
-        *)
+        -*)
             echo "알 수 없는 옵션: $1" >&2
             exit 2
+            ;;
+        *)
+            [ -z "$PROJECT_ARG" ] || { echo "프로젝트 경로는 하나만 지정할 수 있습니다." >&2; exit 2; }
+            PROJECT_ARG="$1"
+            shift
             ;;
     esac
 done
@@ -44,7 +54,34 @@ case "$TEAM_AGENT" in
     *) echo "지원하지 않는 에이전트: $TEAM_AGENT (claude 또는 codex)" >&2; exit 2 ;;
 esac
 
-echo -e "${YELLOW}[1/5] apt 의존성 확인...${NC}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(realpath "${PROJECT_ARG:-${PROJECT_DIR:-$(pwd)}}")"
+
+declare -a MEMBER_NAMES=()
+declare -a MEMBER_AGENTS=()
+[ -f "$SCRIPT_DIR/team/config.sh" ] && source "$SCRIPT_DIR/team/config.sh"
+[ -f "$PROJECT_DIR/team/config.sh" ] && source "$PROJECT_DIR/team/config.sh"
+
+NEED_CLAUDE=false
+NEED_CODEX=false
+[ "${#MEMBER_AGENTS[@]}" -gt 0 ] || MEMBER_AGENTS=("")
+for a in "${MEMBER_AGENTS[@]}"; do
+    case "${a:-$TEAM_AGENT}" in
+        claude) NEED_CLAUDE=true ;;
+        codex)  NEED_CODEX=true ;;
+        *) echo "지원하지 않는 에이전트: '$a' (team/config.sh의 MEMBER_AGENTS 확인)" >&2; exit 2 ;;
+    esac
+done
+
+TOTAL=2
+[ "$NEED_CLAUDE" = true ] && TOTAL=$((TOTAL + 3))
+[ "$NEED_CODEX" = true ] && TOTAL=$((TOTAL + 1))
+STEP=0
+step() { STEP=$((STEP + 1)); echo -e "\n${YELLOW}[$STEP/$TOTAL] $1${NC}"; }
+
+echo "설치 대상 공급자: $([ "$NEED_CLAUDE" = true ] && printf 'claude ')$([ "$NEED_CODEX" = true ] && printf 'codex')"
+
+step "apt 의존성 확인..."
 MISSING_APT=()
 command -v tmux &>/dev/null || MISSING_APT+=(tmux)
 command -v git  &>/dev/null || MISSING_APT+=(git)
@@ -62,31 +99,46 @@ else
     echo "  ✅ tmux/git/curl/locale 이미 설치됨"
 fi
 
-echo -e "\n${YELLOW}[2/5] Node.js 확인...${NC}"
+step "Node.js 확인..."
 command -v node &>/dev/null || {
     curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
     sudo apt-get install -y nodejs
 }
 echo "  ✅ node $(node --version 2>/dev/null)"
 
-if [ "$TEAM_AGENT" = "claude" ]; then
-    echo -e "\n${YELLOW}[3/5] claude CLI 확인...${NC}"
+# NodeSource Node는 npm 전역 prefix가 /usr라 sudo 없이 npm install -g가 EACCES로
+# 막힌다. 쓸 수 없으면 사용자 prefix(~/.local, claude·rtk와 같은 bin)로 옮긴다.
+npm_prefix="$(npm config get prefix)"
+if [ -d "$npm_prefix/lib/node_modules" ] && [ ! -w "$npm_prefix/lib/node_modules" ]; then
+    npm config set prefix "$HOME/.local"
+    mkdir -p "$HOME/.local/bin" "$HOME/.local/lib"
+    echo "  ✅ npm 전역 prefix: $npm_prefix → $HOME/.local (sudo 없이 설치)"
+fi
+case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH"
+       echo "  ⚠️  ~/.local/bin이 PATH에 없습니다. ~/.bashrc에 추가하세요: export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
+esac
+
+if [ "$NEED_CLAUDE" = true ]; then
+    step "claude CLI 확인..."
     command -v claude &>/dev/null || npm install -g @anthropic-ai/claude-code
     echo "  ✅ claude $(claude --version 2>/dev/null | head -1)"
 
-    echo -e "\n${YELLOW}[4/5] rtk 확인...${NC}"
+    step "rtk 확인..."
     command -v rtk &>/dev/null || curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
     echo "  ✅ rtk $(rtk --version 2>/dev/null | head -1)"
 
-    echo -e "\n${YELLOW}[5/5] bun 확인...${NC}"
+    step "bun 확인..."
     command -v bun &>/dev/null || curl -fsSL https://bun.sh/install | bash
     echo "  ✅ bun $(bun --version 2>/dev/null)"
-else
-    echo -e "\n${YELLOW}[3/3] codex CLI 확인...${NC}"
+fi
+
+if [ "$NEED_CODEX" = true ]; then
+    step "codex CLI 확인..."
     command -v codex &>/dev/null || npm install -g @openai/codex
     echo "  ✅ codex $(codex --version 2>/dev/null | head -1)"
 fi
 
-echo -e "\n${GREEN}✅ 의존성 설치 완료. setup-team.sh를 실행해 팀 세션을 구성하세요:${NC}"
-echo "   cd <프로젝트_경로> && $(cd "$(dirname "$0")" && pwd)/setup-team.sh --agent $TEAM_AGENT ."
-echo "   또는: $(cd "$(dirname "$0")" && pwd)/setup-team.sh --agent $TEAM_AGENT <프로젝트_경로>"
+echo -e "\n${GREEN}✅ 의존성 설치 완료. 새 셸을 열거나 source ~/.bashrc 후 setup-team.sh를 실행하세요:${NC}"
+echo "   $SCRIPT_DIR/setup-team.sh --agent $TEAM_AGENT $PROJECT_DIR"
