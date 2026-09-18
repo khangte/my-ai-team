@@ -82,7 +82,7 @@ git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
 
 ```bash
 # ai-setup/ 안에서 실행
-./setup-native.sh                       # 최초 1회: tmux/claude/rtk/bun 등 의존성 설치
+./setup-native.sh /path/to/project     # 최초 1회: team/config.sh의 MEMBER_AGENTS에 쓰인 공급자 의존성을 모두 설치
 ./setup-team.sh /path/to/project        # 지정한 프로젝트로 팀 세션 실행
 
 # Codex 팀
