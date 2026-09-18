@@ -182,15 +182,18 @@ tmux kill-session -t team1                    # 세션 종료
 
 ### 혼합 팀 — 역할별로 다른 에이전트 지정
 
-역할별로 다른 공급자를 쓰고 싶을 때(기본값: architect·reviewer는 Codex,
-나머지는 Claude) `team/config.sh`에 `MEMBER_AGENTS` 배열을 선언한다.
+역할별로 다른 공급자를 쓰려면 `team/config.sh`에 `MEMBER_AGENTS` 배열을 선언한다.
+저장소 기본값은 developer만 Codex이고, 나머지는 Claude다.
 
 ```bash
 # <프로젝트_경로>/team/config.sh
 SESSION="team1"
 declare -a MEMBER_NAMES=("lead" "architect" "researcher" "designer" "developer" "reviewer")
-declare -a MEMBER_AGENTS=("" "codex" "" "" "" "codex")   # architect·reviewer만 Codex
+declare -a MEMBER_AGENTS=("" "codex" "" "" "" "codex")   # architect·reviewer만 Codex로 바꾸는 예시
 ```
+
+어느 역할을 Codex로 돌릴지는 프로젝트마다 다르다. 핵심은 **코드를 쓰는 모델과 판단하는
+모델을 분리**하는 것 — 같은 모델끼리는 맹점도 공유하기 때문이다.
 
 - 빈 문자열은 `--agent`/`TEAM_AGENT` 기본값을 따른다. 배열 자체를 선언하지 않으면
   기존처럼 팀 전체가 같은 공급자로 뜬다(회귀 없음).
@@ -201,6 +204,9 @@ declare -a MEMBER_AGENTS=("" "codex" "" "" "" "codex")   # architect·reviewer�
   Codex를 써도 Codex 로그인까지 함께 확인한다.
 - Codex로 지정된 파인은 위 "Codex 실행 모드"와 동일하게 신뢰 프롬프트·훅 승인이
   자동 처리되고, busy 마커·Stop 훅도 Claude 파인과 동일하게 동작한다.
+- **Codex 파인은 `.claude-logs/`에 기록을 남기지 않는다.** 로깅 훅이 Claude 전용이라,
+  혼합 팀의 로그를 분석하면 Codex 파인 구간만 통째로 빈다. 보고 경로나 토큰 비용을
+  실측할 계획이라면 그 역할을 Claude에 두는 편이 낫다.
 
 ## Claude/Codex 지침과 team/ — 지침이 파인에 로딩되는 방식
 
@@ -305,14 +311,21 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 | --------------------- | ---------------------------- | -------------------------------------------------------- |
 | 전달 방식             | tmux 입력창에 타이핑         | 세션 간 소켓                                             |
 | 수신 파인이 보는 형태 | 사람이 친 것과 **구분 불가** | `<cross-session-message from=...>` 태그 + 신뢰 안내 동반 |
-| 큐 대기 기준          | 상대 파인이 **유휴**가 될 때까지 | 상대의 **다음 도구 호출** (작업 도중 삽입)           |
+| 큐 대기 기준          | 상대 파인이 **유휴**가 될 때까지 | 상대가 작업 중이면 **다음 도구 호출**, 유휴면 **즉시 새 턴** |
 | 훅에서 발신           | 가능 (셸 스크립트)           | 불가 (도구 호출)                                         |
+| 긴급 중단             | `SAY_NOWAIT=1`               | 없음 (항상 상대 턴 종료 대기)                            |
 
 제약:
 
 - **Docker 실행 시 호스트에서는 파인이 보이지 않음** — 컨테이너가 자체 파일시스템을 가져 서로를 찾지 못함. 네이티브 실행에서만 유효
 - 발신 측(파인) 화면에 "held for approval" 중간 알림이 먼저 뜰 수 있음(팀 밖 세션이 권한을 묻는 모드라서) — 이후 정상 전달됨
 - 파인끼리는 여전히 `say`를 쓴다 — `SendMessage`도 큐는 있지만(공식 스키마: "messages enqueue and drain at the receiver's next tool round") 작업 완료를 기다리지 않아 진행 중인 맥락에 끼어들고, `SAY_NOWAIT` 같은 의도적 인터럽트 구분이 없으며, Stop 훅(셸 스크립트)에서는 아예 호출할 수 없다
+- **토큰 이득도 없다(실측).** "수신이 다음 도구 호출에 합류하니 별도 턴이 안 생긴다"는
+  기대로 전환을 검토했지만, 유휴 파인에 보내면 `say`와 똑같이 `UserPromptSubmit`이
+  찍힌다 — 보고를 받는 lead는 대부분 유휴이므로 절감분이 0이다. 게다가 지연 로드 툴이라
+  수신 파인이 `ToolSearch`로 스키마를 먼저 찾는 턴이 추가되고, 메시지에
+  `<cross-session-message from="uds:...">` 래퍼가 붙는다. Codex 파인은 아예 지원하지
+  않으므로 혼합 팀에서는 선택지도 아니다
 
 상대가 작업 중이면 큐에 쌓았다가 유휴가 되면 자동 전송(발신 파인은 대기하지 않음).
 `SAY_NOWAIT=1`이면 큐를 건너뛰고 즉시 전송 — 긴급 중단 지시용.
@@ -329,17 +342,34 @@ Enter 누락부터 큐 도입까지, 통신이 깨졌던 유형과 각각의 대
 | 일반 완료 보고                 | 각 파인 → lead              |
 | 설계 이탈 (developer/designer) | 파인 → architect → lead     |
 | 리뷰 승인                      | reviewer → lead             |
-| 리뷰 — 코드 품질 수정요청      | reviewer → 작성자 (직행)    |
-| 리뷰 — 설계 판단 필요          | reviewer → architect → lead |
+| 리뷰 — 코드 품질 수정요청      | reviewer → 작성자 (직행, lead 사본 없음) |
+| 리뷰 — 설계 판단 필요          | reviewer → architect (lead 사본 없음) → architect 판정만 lead |
 | 화면에 필요한 API 요청         | designer → developer        |
 
 코드 품질 수정요청의 "작성자"는 백엔드면 developer, 프론트엔드면 designer다.
+
+**중간 경유는 lead에 보고하지 않는다.** 다음 담당자에게 넘긴 사실("developer에
+전달했다", "architect 경유함")은 lead가 할 일이 없는 턴을 만든다. lead는 그 사안이
+**종결될 때** 최종 결과 하나만 받는다. architect처럼 지시를 내리는 역할도 지시 시점이
+아니라 그 결과를 검수한 뒤에 보고한다.
+
+실측 근거: lead 56턴 중 19턴이 툴 호출 0건이었고, 그중 16건이 보고 수신뿐이었다.
+프로토콜 수정 후 같은 규모 작업에서 사본 0건. 상세는
+[docs/pane-messaging.md](docs/pane-messaging.md) 10단계.
 
 ### Stop 훅 — 보고 누락 방지
 
 - 파인이 `say` 실행을 잊어도 lead가 완료를 알 수 있도록, `setup-team.sh`가 lead를 뺀 각 파인에 Stop 훅을 주입해 응답 종료 시 완료 신호를 자동 전달 (폴링 불필요)
 - 예외: 방금 `say`로 보고했으면 생략 / lead 자신은 대상 제외 (무한루프 방지)
 - Claude·Codex 양쪽에서 동일하게 동작 — Codex는 `.codex/hooks.json`의 `Stop` 이벤트로 이식했다. 파인에는 승인할 사람이 없으므로 Codex의 훅 신뢰 승인(`/hooks` 화면)도 `setup-team.sh`가 자동 처리한다.
+
+"방금 보고했는가"는 `/tmp/team-say/{state_key}` 마커로 판정한다. 이 마커는 수신자를
+구분하지 않는 **"이번 턴에 보고했나" 1비트**라, 턴 경계마다 비워야 한다 — 그러지 않으면
+한 턴에 두 번 보고했을 때(`say architect` + `say lead`) Stop 훅이 한 번만 소비하고,
+다음 턴에 보고를 하고도 "미보고" 신호가 나간다(실측 오탐 4건). Claude 파인은
+`UserPromptSubmit`에서 비우고, 그 훅이 없는 Codex 파인은 `Stop`의 삭제가 유일한
+초기화 지점이다. `CLAUDE.md`·`AGENTS.md`의 "한 턴에 lead로 두 번 이상 `say` 하지
+않는다" 규칙이 지침 쪽에서도 같은 상황을 막는다.
 
 ## 프롬프트·툴 로깅 — 재현성과 추적
 
