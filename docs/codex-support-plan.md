@@ -260,6 +260,11 @@ Claude와 동일하게 이 저장소의 Codex 공통 규칙을 대상 프로젝�
 - 사용자가 쓴 마커 밖 내용은 보존한다.
 - 대상 프로젝트가 이 저장소 자신이면 별도 병합을 하지 않는다.
 
+**두 파일은 함께 갱신해야 한다.** `CLAUDE.md`와 `AGENTS.md`는 각각 Claude·Codex
+파인이 읽는 같은 층의 공통 규칙이다. 보고 규칙처럼 공급자와 무관한 팀 규칙을 한쪽에만
+넣으면 혼합 팀에서 절반의 파인이 옛 규칙으로 동작한다. 실제로 보고 프로토콜을 바꿀 때
+(`pane-messaging.md` 10단계) 두 파일을 같은 커밋에서 함께 고쳤다.
+
 ### 역할 규칙
 
 Codex 파인은 `.team/{역할}`을 cwd로 사용한다. 해당 디렉터리에 생성한 `AGENTS.md`에는
@@ -299,10 +304,16 @@ busy 마커와 종료 신호 구조를 유지한다.
 
 ### 유지할 동작
 
-- `UserPromptSubmit`: `/tmp/team-busy/{pane_id}` 생성
-- `Stop`: busy 마커 제거, 본 보고가 없으면 lead에 자동 종료 신호 전송
+- busy 마커 생성: **훅이 아니라 `bin/say`가 전달 직후 켠다.** Codex에는 턴 시작에
+  대응하는 훅이 없어, 공급자 중립 지점으로 옮겼다(`per-role-agent-plan.md` §A).
+- `Stop`: busy 마커 제거, 보고 마커 소비, 본 보고가 없으면 lead에 자동 종료 신호 전송
 - `SessionStart`: stale busy 마커 제거
-- `UserPromptSubmit`, `PreToolUse`: 역할별 JSONL 로그 기록
+- `UserPromptSubmit`, `PreToolUse`: 역할별 JSONL 로그 기록 — **Claude 전용, 미이식**
+
+Claude 파인은 `UserPromptSubmit`에서 busy 마커를 찍고 보고 마커를 비우지만, Codex
+파인에는 이 훅이 없다. busy 마커는 `say`가 대신 켜므로 문제없고, 보고 마커는 `Stop`이
+무조건 지우므로 1비트 의미가 유지된다. 이 비대칭은 의도된 것이며, Codex `Stop` 훅의
+마커 삭제를 조건부로 바꾸면 깨진다.
 
 ### 변경할 동작
 
@@ -369,20 +380,31 @@ Codex 인증 상태도 `/home/user` 볼륨에 보존되므로 기존 볼륨 이�
 
 ### 2단계 — 훅과 관측성 동등성
 
+- [x] 역할별 `.codex/hooks.json` 생성 (`SessionStart`·`Stop`)
+- [x] busy 마커 생성·정리 연결 — 생성은 `bin/say`가 공급자 중립으로 담당하고
+      (`per-role-agent-plan.md` §A), 정리는 Codex `Stop` 훅이 한다
+- [x] Stop 자동 보고와 중복 보고 가드 연결 (`stop_hook_cmd_for_role()` 공용)
+- [x] `/clear` 또는 세션 재시작에 대응하는 stale 마커 정리 검증
+      (`SessionStart` matcher `startup|resume|clear|compact`)
 - [ ] Codex 훅 입력 샘플 캡처와 `bin/log-hook` 호환성 확인
-- [ ] 역할별 `.codex/hooks.json` 생성
-- [ ] busy 마커 생성·정리 연결
-- [ ] Stop 자동 보고와 중복 보고 가드 연결
 - [ ] Codex 로그 경로 일반화
-- [ ] `/clear` 또는 세션 재시작에 대응하는 stale 마커 정리 검증
+
+로깅 두 항목은 아직 미구현이다. `log_cmd`는 `start_claude_in_pane`에만 있어
+Codex 파인은 `.claude-logs/{역할}.jsonl`을 남기지 않는다. 혼합 팀에서 보고 경로를
+실측할 때 Codex 파인 구간이 통째로 비므로, 관측이 필요한 역할을 Codex에 배정할 때
+이 한계를 먼저 고려해야 한다.
 
 완료 조건:
 
-- 작업 중인 Codex 파인에는 `say` 메시지가 큐에 쌓인다.
-- 파인이 유휴 상태가 되면 큐 메시지가 자동 전달된다.
-- 본 보고가 있으면 Stop 종료 신호가 중복 전달되지 않는다.
-- 본 보고 없이 종료하면 lead가 자동 신호를 받는다.
-- 프롬프트와 툴 로그에 시크릿 본문이 그대로 기록되지 않는다.
+- [x] 작업 중인 Codex 파인에는 `say` 메시지가 큐에 쌓인다.
+- [x] 파인이 유휴 상태가 되면 큐 메시지가 자동 전달된다.
+- [x] 본 보고가 있으면 Stop 종료 신호가 중복 전달되지 않는다.
+      단 마커가 턴 경계에서 초기화되어야 성립한다 — 초기화 누락으로 보고를 하고도
+      신호가 나가던 오탐을 실측·수정했다([pane-messaging.md](pane-messaging.md) 10단계).
+      Codex는 `UserPromptSubmit`이 없어 `Stop`의 삭제가 유일한 초기화 지점이다.
+- [x] 본 보고 없이 종료하면 lead가 자동 신호를 받는다.
+- [ ] 프롬프트와 툴 로그에 시크릿 본문이 그대로 기록되지 않는다 —
+      Codex 로깅 자체가 미구현이라 판정 대상이 없다.
 
 ### 3단계 — 스킬·플러그인 이식
 
@@ -406,12 +428,14 @@ Codex 인증 상태도 `/home/user` 볼륨에 보존되므로 기존 볼륨 이�
 
 ### 4단계 — 문서와 배포 정리
 
-- [ ] README 구조도와 실행 예시를 이중 백엔드 기준으로 수정
-- [ ] WSL/Docker 설치 절차 수정
-- [ ] 모델 설정과 프로젝트별 오버라이드 예시 추가
-- [ ] 권한 모드별 위험 설명 추가
+- [x] README 구조도와 실행 예시를 이중 백엔드 기준으로 수정
+- [x] WSL/Docker 설치 절차 수정 (`setup-native.sh --agent`, 혼합 팀 의존성 일괄 설치)
+- [x] 모델 설정과 프로젝트별 오버라이드 예시 추가 ("프로젝트별 팀 구성 커스터마이징")
+- [x] 권한 모드별 위험 설명 추가 (`--dangerously-skip-permissions`,
+      `CODEX_FULL_ACCESS=0`)
 - [ ] Docker 볼륨 이름 변경 여부 결정 및 필요 시 마이그레이션 안내 작성
-- [ ] Claude 전용 명칭이 남은 런타임 파일과 주석 정리
+- [ ] Claude 전용 명칭이 남은 런타임 파일과 주석 정리 — `.claude-logs/`가 대표적이다.
+      Codex 로깅을 이식하면 이름과 실제가 어긋나므로, 그 작업과 함께 다룬다.
 
 ## 검증 계획
 
