@@ -320,7 +320,8 @@ start_claude_in_pane() {
         if [ "$role" = "lead" ]; then
             local team_table="## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 지시 방법 |"$'\n'"| --- | --- |"
             for ((m = 1; m < ${#MEMBER_NAMES[@]}; m++)); do
-                team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${MEMBER_NAMES[$m]} \"...\" |"
+                local say_name="${MEMBER_DISPLAY_NAMES[$m]:-${MEMBER_NAMES[$m]}}"
+                team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${say_name} \"...\" |"
             done
             role_content="${role_content}"$'\n\n'"${team_table}"
         fi
@@ -505,9 +506,10 @@ write_codex_role_agents() {
 
     if [ "$role" = "lead" ]; then
         local team_table="## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 지시 방법 |"$'\n'"| --- | --- |"
-        local m
+        local m say_name
         for ((m = 1; m < ${#MEMBER_NAMES[@]}; m++)); do
-            team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${MEMBER_NAMES[$m]} \"...\" |"
+            say_name="${MEMBER_DISPLAY_NAMES[$m]:-${MEMBER_NAMES[$m]}}"
+            team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${say_name} \"...\" |"
         done
         role_content="${role_content}"$'\n\n'"${team_table}"
     fi
@@ -1188,8 +1190,10 @@ tmux set-option -t "$SESSION" main-pane-width '55%'
 tmux select-layout -t "$SESSION:0" main-vertical
 
 # 파인 이름 설정 (레이아웃 설정 후, Claude 실행 전)
+# MEMBER_DISPLAY_NAMES가 있으면 표시용 사람 이름을, 없으면 직무명을 그대로 쓴다.
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
-    tmux select-pane -t "$SESSION:0.$pane" -T "${MEMBER_NAMES[$pane]^^}"
+    display_name="${MEMBER_DISPLAY_NAMES[$pane]:-${MEMBER_NAMES[$pane]}}"
+    tmux select-pane -t "$SESSION:0.$pane" -T "${display_name^^}"
 done
 
 # 파인 제목 표시 설정
