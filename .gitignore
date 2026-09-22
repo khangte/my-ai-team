@@ -29,11 +29,5 @@ Thumbs.db
 # graphify 스킬 산출물 (런타임 생성물)
 graphify-out/
 
-# 리뷰 작업 중 생성되는 로컬 문서 (커밋 대상 아님)
-docs/architect-review/*
-!docs/architect-review/.gitkeep
-
-# 로컬 전용 통신·비용 분석 문서 (커밋 대상 아님)
-docs/pane-messaging.md
-docs/token-cost.md
+# 아직 구현·승인이 끝나지 않은 로컬 설계 메모 (커밋 대상 아님)
 docs/superpowers/
