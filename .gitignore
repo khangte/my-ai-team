@@ -36,3 +36,4 @@ docs/architect-review/*
 # 로컬 전용 통신·비용 분석 문서 (커밋 대상 아님)
 docs/pane-messaging.md
 docs/token-cost.md
+docs/superpowers/
