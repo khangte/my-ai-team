@@ -27,11 +27,16 @@ case "$target" in
     *:*) session="${target%%:*}"; target="${target#*:}" ;;
 esac
 
-# 역할 이름이면 파인 타이틀에서 인덱스를 찾는다. 숫자면 그대로 쓴다.
+# 역할 이름이면 pane @role에서 인덱스를 찾고, 이전 세션은 타이틀로 폴백한다.
+# 숫자면 그대로 쓴다.
 case "$target" in
     *[!0-9.]*)
-        idx="$(tmux list-panes -t "$session:0" -F '#{pane_index} #{pane_title}' \
-                | awk -v r="${target^^}" '$2==r {print $1; exit}')"
+        idx="$(tmux list-panes -t "$session:0" -F '#{pane_index} #{@role}' \
+                | awk -v role="$target" '$2 == role { print $1; exit}')"
+        if [ -z "$idx" ]; then
+            idx="$(tmux list-panes -t "$session:0" -F '#{pane_index} #{pane_title}' \
+                    | awk -v title="${target^^}" '$2 == title { print $1; exit}')"
+        fi
         [ -n "$idx" ] || { echo "say: unknown role '$target'" >&2; exit 1; }
         target="0.$idx"
         ;;

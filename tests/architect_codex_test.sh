@@ -46,6 +46,18 @@ grep -qF 'CODEX_HOME="$role_home" codex login status' "$repo_dir/setup-team.sh"
 grep -qF '\"SessionStart\"' "$repo_dir/setup-team.sh"
 grep -qF 'CODEX_HOME="$role_home" codex plugin add' "$repo_dir/setup-team.sh"
 
+# pane의 역할 주소와 표시 제목은 분리한다. @role은 say 주소이고, 제목은 표시이름이다.
+grep -qF 'tmux set-option -p -t "$SESSION:0.$pane" @role "${MEMBER_NAMES[$pane]}"' "$repo_dir/setup-team.sh"
+grep -qF 'tmux set-option -p -t "$SESSION:0.$pane" @display_name "${display_name^^}"' "$repo_dir/setup-team.sh"
+grep -qF 'tmux set-option -t "$SESSION" pane-border-format " #{@display_name} "' "$repo_dir/setup-team.sh"
+! grep -qF 'tmux set-option -t "$SESSION" pane-border-format " #{pane_title} "' "$repo_dir/setup-team.sh"
+grep -qF 'tmux set-option -t "$SESSION" set-titles on' "$repo_dir/setup-team.sh"
+grep -qF 'tmux set-option -t "$SESSION" set-titles-string "#{@display_name}"' "$repo_dir/setup-team.sh"
+grep -qF 'want="${MEMBER_DISPLAY_NAMES[$pane]:-${MEMBER_NAMES[$pane]}}"' "$repo_dir/setup-team.sh"
+grep -qF 'say_name="${MEMBER_NAMES[$m]}"' "$repo_dir/setup-team.sh"
+grep -qF 'state_key="$(pane_state_key "$SESSION_ID:0.$pane")"' "$repo_dir/setup-team.sh"
+grep -qF '[ -f "/tmp/team-busy/$state_key" ] && continue' "$repo_dir/setup-team.sh"
+
 # 무인 Codex 파인은 .git을 쓸 수 있게 full access가 기본이고,
 # 필요할 때만 명시적으로 workspace-write로 낮춘다.
 grep -qF 'local permission_args="--dangerously-bypass-approvals-and-sandbox"' "$repo_dir/setup-team.sh"
