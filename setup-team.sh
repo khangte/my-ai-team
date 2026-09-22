@@ -23,7 +23,7 @@
 #
 # 사용:
 #   ./setup-team.sh [--agent claude|codex] [프로젝트_경로]
-#   프로젝트_경로 생략 시 $PROJECT_DIR(기본 ~/project) 사용.
+#   프로젝트_경로 생략 시 $PROJECT_DIR, 그것도 없으면 현재 디렉터리 사용.
 #   (인원·표시이름·공급자·모델·추론강도는 프로젝트 루트의 team/config.sh에서
 #    MEMBERS로 한 번에 선언하면 됨. team/config.{agent}.sh는 플러그인·
 #    스킬 배분표만 다룬다)
@@ -215,21 +215,9 @@ wait_for_pane() {
 }
 
 # ── 유틸: Stop 시점 종료 신호 커맨드 조립 (Claude·Codex 공용) ──
-# 결과는 전역 변수 STOP_HOOK_CMD에 담는다. Claude·Codex 양쪽의 Stop 훅이
-# "command" 타입으로 셸 커맨드를 그대로 실행하는 동일한 계약이라, 종료
-# 신호 로직을 공급자별로 복제하지 않고 여기 한 곳에서만 만든다.
-#
-# lead는 신호 수신처가 자기 자신(:0.0)이라 보내면 무한 루프가 되므로 rm만 한다.
-# 그 외 역할은 say가 남긴 본 보고 마커(/tmp/team-say/{pane_id})가 있으면
-# 소비하고 조용히 끝내고, 없으면 lead에 자동 종료 신호를 보낸다.
-#
-# STOP_HOOK_CMD는 순수 셸 커맨드 문자열이다(JSON 이스케이프 이전 상태) — say에
-# 넘길 메시지는 보통 큰따옴표로 감싸 하나의 인자로 만든다. 이 값을 실제 훅
-# JSON의 "command" 필드에 넣는 쪽(Claude·Codex 각자)이 json_escape로 이스케이프
-# 한다. 예전에는 이 함수가 이미 이스케이프된 값(\\\" 리터럴)을 만들어 Claude
-# JSON에 그대로 박았는데, Codex의 훅 실행기는 그 리터럴 백슬래시를 그대로 셸에
-# 넘겨 "syntax error near unexpected token `('" 로 깨졌다(실측). 순수 문자열 +
-# 소비자별 이스케이프로 바꿔 두 CLI 모두에서 안전하게 재사용한다.
+# 결과는 전역 변수 STOP_HOOK_CMD에 담는다. Claude·Codex가 같은 종료 신호
+# 로직을 쓰도록 여기서 순수 셸 명령을 만들고, 각 설정 JSON에 넣을 때만 이스케이프한다.
+# lead는 자기 자신에게 종료 신호를 보내지 않고 busy 마커만 지운다.
 stop_hook_cmd_for_role() {
     local role="$1" pane_id="$2" state_key="$3"
     # watcher가 Codex의 도구 실행 수명과 함께 종료돼도 큐가 고아가 되지 않도록,
@@ -277,8 +265,8 @@ start_claude_in_pane() {
     tmux send-keys -t "$pane" C-c 2>/dev/null; sleep 0.3
     tmux send-keys -t "$pane" C-u 2>/dev/null; sleep 0.2
 
-    # 역할별 스킬 제한([4/7])이 만든 디렉터리가 있으면 그곳을 cwd로 삼고
-    # --setting-sources project로 유저 전역·플러그인 스킬을 차단한다([4/7] 주석 참조).
+    # 역할별 스킬 제한([4/6])이 만든 디렉터리가 있으면 그곳을 cwd로 삼고
+    # --setting-sources project로 유저 전역·플러그인 스킬을 차단한다([4/6] 주석 참조).
     local work_dir="$PROJECT_DIR" skills_arg=""
     if [ -n "$role" ] && [ -d "$TEAM_SKILLS_ROOT/$role/.claude/skills" ]; then
         work_dir="$TEAM_SKILLS_ROOT/$role"
@@ -337,24 +325,11 @@ start_claude_in_pane() {
     local log_cmd="${BIN_DIR}/log-hook ${role:-unknown} '${PROJECT_DIR}'"
     local pretooluse_json="\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"rtk hook claude\"}]},{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]}]"
 
-    # 유휴 판정용 busy 마커. say의 is_busy()가 화면 문구("esc to interrupt")
-    # 대신 이 파일 존재 여부로 판정한다 — bypass-permissions 모드에서는 이
-    # 문구가 힌트줄에 상시 남아 유휴인데도 BUSY로 오판하는 사례가 실측으로
-    # 확인됐다(하단 힌트줄 잔류, 본문 노출과는 다른 원인이라 tail 범위를
-    # 좁혀도 못 막는다). UserPromptSubmit(턴 시작)에서 찍고 Stop(턴 종료)에서
-    # 지운다 — harness가 실행하는 실제 턴 경계라 화면 상태와 무관하다.
-    # pane_id는 각 role 블록에서 정의한다(lead는 Stop이 없어 별도 처리).
-    #
-    # 본 보고 마커(/tmp/team-say)도 여기서 함께 비운다. 이 마커는 "이번 턴에
-    # 보고했나"를 뜻하는 1비트인데, 턴 경계에서 초기화하지 않으면 한 턴에 두 번
-    # 보고한 경우(say architect + say lead)에 Stop 훅이 한 번만 소비해 다음 턴의
-    # 종료 신호를 잘못 억제하거나, 반대로 이전 턴에 소비된 상태가 남아 보고를
-    # 했는데도 "미보고" 신호가 나간다(실측: reviewer 14:02 보고 → 14:04 오탐 신호).
+    # say는 화면 문구 대신 busy 마커로 유휴 여부를 판단한다. 턴 시작에 마커를
+    # 만들고, 본 보고 마커와 함께 초기화해 Stop 훅이 이번 턴의 보고 여부만 판단한다.
     local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd}\"}]},{\"hooks\":[{\"type\":\"command\",\"command\":\"mkdir -p /tmp/team-busy && touch /tmp/team-busy/${state_key} && rm -f /tmp/team-say/${state_key}\"}]}]"
 
-    # /clear·/compact는 진행 중인 턴을 Stop 훅 없이 끊어서 busy 마커가 남는다 —
-    # 그 파인은 유휴인데 say는 30분 만료 전까지 계속 큐에 쌓는다. SessionStart는
-    # clear/compact/startup 모두에서 발화하므로 여기서 마커를 지운다.
+    # /clear·/compact는 Stop 훅 없이 끝날 수 있으므로 SessionStart에서 마커를 지운다.
     local sessionstart_json="\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"rm -f /tmp/team-busy/${state_key}\"}]}]"
 
     # 파인 간 통신은 say(tmux send-keys)가 담당하지만, Claude Code 자체의
@@ -380,7 +355,7 @@ start_claude_in_pane() {
     # (실측: 그냥 두면 caveman·ponytail·serena가 파인에서 전혀 안 걸린다).
     # rtk 훅을 여기서 다시 넣는 것과 같은 이유·같은 패턴이다.
     #
-    # 어떤 역할에 무엇을 주는지는 [3/7]의 PLUGIN_ROLES가 정한다.
+    # 어떤 역할에 무엇을 주는지는 [3/6]의 PLUGIN_ROLES가 정한다.
     local plugins_json=""
     if [ -n "$role" ]; then
         local enabled_entries=() marketplace_entries=() seen_marketplaces=" "
@@ -505,9 +480,7 @@ write_codex_role_agents() {
 
     # Stop 훅: busy 마커 정리 + 미보고 종료 신호. Claude와 같은 로직을
     # stop_hook_cmd_for_role 한 곳에서 만들어 양쪽이 쓴다(위 유틸 참조).
-    # Codex hooks.json은 프로젝트 로컬 훅이라 기본적으로 신뢰 검토를
-    # 거쳐야 실행되므로, start_codex_in_pane이 --dangerously-bypass-hook-trust로
-    # 띄워 무인 파인에서 승인 대기 없이 곧바로 동작하게 한다.
+    # 프로젝트 로컬 훅은 신뢰 승인이 필요하므로, 무인 파인에서는 기동 시 이를 자동 처리한다.
     [ -n "$pane_id" ] || return 0
     stop_hook_cmd_for_role "$role" "$pane_id" "$state_key"
     local hook_cmd_json; hook_cmd_json="$(json_escape "$STOP_HOOK_CMD")"
@@ -553,14 +526,8 @@ start_codex_in_pane() {
         permission_args="--ask-for-approval never --sandbox workspace-write"
     fi
 
-    # write_codex_role_agents가 만든 role별 .codex/hooks.json은 기본적으로
-    # "review and trust" 절차를 거쳐야 실행되는 프로젝트 로컬 훅이다.
-    # --dangerously-bypass-hook-trust는 CLI 배너에 "may run without review"라고
-    # 뜨지만, 실측 결과 /hooks 화면의 review 배지는 사라지지 않고 Stop 훅이
-    # Active 0인 채로 남는다(Stop hook (blocked): syntax error가 아니라 조용히
-    # 아무 것도 안 실행되는 형태로 실패). /hooks에서 사람이 't'(trust all)를
-    # 눌러야 Active 1로 바뀌고 busy 마커 정리·종료 신호가 실제로 동작한다.
-    # 파인에는 승인할 사람이 없으므로 아래에서 이 키 입력을 자동화한다.
+    # --dangerously-bypass-hook-trust만으로는 로컬 훅이 활성화되지 않을 수 있어,
+    # 아래에서 /hooks의 trust-all 입력까지 자동화한다.
     local hook_trust_args="--dangerously-bypass-hook-trust"
 
     # Codex의 주 workspace는 역할별 cwd지만 실제 프로젝트도 명시적으로 writable
@@ -615,12 +582,12 @@ check_codex_login() {
     codex login status >/dev/null 2>&1
 }
 
-# ── [0/7] 사전 요구사항 확인 ────────────────────────────────
+# ── [0/6] 사전 요구사항 확인 ────────────────────────────────
 # 혼합 팀에서는 실제로 파인에 배정된 공급자(USED_AGENTS) 전부를 검사한다 —
 # $TEAM_AGENT 하나만 보면 reviewer만 codex인 팀에서 codex 설치·로그인 확인이
 # 통째로 생략된다.
 used_agents_list="${!USED_AGENTS[*]}"
-echo -e "${YELLOW}[0/7] 사전 요구사항 확인 (${used_agents_list})...${NC}"
+echo -e "${YELLOW}[0/6] 사전 요구사항 확인 (${used_agents_list})...${NC}"
 
 NEED_FIRST_LOGIN=false
 
@@ -694,7 +661,7 @@ fi
 tmux has-session -t "$SESSION" 2>/dev/null && {
     tmux kill-session -t "$SESSION"
     # kill-session은 요청만 던지고 바로 리턴한다. tmux 서버가 소켓 정리를
-    # 끝내기 전에 아래 rm -rf나 [6/7]의 new-session -s "$SESSION"이 뜨면
+    # 끝내기 전에 아래 rm -rf나 [5/6]의 new-session -s "$SESSION"이 뜨면
     # 레이스로 실패하는 경우가 실측됐다(set -e라 스크립트 전체가 죽는다).
     # has-session이 실제로 false를 반환할 때까지 짧게 폴링해 정리 완료를 기다린다.
     for _ in $(seq 1 20); do
@@ -717,7 +684,7 @@ mkdir -p "$RUNTIME_DIR"
 # 혼합 팀에서는 아래 두 블록이 각각 독립 조건으로 순서대로 실행된다.
 if [ -n "${USED_AGENTS[claude]:-}" ]; then
 
-# ── [1/7] rtk 훅 초기화 ────────────────────────────────────
+# ── [1/6] rtk 훅 초기화 ────────────────────────────────────
 # ~/.claude 는 로그인 후 생성되고 volume(claude-home) 안에 있으므로
 # 이미지 빌드 시점이 아니라 여기(런타임)에서 1회 등록한다.
 # --auto-patch: settings.json patch 여부를 묻지 않고 자동 진행
@@ -725,7 +692,7 @@ if [ -n "${USED_AGENTS[claude]:-}" ]; then
 # telemetry 동의 프롬프트가 무한 대기하는 알려진 버그(rtk-ai/rtk#1307)에 대한 안전장치
 # printf 'n\n': 위 telemetry 동의 프롬프트에 대한 응답(비동의)이며,
 # RTK_TELEMETRY_DISABLED가 무시될 경우를 대비한 이중 안전장치
-echo -e "\n${YELLOW}[1/7] rtk 훅 초기화...${NC}"
+echo -e "\n${YELLOW}[1/6] rtk 훅 초기화...${NC}"
 
 if printf 'n\n' | RTK_TELEMETRY_DISABLED=1 timeout 15 rtk init -g --auto-patch; then
     echo -e "${GREEN}✅ rtk 훅 등록 완료${NC}"
@@ -734,12 +701,12 @@ else
     echo -e "${YELLOW}   확인: rtk init --show${NC}"
 fi
 
-# ── [2/7] gstack 스킬 설치 ─────────────────────────────────
+# ── [2/6] gstack 스킬 설치 ─────────────────────────────────
 # CLAUDE.md의 "Skill routing"이 참조하는 /office-hours, /plan-ceo-review 등은
 # gstack(https://github.com/garrytan/gstack) 패키지가 제공한다.
 # ~/.claude 는 volume(claude-home) 안에 있어 컨테이너를 새로 만들면 사라지므로
 # 이미지 빌드 시점이 아니라 여기(런타임)에서 매번 최신 상태로 맞춘다.
-echo -e "\n${YELLOW}[2/7] gstack 스킬 설치...${NC}"
+echo -e "\n${YELLOW}[2/6] gstack 스킬 설치...${NC}"
 
 GSTACK_DIR="$HOME/.claude/skills/gstack"
 if [ -d "$GSTACK_DIR/.git" ]; then
@@ -754,12 +721,12 @@ else
     echo -e "${YELLOW}⚠️  gstack setup 실패 또는 timeout (수동 확인 필요: cd $GSTACK_DIR && ./setup)${NC}"
 fi
 
-# ── [3/7] 필수 플러그인 설치 ─────────────────────────────────
+# ── [3/6] 필수 플러그인 설치 ─────────────────────────────────
 # 마켓플레이스 플러그인은 ~/.claude/plugins/ 아래에 설치되는데, 이 경로는
 # volume(claude-home) 안이라 컨테이너를 새로 만들면 사라진다. gstack과 같은
 # 이유로 런타임에 매번 맞춘다.
 #
-# 아래 [4/7]의 SUPERPOWERS_SKILL_SETS가 참조하는 superpowers 스킬이 여기서 깔리고,
+# 아래 [4/6]의 SUPERPOWERS_SKILL_SETS가 참조하는 superpowers 스킬이 여기서 깔리고,
 # caveman/ponytail은 응답 스타일 규칙을, serena는 심볼 단위 코드 탐색 MCP를 제공한다.
 #
 # 여기서는 설치까지만 한다. 파인별 활성화는 start_claude_in_pane이 --settings에
@@ -768,7 +735,7 @@ fi
 #
 # 멱등성: `claude plugin install`은 이미 설치돼 있으면 그 사실만 알리고 성공으로
 # 끝나므로 재실행에 안전하다.
-echo -e "\n${YELLOW}[3/7] 필수 플러그인 설치...${NC}"
+echo -e "\n${YELLOW}[3/6] 필수 플러그인 설치...${NC}"
 
 # 설치할 플러그인 → 그 플러그인을 켤 역할 (plugin@marketplace 형식으로 소스를
 # 못 박는다 — 같은 이름이 여러 마켓플레이스에 있을 때 엉뚱한 쪽이 깔리는 것을 막는다).
@@ -779,34 +746,11 @@ echo -e "\n${YELLOW}[3/7] 필수 플러그인 설치...${NC}"
 #   "a b"        공백으로 구분된 해당 역할에서만 켠다
 #   ""           설치만 하고 enabledPlugins에는 넣지 않는다
 #
-# 배분 근거는 [4/7]의 스킬 제한과 같다 — 파인 5개 × 매 턴이라 고정비가 크므로
-# 쓰지 않을 파인에는 주지 않는다. 실측한 파인당 고정비:
-#   ponytail  ~2.2K tok (스킬 frontmatter ~0.9K + SessionStart 주입 ~1.3K)
-#   caveman   ~3.9K tok (스킬 frontmatter ~2.8K + SessionStart 주입 ~1.0K)
-#   serena    ~6K tok   (MCP 툴 정의 30개. 스킬이 없어 plugin details에는 안 잡힌다)
-#
-# caveman은 전 파인에 준다. 켠 파인이 아니라 lead가 이득을 회수하는 구조이고
-# (파인들의 보고가 전부 lead 입력이 된다), 출력 문체를 팀 전체에서 통일하는 값이
-# 토큰 고정비보다 크다는 사용자 결정이다. 비용·회수 실측은
-# docs/architect-review/6_caveman-ponytail-role-scoping.md 참조.
-#
-# ponytail은 lead와 developer에 준다. 사다리 2~7단(기존 헬퍼 재사용, 표준
-# 라이브러리, 네이티브 기능, 설치된 의존성, 한 줄 구현)은 코드를 직접 쓰는
-# developer용이고, lead는 1단 YAGNI 하나로 값을 뽑는다 — 사용자 명령이 전부
-# lead를 거쳐 배분되므로, 안 만들어도 되는 일을 배분 전에 걷어내는 편이
-# developer가 받아든 뒤 줄이는 것보다 싸다. 나머지 역할은 코드를 쓰지도,
-# 일을 배분하지도 않아 2.2K/호출 고정비를 회수하지 못한다.
-#
-# serena는 고정비가 가장 크므로 코드를 직접 다루는 역할(developer·reviewer·
-# designer)에만 준다. lead는 코드를 안 쓰고, researcher는 웹 조사라 심볼 탐색이
-# 죽은 무게이며, architect는 쓸 여지는 있지만 Opus라 토큰 단가가 가장 비싸다.
-# designer가 받는 이유는 프론트엔드를 구현하기 때문이다 — serena의 LSP 백엔드는
-# ts/tsx·vue·svelte·html·scss를 1급으로 지원하고, find_referencing_symbols가
-# grep이 놓치는 컴포넌트 사용처(재export 등)까지 잡는다.
-#
-# superpowers·frontend-design는 빈 값이다. [4/7]이 플러그인 캐시에서 스킬
+# 역할별 플러그인 배분은 토큰 고정비와 해당 역할의 사용 빈도를 고려해
+# team/config.claude.sh에서 정한다. 상세 근거는 설계 문서를 참조한다.
+# superpowers·frontend-design는 빈 값이다. [4/6]이 플러그인 캐시에서 스킬
 # 디렉터리를 직접 심볼릭 링크하므로 enabledPlugins 없이도 역할별로 이미 걸린다.
-# 여기서 또 켜면 superpowers 스킬 14개가 통째로 들어와 [4/7]의 선별이 무의미해진다
+# 여기서 또 켜면 superpowers 스킬 14개가 통째로 들어와 [4/6]의 선별이 무의미해진다
 # (frontend-design은 스킬이 1개뿐이라 차이가 없지만, 링크로 거는 방식을 맞춘다).
 
 for mp in "${!PLUGIN_MARKETPLACES[@]}"; do
@@ -825,7 +769,7 @@ for plugin in "${!PLUGIN_ROLES[@]}"; do
     fi
 done
 
-# ── [4/7] 역할별 스킬 제한 ─────────────────────────────────
+# ── [4/6] 역할별 스킬 제한 ─────────────────────────────────
 # gstack setup은 스킬 56개를 ~/.claude/skills/ 아래 전부 깔고, 그 frontmatter
 # (약 22.8KB ≈ 5.7K 토큰)는 파인이 뜰 때마다 시스템 프롬프트로 들어간다.
 # 파인 6개 × 매 턴이므로 고정비가 크다. 실제로는 researcher가 /ios-qa를,
@@ -836,7 +780,8 @@ done
 #   2) 그 디렉터리를 cwd로 claude를 띄우되 --setting-sources project 로
 #      유저 전역 스킬 56개와 플러그인 스킬을 차단한다
 # claude에 빌트인된 스킬(dataviz, init, security-review 등 약 15개)은 설정 소스와
-# 무관하게 항상 로드되므로 이 방식으로 제거되지 않는다.
+# 무관하게 로드된다. 다만 아래 실행 시 CLAUDE_CODE_DISABLE_BUNDLED_SKILLS=1로
+# 별도로 비활성화한다.
 # 프로젝트 스킬 탐색은 상위 디렉터리로 거슬러 올라가므로, cwd가 프로젝트 안이면
 # $PROJECT_DIR/.claude/skills 의 공용 스킬은 모든 파인이 그대로 상속한다.
 # cwd가 프로젝트 밖이 아니라 안이라서 git·상대경로도 평소대로 동작한다.
@@ -851,7 +796,7 @@ done
 # cwd가 홈 디렉터리 아래이면 그대로 로드된다(실측). 파인 cwd는 항상
 # $PROJECT_DIR/.team/{역할} 이므로 전역 규칙은 계속 들어온다.
 # 즉 여기서 줄어드는 것은 gstack 스킬 frontmatter와 플러그인·에이전트 정의다.
-echo -e "\n${YELLOW}[4/7] 역할별 스킬 제한...${NC}"
+echo -e "\n${YELLOW}[4/6] 역할별 스킬 제한...${NC}"
 
 # 역할 → 허용 스킬 목록. 값이 비면 gstack 스킬을 하나도 주지 않는다는 뜻이고,
 # 키 자체가 없으면 제한하지 않는다(전역 스킬 전체 유지).
@@ -975,10 +920,10 @@ fi
 # 위 Claude 블록에 이어 이 블록도 실행된다(일부 역할만 codex인 경우 등).
 if [ -n "${USED_AGENTS[codex]:-}" ]; then
 
-# ── [1-4/7] Codex 런타임 준비 ──────────────────────────────
+# ── [1-4/6] Codex 런타임 준비 ──────────────────────────────
 # Codex에는 Claude 플러그인을 재사용하지 않는다. standalone 스킬과 Codex 공식
 # 플러그인의 허용된 기능만 역할별 .agents/skills 또는 격리된 CODEX_HOME에 넣는다.
-echo -e "\n${YELLOW}[1-4/7] Codex 런타임 준비...${NC}"
+echo -e "\n${YELLOW}[1-4/6] Codex 런타임 준비...${NC}"
 
 merge_team_agents_md() {
     local src="$SCRIPT_DIR/AGENTS.md"
@@ -1146,8 +1091,8 @@ echo -e "${GREEN}✅ Codex 역할별 런타임 디렉터리 준비 완료${NC}"
 
 fi
 
-# ── [6/7] TMUX 세션 & 레이아웃 구성 ────────────────────────
-echo -e "\n${YELLOW}[6/7] TMUX 세션 & 레이아웃 구성...${NC}"
+# ── [5/6] TMUX 세션 & 레이아웃 구성 ────────────────────────
+echo -e "\n${YELLOW}[5/6] TMUX 세션 & 레이아웃 구성...${NC}"
 
 # -x 220 -y 50: main-vertical 레이아웃에서 파인 6개가 각각 읽을 만한 너비를
 # 확보하기 위한 최소 터미널 크기. tmux는 접속 클라이언트 크기로 윈도우를 다시
@@ -1200,8 +1145,8 @@ tmux set-option -t "$SESSION" mouse on
 
 echo "  ✅ 레이아웃 구성 완료 (${PANE_COUNT} panes)"
 
-# ── [7/7] 에이전트 자동 실행 ───────────────────────────────
-echo -e "\n${YELLOW}[7/7] 파인별 에이전트 실행 중 (${used_agents_list})... (파인당 최대 1분)${NC}"
+# ── [6/6] 에이전트 자동 실행 ───────────────────────────────
+echo -e "\n${YELLOW}[6/6] 파인별 에이전트 실행 중 (${used_agents_list})... (파인당 최대 1분)${NC}"
 
 # codex의 --add-dir는 존재하는 경로만 받는다. say의 lazy mkdir은
 # codex sandbox(workspace-write) 안에서 막히므로 파인 기동 전에 미리 만든다.
@@ -1235,7 +1180,7 @@ done
 # 워처는 실행 시점의 MEMBER_NAMES/MEMBER_DISPLAY_NAMES/PANE_COUNT를 값으로 들고 도는 백그라운드
 # 루프인데, 이름으로 잡으면 팀 구성을 바꿔 재실행할 때 옛 워처가 새 세션에
 # 옛 이름을 덮어쓴다: 세션을 kill해도 옛 워처는 sleep 중이라 최대 1초 뒤에야
-# has-session을 다시 확인하고, 그 사이 [6/7]이 같은 이름으로 새 세션을 만들면
+# has-session을 다시 확인하고, 그 사이 [5/6]이 같은 이름으로 새 세션을 만들면
 # 깨어난 옛 워처의 has-session이 새 세션에 true가 되어 계속 살아버린다.
 # (이 잔존 워처는 pkill -f로도 못 죽인다 — `( ... ) &` 서브셸은 부모의 argv를
 #  그대로 물려받아 루프 본문이 커맨드라인에 나타나지 않기 때문이다.)

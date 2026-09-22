@@ -5,7 +5,7 @@
 # Dockerfile + setup-docker.sh가 컨테이너 안에서 하던 의존성 설치를
 # WSL에 그대로 설치한다(격리 없이). volume 덮어쓰기 문제가 없으므로
 # /opt 우회 경로 없이 기본 경로(~/.local, ~/.bun 등)에 설치한다.
-# 설치 후 setup-team.sh를 그대로 실행해 tmux 팀 세션을 구성한다.
+# 설치 후 setup-team.sh를 실행할 수 있도록 tmux 팀 세션의 의존성을 준비한다.
 #
 # 사용:
 #   ./setup-native.sh [--agent claude|codex] [프로젝트_경로]
