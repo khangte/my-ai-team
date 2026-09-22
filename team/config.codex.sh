@@ -1,25 +1,10 @@
-# team/config.codex.sh — Codex 역할별 기본 설정
-#
-# 특정 모델을 역할별로 고정하려면 대상 프로젝트에
-# team/config.codex.sh를 만들고 아래 배열·배분표를 선언한다.
+# team/config.codex.sh — Codex 역할별 스킬 배분
 
-declare -a MEMBER_MODELS=(
-    "gpt-5.6-terra"     # lead
-    "gpt-5.6-sol"       # architect
-    "gpt-5.6-luna"      # researcher
-    "gpt-5.6-terra"     # designer
-    "gpt-5.6-terra"     # developer
-    "gpt-5.6-sol"       # reviewer
-)
-
-declare -a MEMBER_REASONING_EFFORTS=(
-    "medium"
-    "high"
-    "medium"
-    "medium"
-    "high"
-    "high"
-)
+# 대상 프로젝트에 같은 파일을 두면 스킬 배분을 덮어쓸 수 있다. 모델·추론강도는
+# 여기서 다루지 않는다 — team/config.sh의 MEMBERS가 유일한 출처다
+# ("표시이름|agent|model|effort"). 인원을 늘리거나 줄일 때 이 파일은 건드릴
+# 필요 없다(단, 역할 이름 자체를 새로 만들면 아래 배분표에 그 역할 키를
+# 추가해야 스킬이 배정된다).
 
 # 역할 → 역할 전용으로 추가할 standalone Codex 스킬.
 declare -A CODEX_SKILL_SETS=()

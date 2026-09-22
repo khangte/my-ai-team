@@ -1,30 +1,10 @@
-# team/config.claude.sh — Claude 역할별 기본 설정
-#
-# 대상 프로젝트에 같은 파일을 두면 모델·플러그인·스킬 배분을 덮어쓸 수 있다.
-# 모델 배열 길이는 team/config.sh의 MEMBER_NAMES와 같아야 한다.
+# team/config.claude.sh — Claude 역할별 플러그인·스킬 배분
 
-declare -a MEMBER_MODELS=(
-    # lead는 직접 작업하지 않고 배분·수합만 하지만 모든 보고가 모여 컨텍스트가
-    # 가장 빨리 불어나는 파인이다. 비싼 모델 × 최장 컨텍스트 조합을 피해 Sonnet을 쓴다.
-    # 깊은 판단이 필요한 쪽은 architect이므로 그쪽만 Opus로 둔다.
-    "claude-sonnet-5"   # lead (팀장 — 판단·조율 중심)
-    "claude-opus-4-8"   # architect (PM — 설계·추론 중심)
-    "claude-haiku-4-5"   # researcher
-    "claude-sonnet-5"   # designer
-    "claude-sonnet-5"   # developer
-    "claude-sonnet-5"   # reviewer
-)
-
-# 역할별 추론 강도. 값: low, medium, high, xhigh, max. 빈 문자열이면 --effort를
-# 넘기지 않아 CLI 기본값(사용자 settings.json의 effortLevel)을 그대로 쓴다.
-declare -a MEMBER_REASONING_EFFORTS=(
-    "medium"    # lead
-    "high"      # architect
-    "low"    # researcher
-    "medium"    # designer
-    "high"      # developer
-    "high"      # reviewer
-)
+# 대상 프로젝트에 같은 파일을 두면 플러그인·스킬 배분을 덮어쓸 수 있다.
+# 모델·추론강도는 여기서 다루지 않는다 — team/config.sh의 MEMBERS가
+# 유일한 출처다("표시이름|agent|model|effort"). 인원을 늘리거나 줄일 때 이
+# 파일은 건드릴 필요 없다(단, 역할 이름 자체를 새로 만들면 아래 배분표에
+# 그 역할 키를 추가해야 플러그인·스킬이 배정된다).
 
 # 마켓플레이스 이름 → GitHub 리포. 설치할 플러그인은 PLUGIN_ROLES에서
 # plugin@marketplace 형식으로 지정한다.

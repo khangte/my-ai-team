@@ -1,42 +1,50 @@
-# team/config.sh — 프로젝트 전용 팀 공통 구성 (setup-team.sh가 있으면 자동 로드)
+# team/config.sh — 프로젝트 전용 팀 구성 (setup-team.sh가 있으면 자동 로드)
+
+# 인원 추가·삭제·모델·추론강도 변경은 이 파일 하나만 고치면 된다. 역할마다
+# 한 줄로 "role|표시이름|agent|model|effort"를 선언하면 setup-team.sh가
+# MEMBER_NAMES, MEMBER_DISPLAY_NAMES, MEMBER_AGENTS, MEMBER_MODELS,
+# MEMBER_REASONING_EFFORTS로 풀어 쓴다. team/config.claude.sh·config.codex.sh는
+# 플러그인·스킬 배분표만 담당하며 모델은 선언하지 않는다 — 인원 증감 시 그
+# 두 파일은 건드릴 필요가 없다(단, 새 역할 이름을 만들 때는 그 배분표에도
+# 역할 키를 추가해야 플러그인·스킬이 배정된다).
 #
-# 인원 수·이름은 여기에서 정하고, 모델은 team/config.claude.sh 또는
-# team/config.codex.sh에서 정한다. 기존 Claude 프로젝트는 이 파일에
-# MEMBER_MODELS를 계속 두어도 호환되지만, 새 구성은 공급자별 파일을 권장한다.
+# 예: 인원을 4명으로 줄이려면 MEMBERS에서 두 줄만 지우면 된다.
 
 SESSION="team1"   # tmux 세션 이름 (프로젝트별로 변경 가능)
 
-declare -a MEMBER_NAMES=(
-    "lead"
-    "architect"
-    "researcher"
-    "designer"
-    "developer"
-    "reviewer"
+# "role|표시이름|agent|model|effort" — 배열 순서가 곧 파인 배치 순서다.
+#   - role: say 주소·파일명·디렉토리명에 쓰이는 직무 키.
+#   - 표시이름: tmux pane 제목에만 반영(say 주소는 role 그대로). 비우면 role 표시.
+#   - agent: claude 또는 codex. 비우면 --agent/TEAM_AGENT 기본값을 따른다.
+#   - model: 비우면 CLI에 --model을 넘기지 않아 사용자 기본 모델을 따른다.
+#   - effort: low/medium/high/xhigh/max. 비우면 --effort를 넘기지 않아
+#     CLI 기본값(Claude는 settings.json의 effortLevel)을 따른다.
+#
+# lead는 직접 작업하지 않고 배분·수합만 하지만 모든 보고가 모여 컨텍스트가
+# 가장 빨리 불어나는 파인이다. 비싼 모델 × 최장 컨텍스트 조합을 피해 Sonnet을
+# 쓴다. 깊은 판단이 필요한 쪽은 architect이므로 그쪽만 상위 모델을 둔다.
+declare -a MEMBERS=(
+    "lead|리드|claude|claude-sonnet-5|medium"
+    "architect|아키텍트|claude|claude-opus-4-8|high"
+    "researcher|리서쳐|claude|claude-haiku-4-5|medium"
+    "designer|디자이너|codex|gpt-5.6-terra|medium"
+    "developer|개발자|codex|gpt-5.6-terra|high"
+    "reviewer|리뷰어|claude|claude-sonnet-5|medium"
 )
 
-# MEMBER_NAMES(직무 키)와 같은 길이·순서로 표시용 사람 이름을 정한다.
-# say 주소·파일명·디렉토리명은 계속 MEMBER_NAMES(직무명)를 쓰고, 이 배열은
-# tmux pane 제목에만 반영된다. 미선언 시 직무명이 그대로 표시된다.
-declare -a MEMBER_DISPLAY_NAMES=(
-    "민혁"   # lead
-    "명준"   # architect
-    "동선"   # researcher
-    "하원"   # designer
-    "주빈"   # developer
-    "동민"   # reviewer
-)
+# ── 아래는 위 선언을 setup-team.sh/setup-native.sh가 쓰는 배열로 풀어내는
+#    어댑터다. 프로젝트에서 보통 건드릴 필요 없다.
+declare -a MEMBER_NAMES=()
+declare -a MEMBER_DISPLAY_NAMES=()
+declare -a MEMBER_AGENTS=()
+declare -a SPEC_MEMBER_MODELS=()
+declare -a SPEC_MEMBER_REASONING_EFFORTS=()
 
-# 파인별로 다른 에이전트를 지정하려면(혼합 팀) MEMBER_AGENTS를 MEMBER_NAMES와
-# 같은 길이로 선언한다. 빈 문자열은 --agent/TEAM_AGENT 기본값을 따른다.
-# 예: architect와 reviewer만 codex로 띄우고 나머지는 기본값 사용
-#   declare -a MEMBER_AGENTS=("" "codex" "" "" "" "codex")
-# 미선언 시 전체가 빈 값과 동일하게 취급되어 기존 단일 공급자 동작이 유지된다.
-declare -a MEMBER_AGENTS=(
-    "claude"   # lead
-    "claude"   # architect
-    "claude"   # researcher
-    "codex"   # designer
-    "codex"    # developer
-    "claude"   # reviewer
-)
+for spec in "${MEMBERS[@]}"; do
+    IFS='|' read -r role display agent model effort <<< "$spec"
+    MEMBER_NAMES+=("$role")
+    MEMBER_DISPLAY_NAMES+=("${display:-$role}")
+    MEMBER_AGENTS+=("$agent")
+    SPEC_MEMBER_MODELS+=("$model")
+    SPEC_MEMBER_REASONING_EFFORTS+=("$effort")
+done
