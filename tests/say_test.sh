@@ -146,4 +146,28 @@ test -f "$test_dir/busy/_7__15"
 test "$(grep -c 'wait for turn' "$test_dir/tmux.log" || true)" -eq 0
 rm -f "$test_dir/queue/demo_0_1"
 
+# Codex의 작업 중 표시는 Claude와 같은 경과시간 형식이므로 마커를 유지한다.
+touch "$test_dir/busy/_7__16"
+printf '%s\n' 'wait for Codex turn' > "$test_dir/queue/demo_0_1"
+FAKE_CAPTURE_SCREEN='• Planning work screen capture (13s • esc to interrupt)' \
+    FAKE_TMUX_STATE='$7:%16' "$repo_dir/bin/say" --drain-one demo:0.1
+test -f "$test_dir/busy/_7__16"
+test "$(grep -c 'wait for Codex turn' "$test_dir/tmux.log" || true)" -eq 0
+rm -f "$test_dir/queue/demo_0_1"
+
+# 스피너 없는 stale 마커는 시작 유예를 넘기면 회수해 즉시 전송한다.
+touch "$test_dir/busy/_7__17"
+touch -d '46 seconds ago' "$test_dir/busy/_7__17"
+FAKE_TMUX_STATE='$7:%17' "$repo_dir/bin/say" demo:0.1 'after stale marker'
+test "$(grep -c 'after stale marker' "$test_dir/tmux.log")" -eq 1
+test ! -e "$test_dir/queue/demo_0_1"
+
+# 스피너가 아직 렌더되지 않은 시작 직후에는 마커를 유지한다.
+touch "$test_dir/busy/_7__18"
+printf '%s\n' 'within startup grace' > "$test_dir/queue/demo_0_1"
+FAKE_TMUX_STATE='$7:%18' "$repo_dir/bin/say" --drain-one demo:0.1
+test -f "$test_dir/busy/_7__18"
+test -s "$test_dir/queue/demo_0_1"
+rm -f "$test_dir/queue/demo_0_1"
+
 echo 'say tests passed'
