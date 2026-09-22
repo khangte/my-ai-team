@@ -306,7 +306,7 @@ start_claude_in_pane() {
         if [ "$role" = "lead" ]; then
             local team_table="## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 지시 방법 |"$'\n'"| --- | --- |"
             for ((m = 1; m < ${#MEMBER_NAMES[@]}; m++)); do
-                local say_name="${MEMBER_DISPLAY_NAMES[$m]:-${MEMBER_NAMES[$m]}}"
+                local say_name="${MEMBER_NAMES[$m]}"
                 team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${say_name} \"...\" |"
             done
             role_content="${role_content}"$'\n\n'"${team_table}"
@@ -494,7 +494,7 @@ write_codex_role_agents() {
         local team_table="## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 지시 방법 |"$'\n'"| --- | --- |"
         local m say_name
         for ((m = 1; m < ${#MEMBER_NAMES[@]}; m++)); do
-            say_name="${MEMBER_DISPLAY_NAMES[$m]:-${MEMBER_NAMES[$m]}}"
+            say_name="${MEMBER_NAMES[$m]}"
             team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${say_name} \"...\" |"
         done
         role_content="${role_content}"$'\n\n'"${team_table}"
@@ -1181,11 +1181,19 @@ tmux select-layout -t "$SESSION:0" main-vertical
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
     display_name="${MEMBER_DISPLAY_NAMES[$pane]:-${MEMBER_NAMES[$pane]}}"
     tmux select-pane -t "$SESSION:0.$pane" -T "${display_name^^}"
+    tmux set-option -p -t "$SESSION:0.$pane" @role "${MEMBER_NAMES[$pane]}"
+    # pane_title은 에이전트 CLI의 OSC 제목 변경 대상이다. 테두리에 보일
+    # 이름은 별도 pane 옵션으로 보관해야 CLI 제목과 경합하지 않는다.
+    tmux set-option -p -t "$SESSION:0.$pane" @display_name "${display_name^^}"
 done
 
 # 파인 제목 표시 설정
 tmux set-option -t "$SESSION" pane-border-status top
-tmux set-option -t "$SESSION" pane-border-format " #{pane_title} "
+tmux set-option -t "$SESSION" pane-border-format " #{@display_name} "
+# 에이전트가 pane_title을 작업명·프로젝트명으로 바꿔도 외부 터미널 제목과
+# 파인 테두리는 표시이름만 사용한다.
+tmux set-option -t "$SESSION" set-titles on
+tmux set-option -t "$SESSION" set-titles-string "#{@display_name}"
 tmux set-option -t "$SESSION" allow-rename off
 # 마우스 휠 스크롤·파인 클릭 전환 (tmux 기본값이 off라 켜주지 않으면 스크롤이 안 먹는다)
 tmux set-option -t "$SESSION" mouse on
@@ -1224,7 +1232,7 @@ done
 # 씹히는 경우가 있다. 그래서 현재 타이틀이 원하는 값과 실제로 다를 때만 호출한다.
 #
 # 생존 조건과 대상은 세션 '이름'이 아니라 세션 ID($SESSION_ID)로 잡는다.
-# 워처는 실행 시점의 MEMBER_NAMES/PANE_COUNT를 값으로 들고 도는 백그라운드
+# 워처는 실행 시점의 MEMBER_NAMES/MEMBER_DISPLAY_NAMES/PANE_COUNT를 값으로 들고 도는 백그라운드
 # 루프인데, 이름으로 잡으면 팀 구성을 바꿔 재실행할 때 옛 워처가 새 세션에
 # 옛 이름을 덮어쓴다: 세션을 kill해도 옛 워처는 sleep 중이라 최대 1초 뒤에야
 # has-session을 다시 확인하고, 그 사이 [6/7]이 같은 이름으로 새 세션을 만들면
@@ -1233,10 +1241,15 @@ done
 #  그대로 물려받아 루프 본문이 커맨드라인에 나타나지 않기 때문이다.)
 # 세션 ID는 세션을 만들 때마다 새로 발급되므로 옛 세션이 죽으면 옛 워처의
 # 조건도 확실히 false가 되고, 새 세션을 건드릴 수단 자체가 없다.
+# busy 마커가 있는 동안에는 CLI가 세팅한 작업 제목을 보존한다. Stop 훅이
+# 마커를 지운 다음 유휴 루프에서만 표시이름으로 되돌린다.
 (
     while tmux has-session -t "$SESSION_ID" 2>/dev/null; do
         for ((pane = 0; pane < PANE_COUNT; pane++)); do
-            want="${MEMBER_NAMES[$pane]^^}"
+            state_key="$(pane_state_key "$SESSION_ID:0.$pane")"
+            [ -f "/tmp/team-busy/$state_key" ] && continue
+            want="${MEMBER_DISPLAY_NAMES[$pane]:-${MEMBER_NAMES[$pane]}}"
+            want="${want^^}"
             current="$(tmux display-message -p -t "$SESSION_ID:0.$pane" '#{pane_title}' 2>/dev/null)"
             [ "$current" = "$want" ] || tmux select-pane -t "$SESSION_ID:0.$pane" -T "$want" 2>/dev/null
         done

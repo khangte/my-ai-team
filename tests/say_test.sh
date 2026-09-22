@@ -37,7 +37,10 @@ case "$1" in
         fi
         ;;
     list-panes)
-        printf '1 ARCHITECT\n'
+        case "$*" in
+            *'#{@role}'*) printf '%s\n' "${FAKE_ROLE_PANES:-1 architect}" ;;
+            *) printf '%s\n' "${FAKE_TITLE_PANES:-1 ARCHITECT}" ;;
+        esac
         ;;
 esac
 EOF
@@ -49,6 +52,16 @@ export SAY_REPORT_DIR="$test_dir/report"
 export SAY_QUEUE_DIR="$test_dir/queue"
 export FAKE_TMUX_LOG="$test_dir/tmux.log"
 export FAKE_ENTER_COUNT_FILE="$test_dir/enter-count"
+
+# 역할 주소는 표시용 제목보다 pane @role을 우선한다.
+FAKE_ROLE_PANES='1 architect' FAKE_TITLE_PANES='1 DISPLAY_NAME' FAKE_TMUX_STATE='$7:%10' \
+    "$repo_dir/bin/say" architect 'role-addressed message'
+grep -q -- '-t :0.1 -l -- role-addressed message' "$test_dir/tmux.log"
+
+# @role이 없는 기존 pane은 이전처럼 제목으로 찾아야 한다.
+FAKE_ROLE_PANES='2 ' FAKE_TITLE_PANES='2 ARCHITECT' FAKE_TMUX_STATE='$7:%9' \
+    "$repo_dir/bin/say" architect 'title-fallback message'
+grep -q -- '-t :0.2 -l -- title-fallback message' "$test_dir/tmux.log"
 
 # 이전 세대 marker는 현재 tmux 고유 ID와 키가 다르므로 전송을 막지 않는다.
 touch "$test_dir/busy/_6__10"
