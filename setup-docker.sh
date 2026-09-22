@@ -62,18 +62,14 @@ esac
 
 PROJECT_DIR="${PROJECT_ARG:?사용법: ./setup-docker.sh [--agent claude|codex] <project-path>}"
 PROJECT_DIR="$(realpath "$PROJECT_DIR")"
-
-# # ── API 키 확인 ──────────────────────────────────────────────
-# if [ -z "$ANTHROPIC_API_KEY" ]; then
-#     echo -e "${RED}❌ ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.${NC}"
-#     echo "   export ANTHROPIC_API_KEY='sk-ant-...'"
-#     exit 1
-# fi
-# echo -e "${GREEN}✅ API 키 확인 완료${NC}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── 이미지 빌드 ─────────────────────────────────────────────
 echo -e "${YELLOW}이미지 빌드 중...${NC}"
-docker build -t "$IMAGE" .
+# 빌드 컨텍스트는 호출한 현재 디렉터리가 아니라 이 스크립트가 있는 ai-setup
+# 저장소다. 대상 프로젝트 디렉터리에서 절대·상대 경로로 호출해도 Dockerfile과
+# setup-team.sh 등 이미지에 복사할 파일을 항상 같은 곳에서 찾는다.
+docker build -t "$IMAGE" "$SCRIPT_DIR"
 
 echo -e "${GREEN}✅ 이미지 준비 완료 ($IMAGE)${NC}"
 
@@ -93,10 +89,10 @@ docker volume create claude-home >/dev/null
 # sleep infinity로 컨테이너를 계속 살려두고, 실제 작업은 아래 docker exec로 진행한다
 # (컨테이너 자체의 CMD를 대화형 셸로 만들지 않는 이유).
 docker run -d --name "$CONTAINER" \
-  -v "$PROJECT_DIR":/workspace \
-  -v claude-home:/home/user \
-  "$IMAGE" \
-  sleep infinity
+    -v "$PROJECT_DIR":/workspace \
+    -v claude-home:/home/user \
+    "$IMAGE" \
+    sleep infinity
 #   -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
 
 echo -e "${GREEN}✅ 컨테이너 기동 완료 ($CONTAINER)${NC}"
