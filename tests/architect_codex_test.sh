@@ -3,15 +3,18 @@ set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# 기본 혼합 팀은 architect와 reviewer만 Codex다.
+# 기본 혼합 팀은 designer와 developer만 Codex다.
 source "$repo_dir/team/config.sh"
-test "${MEMBER_AGENTS[1]}" = "codex"
-test "${MEMBER_AGENTS[5]}" = "codex"
+test "${MEMBER_AGENTS[3]}" = "codex"
+test "${MEMBER_AGENTS[4]}" = "codex"
 
-# architect는 flagship 모델과 깊은 추론을 사용한다.
+# developer는 flagship 모델과 깊은 추론을 사용한다. 모델·추론강도는
+# team/config.sh의 MEMBERS가 유일한 출처다.
+test "${SPEC_MEMBER_MODELS[4]}" = "gpt-5.6-terra"
+test "${SPEC_MEMBER_REASONING_EFFORTS[4]}" = "high"
+
+# config.codex.sh는 스킬·플러그인 배분표만 담당한다(모델은 선언하지 않는다).
 source "$repo_dir/team/config.codex.sh"
-test "${MEMBER_MODELS[1]}" = "gpt-5.6-sol"
-test "${MEMBER_REASONING_EFFORTS[1]}" = "high"
 
 # 자체 제작 standalone 스킬은 배정하지 않는다.
 test "${#CODEX_SKILL_SETS[@]}" -eq 0

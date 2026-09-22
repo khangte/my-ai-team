@@ -4,8 +4,9 @@
 #
 # setup-docker.sh가 컨테이너 기동 후 `docker exec`로 호출한다(직접 실행도 가능).
 # --agent/TEAM_AGENT는 팀 전체의 기본 공급자를 정하고, team/config.sh의
-# MEMBER_AGENTS 배열로 파인별로 다른 공급자를 지정할 수 있다(혼합 팀). 예:
-# reviewer 파인만 Codex, 나머지는 기본값(Claude)으로 띄우는 구성.
+# MEMBERS("role|표시이름|agent|model|effort")로 역할별 공급자를 지정할
+# 수 있다(혼합 팀). 예: developer 파인만 Codex, 나머지는 기본값(Claude)으로
+# 띄우는 구성.
 #
 # 단계:
 #   [0] 실제로 사용되는 공급자(USED_AGENTS) 전부의 사전 요구사항·로그인 확인
@@ -21,9 +22,9 @@
 # 사용:
 #   ./setup-team.sh [--agent claude|codex] [프로젝트_경로]
 #   프로젝트_경로 생략 시 $PROJECT_DIR(기본 ~/project) 사용.
-#   (팀원 구성을 바꾸려면 MEMBER_NAMES 배열을, 파인별 공급자를 바꾸려면
-#    MEMBER_AGENTS 배열을 프로젝트 루트의 team/config.sh에서 선언하면 됨.
-#    모델은 team/config.{agent}.sh에서 정한다)
+#   (인원·표시이름·공급자·모델·추론강도는 프로젝트 루트의 team/config.sh에서
+#    MEMBERS로 한 번에 선언하면 됨. team/config.{agent}.sh는 플러그인·
+#    스킬 배분표만 다룬다)
 
 set -e
 
@@ -119,11 +120,20 @@ BIN_DIR="$SCRIPT_DIR/bin"   # say·log-hook — 오버라이드 대상이 아닌
 # $TEAM_AGENT(전역 기본값)를 따른다. 미선언 프로젝트는 전부 빈 값과 동일하게
 # 취급되어 기존 단일 공급자 동작이 유지된다.
 #
-# 과거 Claude 프로젝트는 team/config.sh의 MEMBER_MODELS를 계속 쓸 수 있다. 그
-# 호환 값은 Claude에만 적용하며, Codex의 공급자 기본 모델과 절대 섞지 않는다.
-declare -a MEMBER_NAMES=("lead" "architect" "researcher" "designer" "developer" "reviewer")
+# 인원·모델·추론강도는 team/config.sh의 MEMBERS가 유일한
+# 출처다(역할별 "role|표시이름|agent|model|effort" 한 줄). config.sh가 이를
+# 풀어 MEMBER_NAMES/MEMBER_DISPLAY_NAMES/MEMBER_AGENTS/SPEC_MEMBER_MODELS/
+# SPEC_MEMBER_REASONING_EFFORTS를 채운다. team/config.claude.sh·config.codex.sh는
+# 플러그인·스킬 배분표만 담당하고 모델·추론강도는 선언하지 않는다 — 인원
+# 증감 시 그 두 파일은 건드릴 필요가 없다.
+#
+# MEMBER_NAMES는 여기서 미리 선언하지 않는다 — team/config.sh가 MEMBERS를
+# 풀며 MEMBER_NAMES와 SPEC_MEMBER_MODELS/EFFORTS를 함께 채우므로, 하나만
+# 하드코딩해 두면 나머지가 비어 있는 반쪽 상태로 아래 길이 체크에서 죽는다.
+declare -a MEMBER_NAMES=()
 declare -a MEMBER_AGENTS=()
-declare -a LEGACY_CLAUDE_MEMBER_MODELS=()
+declare -a SPEC_MEMBER_MODELS=()
+declare -a SPEC_MEMBER_REASONING_EFFORTS=()
 
 common_config="$TEAM_DIR/config.sh"
 [ -f "$common_config" ] && source "$common_config"
@@ -132,17 +142,23 @@ project_common_config="$PROJECT_DIR/team/config.sh"
 if [ -f "$project_common_config" ]; then
     echo -e "${YELLOW}team/config.sh 발견 → 프로젝트별 팀 구성 사용: $project_common_config${NC}"
     source "$project_common_config"
-else
-    echo -e "${CYAN}team/config.sh 없음 → 기본 팀 구성 사용${NC}"
 fi
 
-# 공통 설정에 남아 있을 수 있는 기존 Claude 모델 배열을 보관해 둔다 — 아래
-# config.claude.sh 로딩 뒤 MEMBER_MODELS가 비어 있으면 이 값으로 되돌린다.
-if [ "${#MEMBER_MODELS[@]}" -gt 0 ]; then
-    LEGACY_CLAUDE_MEMBER_MODELS=("${MEMBER_MODELS[@]}")
+if [ "${#MEMBER_NAMES[@]}" -eq 0 ]; then
+    echo -e "${RED}❌ team/config.sh를 찾을 수 없습니다 (${common_config} 또는 ${project_common_config}).${NC}"
+    exit 1
 fi
 
 PANE_COUNT=${#MEMBER_NAMES[@]}
+
+if [ "${#SPEC_MEMBER_MODELS[@]}" -ne "$PANE_COUNT" ]; then
+    echo -e "${RED}❌ MEMBER_NAMES(${PANE_COUNT}개)와 MEMBER_MODELS(${#SPEC_MEMBER_MODELS[@]}개) 길이가 다릅니다. team/config.sh의 MEMBERS를 확인하세요.${NC}"
+    exit 1
+fi
+if [ "${#SPEC_MEMBER_REASONING_EFFORTS[@]}" -ne "$PANE_COUNT" ]; then
+    echo -e "${RED}❌ MEMBER_NAMES(${PANE_COUNT}개)와 MEMBER_REASONING_EFFORTS(${#SPEC_MEMBER_REASONING_EFFORTS[@]}개) 길이가 다릅니다. team/config.sh의 MEMBERS를 확인하세요.${NC}"
+    exit 1
+fi
 
 if [ "${#MEMBER_AGENTS[@]}" -eq 0 ]; then
     for ((i = 0; i < PANE_COUNT; i++)); do
@@ -172,50 +188,18 @@ for ((i = 0; i < PANE_COUNT; i++)); do
     USED_AGENTS["$a"]=1
 done
 
-# 공급자별 모델·추론 수준 배열을 파인 수만큼, 공급자별 이름공간에 각각 로딩한다.
-# 혼합 팀은 두 공급자 설정을 모두 읽어야 하므로 하나의 $TEAM_AGENT 분기가 아니라
-# USED_AGENTS에 실제로 쓰이는 공급자마다 독립적으로 해석한다.
-declare -A PROVIDER_MEMBER_MODELS=()
-declare -A PROVIDER_MEMBER_REASONING_EFFORTS=()
-
+# 모델·추론강도는 이미 MEMBERS에서 role별로 확정됐으므로, 파인 인덱스
+# 그대로 참조한다(SPEC_MEMBER_MODELS/EFFORTS). 아래에서는 플러그인·스킬 배분표
+# (PLUGIN_ROLES, GSTACK_SKILL_SETS 등)만 공급자별로 로딩한다.
 for agent in "${!USED_AGENTS[@]}"; do
-    MEMBER_MODELS=()
-    MEMBER_REASONING_EFFORTS=()
-
     provider_config="$TEAM_DIR/config.${agent}.sh"
     [ -f "$provider_config" ] && source "$provider_config"
-
-    if [ "$agent" = "claude" ] && [ "${#MEMBER_MODELS[@]}" -eq 0 ] && [ "${#LEGACY_CLAUDE_MEMBER_MODELS[@]}" -gt 0 ]; then
-        MEMBER_MODELS=("${LEGACY_CLAUDE_MEMBER_MODELS[@]}")
-    fi
 
     project_provider_config="$PROJECT_DIR/team/config.${agent}.sh"
     if [ -f "$project_provider_config" ]; then
         echo -e "${YELLOW}team/config.${agent}.sh 발견 → 공급자별 구성 사용: $project_provider_config${NC}"
         source "$project_provider_config"
     fi
-
-    if [ "${#MEMBER_MODELS[@]}" -eq 0 ]; then
-        # 빈 모델명은 CLI에 --model을 넘기지 않아 사용자의 기본 모델을 사용한다.
-        for ((i = 0; i < PANE_COUNT; i++)); do MEMBER_MODELS+=(""); done
-    fi
-    if [ "${#MEMBER_REASONING_EFFORTS[@]}" -eq 0 ]; then
-        for ((i = 0; i < PANE_COUNT; i++)); do MEMBER_REASONING_EFFORTS+=(""); done
-    fi
-
-    if [ "${#MEMBER_MODELS[@]}" -ne "$PANE_COUNT" ]; then
-        echo -e "${RED}❌ MEMBER_NAMES(${PANE_COUNT}개)와 $agent MEMBER_MODELS(${#MEMBER_MODELS[@]}개) 길이가 다릅니다.${NC}"
-        exit 1
-    fi
-    if [ "${#MEMBER_REASONING_EFFORTS[@]}" -ne "$PANE_COUNT" ]; then
-        echo -e "${RED}❌ MEMBER_NAMES(${PANE_COUNT}개)와 $agent MEMBER_REASONING_EFFORTS(${#MEMBER_REASONING_EFFORTS[@]}개) 길이가 다릅니다.${NC}"
-        exit 1
-    fi
-
-    for ((i = 0; i < PANE_COUNT; i++)); do
-        PROVIDER_MEMBER_MODELS["${agent}:${i}"]="${MEMBER_MODELS[$i]}"
-        PROVIDER_MEMBER_REASONING_EFFORTS["${agent}:${i}"]="${MEMBER_REASONING_EFFORTS[$i]}"
-    done
 done
 
 # ── 유틸: 파인에 패턴이 나타날 때까지 대기 ──────────────────
@@ -1216,9 +1200,9 @@ for ((pane = 0; pane < PANE_COUNT; pane++)); do
     pane_agent="${MEMBER_AGENTS[$pane]}"
     echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}, ${pane_agent}): "
     if [ "$pane_agent" = "claude" ]; then
-        start_claude_in_pane "$SESSION:0.$pane" "${PROVIDER_MEMBER_MODELS[claude:$pane]}" "${MEMBER_NAMES[$pane]}" "${PROVIDER_MEMBER_REASONING_EFFORTS[claude:$pane]}"
+        start_claude_in_pane "$SESSION:0.$pane" "${SPEC_MEMBER_MODELS[$pane]}" "${MEMBER_NAMES[$pane]}" "${SPEC_MEMBER_REASONING_EFFORTS[$pane]}"
     else
-        start_codex_in_pane "$SESSION:0.$pane" "${PROVIDER_MEMBER_MODELS[codex:$pane]}" "${MEMBER_NAMES[$pane]}" "${PROVIDER_MEMBER_REASONING_EFFORTS[codex:$pane]}"
+        start_codex_in_pane "$SESSION:0.$pane" "${SPEC_MEMBER_MODELS[$pane]}" "${MEMBER_NAMES[$pane]}" "${SPEC_MEMBER_REASONING_EFFORTS[$pane]}"
     fi
 
     # 이전 watcher가 비정상 종료돼 큐와 lock만 남았더라도 새 파인이 준비된
