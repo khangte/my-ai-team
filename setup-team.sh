@@ -10,11 +10,13 @@
 #
 # 단계:
 #   [0] 실제로 사용되는 공급자(USED_AGENTS) 전부의 사전 요구사항·로그인 확인
+#       확인 직후 기존 tmux 세션을 정리한다 — 살아있는 파인이 .team/{역할}/
+#       아래에 계속 쓰는 상태로 .team/ 삭제를 돌리면 경합으로 실패하기 때문에,
+#       그 삭제보다 먼저 끝내 둔다.
 #   [1-3] Claude 사용 시: rtk·gstack·Claude 플러그인 준비
 #   [1-4] Codex 사용 시: AGENTS.md 병합, 역할별 스킬·lifecycle 훅 준비
 #         (두 블록은 혼합 팀에서 순서대로 모두 실행되며 .team/ 삭제는 한 번만 한다)
 #   [4] Claude 사용 시: 팀 공통 지침을 CLAUDE.md에 병합하고 역할별 런타임 디렉터리 구성
-#   [5] 기존 tmux 세션 정리
 #   [6] MEMBER_NAMES 배열 기준으로 파인을 분할하고 이름 부여
 #   [7] 각 파인에서 파인별 MEMBER_AGENTS[i]가 가리키는 CLI를 해당 모델로 실행
 #       및 tmux가 파인 타이틀을 스피너로 덮어쓰는 문제를 막기 위한 타이틀 워처 기동
@@ -686,6 +688,23 @@ if [ -n "${USED_AGENTS[codex]:-}" ]; then
     fi
 fi
 
+# 기존 tmux 세션을 .team/ 삭제보다 먼저 정리한다. 살아있는 Codex/Claude 파인이
+# .team/{역할}/.codex-home 등에 소켓·로그를 계속 쓰는 상태로 아래 rm -rf를
+# 돌리면 "Directory not empty"로 삭제가 실패하는 경우가 실측됐다(경합).
+tmux has-session -t "$SESSION" 2>/dev/null && {
+    tmux kill-session -t "$SESSION"
+    # kill-session은 요청만 던지고 바로 리턴한다. tmux 서버가 소켓 정리를
+    # 끝내기 전에 아래 rm -rf나 [6/7]의 new-session -s "$SESSION"이 뜨면
+    # 레이스로 실패하는 경우가 실측됐다(set -e라 스크립트 전체가 죽는다).
+    # has-session이 실제로 false를 반환할 때까지 짧게 폴링해 정리 완료를 기다린다.
+    for _ in $(seq 1 20); do
+        tmux has-session -t "$SESSION" 2>/dev/null || break
+        sleep 0.2
+    done
+    echo ""
+    echo "  기존 '$SESSION' 세션 종료"
+}
+
 # .team/ 런타임 루트는 두 공급자 블록이 공유한다. 혼합 팀에서 각 블록이
 # 자기 시작점에서 매번 rm -rf하면 먼저 실행된 블록의 결과물이 지워지므로,
 # 삭제는 여기서 한 번만 하고 두 블록은 각자 자기 역할분만 채운다.
@@ -1126,22 +1145,6 @@ done
 echo -e "${GREEN}✅ Codex 역할별 런타임 디렉터리 준비 완료${NC}"
 
 fi
-
-# ── [5/7] 기존 세션 정리 ────────────────────────────────────
-echo -e "\n${YELLOW}[5/7] 기존 세션 초기화...${NC}"
-
-tmux has-session -t "$SESSION" 2>/dev/null && {
-    tmux kill-session -t "$SESSION"
-    # kill-session은 요청만 던지고 바로 리턴한다. tmux 서버가 소켓 정리를
-    # 끝내기 전에 [6/7]의 new-session -s "$SESSION"이 같은 이름으로 뜨면
-    # 레이스로 실패하는 경우가 실측됐다(set -e라 스크립트 전체가 죽는다).
-    # has-session이 실제로 false를 반환할 때까지 짧게 폴링해 정리 완료를 기다린다.
-    for _ in $(seq 1 20); do
-        tmux has-session -t "$SESSION" 2>/dev/null || break
-        sleep 0.2
-    done
-    echo "  기존 '$SESSION' 세션 종료"
-}
 
 # ── [6/7] TMUX 세션 & 레이아웃 구성 ────────────────────────
 echo -e "\n${YELLOW}[6/7] TMUX 세션 & 레이아웃 구성...${NC}"
