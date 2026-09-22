@@ -117,7 +117,7 @@ fi
 case ":$PATH:" in
     *":$HOME/.local/bin:"*) ;;
     *) export PATH="$HOME/.local/bin:$PATH"
-       echo "  ⚠️  ~/.local/bin이 PATH에 없습니다. ~/.bashrc에 추가하세요: export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
+        echo "  ⚠️  ~/.local/bin이 PATH에 없습니다. ~/.bashrc에 추가하세요: export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
 esac
 
 if [ "$NEED_CLAUDE" = true ]; then

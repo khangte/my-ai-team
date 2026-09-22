@@ -93,10 +93,10 @@ docker volume create claude-home >/dev/null
 # sleep infinity로 컨테이너를 계속 살려두고, 실제 작업은 아래 docker exec로 진행한다
 # (컨테이너 자체의 CMD를 대화형 셸로 만들지 않는 이유).
 docker run -d --name "$CONTAINER" \
-  -v "$PROJECT_DIR":/workspace \
-  -v claude-home:/home/user \
-  "$IMAGE" \
-  sleep infinity
+    -v "$PROJECT_DIR":/workspace \
+    -v claude-home:/home/user \
+    "$IMAGE" \
+    sleep infinity
 #   -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
 
 echo -e "${GREEN}✅ 컨테이너 기동 완료 ($CONTAINER)${NC}"
