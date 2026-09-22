@@ -3,15 +3,23 @@ set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# 기본 혼합 팀은 designer와 developer만 Codex다.
+# 현재 팀 구성에서 developer는 Codex다. 배열 위치가 아니라 역할로 찾으므로
+# config.sh에서 인원을 증감해도 이 계약은 유지된다.
 source "$repo_dir/team/config.sh"
-test "${MEMBER_AGENTS[3]}" = "codex"
-test "${MEMBER_AGENTS[4]}" = "codex"
+developer_index=""
+for ((member_index = 0; member_index < ${#MEMBER_NAMES[@]}; member_index++)); do
+    if [ "${MEMBER_NAMES[$member_index]}" = "developer" ]; then
+        developer_index="$member_index"
+        break
+    fi
+done
+test -n "$developer_index"
+test "${MEMBER_AGENTS[$developer_index]}" = "codex"
 
 # developer는 flagship 모델과 깊은 추론을 사용한다. 모델·추론강도는
 # team/config.sh의 MEMBERS가 유일한 출처다.
-test "${SPEC_MEMBER_MODELS[4]}" = "gpt-5.6-terra"
-test "${SPEC_MEMBER_REASONING_EFFORTS[4]}" = "high"
+test "${SPEC_MEMBER_MODELS[$developer_index]}" = "gpt-5.6-terra"
+test "${SPEC_MEMBER_REASONING_EFFORTS[$developer_index]}" = "high"
 
 # config.codex.sh는 스킬·플러그인 배분표만 담당한다(모델은 선언하지 않는다).
 source "$repo_dir/team/config.codex.sh"
