@@ -1,43 +1,42 @@
 # My AI team
 
 - Claude Code 또는 Codex 인스턴스 여러 개를 tmux 파인에 띄우는 오케스트레이션 셋업
-- 구성: 팀장 1명 + 팀원 5명의 멀티에이전트 팀
+- 구성: `team/config.sh`의 `MEMBERS`에 선언한 역할로 만드는 멀티에이전트 팀
+  (기본값은 lead·developer·reviewer 3인, 필요하면 architect·researcher·designer를 추가)
 
 ## 구조
 
 ![팀 구조: lead가 배분하고 architect·researcher·designer·developer·reviewer 5개 역할이 병렬로 붙는다](images/team-architecture.svg)
 
-| 역할       | 담당                                                             |
-| ---------- | ---------------------------------------------------------------- |
-| lead       | 배분·수합·git 커밋 (직접 작업하지 않음)                          |
-| architect  | 설계·기술 판단, 설계 이탈 승인                                   |
-| researcher | 웹 조사                                                          |
-| designer   | UI/UX 설계 + **프론트엔드 구현** (마크업·스타일·컴포넌트)        |
-| developer  | **백엔드 구현** (API·DB·테스트·빌드)                             |
-| reviewer   | 코드 리뷰·QA·커버리지 판정                                       |
+| 역할       | 담당                                                      |
+| ---------- | --------------------------------------------------------- |
+| lead       | 배분·수합·git 커밋 (직접 작업하지 않음)                   |
+| architect  | 설계·기술 판단, 설계 이탈 승인                            |
+| researcher | 웹 조사                                                   |
+| designer   | UI/UX 설계 + **프론트엔드 구현** (마크업·스타일·컴포넌트) |
+| developer  | **백엔드 구현** (API·DB·테스트·빌드)                      |
+| reviewer   | 코드 리뷰·QA·커버리지 판정                                |
 
 designer와 developer는 프론트/백엔드로 갈린다 — designer가 화면을 설계하고 그대로 구현하며,
 필요한 API는 `say developer`로 요청한다. 상세는 각 `team/{역할}.md` 참조.
 
 ```
-CLAUDE.md          Claude 파인 공통 규칙
-AGENTS.md          Codex 파인 공통 규칙
-team/              프로젝트별 오버라이드 대상만 (역할 지침·공급자별 설정)
-  ├ config.sh        팀 공통 구성 템플릿 (세션명/인원)
-  ├ config.claude.sh Claude 모델·플러그인·스킬 기본값
-  ├ config.codex.sh  Codex 모델·추론 수준·스킬 기본값
-  └ {역할}.md         역할별 지침 (lead/architect/researcher/designer/developer/reviewer)
-bin/               항상 이 저장소 기준으로 고정 실행되는 스크립트 (오버라이드 대상 아님)
-  ├ say              파인 간 메시지 전송 래퍼 (setup-team.sh가 각 파인 PATH에 등록)
-  └ log-hook         프롬프트·툴 사용을 .claude-logs/{역할}.jsonl에 기록하는 훅
-docs/              설계 배경·실측 분석 문서
-  ├ pane-messaging.md 파인 간 통신이 깨졌던 유형과 대응
-  ├ token-cost.md     토큰 비용 구조와 절감 장치 실측
-  └ architect-review/ architect의 리뷰 판정 문서 ({순번}_{주제}.md)
-Dockerfile         팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
-setup-docker.sh    Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
-setup-native.sh    WSL 등 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
-setup-team.sh      tmux 세션 구성 + 선택한 에이전트 CLI 실행 (핵심 스크립트)
+CLAUDE.md               Claude 파인 공통 규칙
+AGENTS.md               Codex 파인 공통 규칙
+team/                   프로젝트별 오버라이드 대상만 (역할 지침·공급자별 설정)
+  ├ config.sh           팀 공통 구성 템플릿 (역할·표시명·공급자·모델·추론 수준)
+  ├ config.claude.sh    Claude 역할별 플러그인·스킬 배분표
+  ├ config.codex.sh     Codex 역할별 플러그인·스킬 배분표
+└ {역할}.md             역할별 지침 (lead/architect/researcher/designer/developer/reviewer)
+bin/                    항상 이 저장소 기준으로 고정 실행되는 스크립트 (오버라이드 대상 아님)
+  ├ say                 파인 간 메시지 전송 래퍼 (setup-team.sh가 각 파인 PATH에 등록)
+  └ log-hook            프롬프트·툴 사용을 .claude-logs/{역할}.jsonl에 기록하는 훅
+docs/                   설계 배경·실측 분석 문서
+  └ architect-review/   architect의 리뷰 판정 문서 ({순번}_{주제}.md)
+Dockerfile              팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
+setup-docker.sh         Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
+setup-native.sh         WSL 등 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
+setup-team.sh           tmux 세션 구성 + 선택한 에이전트 CLI 실행 (핵심 스크립트)
 ```
 
 ### 런타임 산출물
@@ -178,29 +177,32 @@ tmux kill-session -t team1                    # 세션 종료
 - Claude 전용 rtk 토큰 절감 훅과 gstack 플러그인, 프롬프트·툴 JSONL 로깅
   (`.claude-logs/`)은 Codex에 이식하지 않는다. Codex 공식 플러그인은 아래 설명처럼
   파인별로 격리한다.
-- Codex 모델과 추론 수준은 기본 `team/config.codex.sh`의 역할별 값을 쓴다. architect는 복잡한 설계 판단을 위해 `gpt-5.6-sol` / `high`를 사용한다. 프로젝트별로 바꾸려면 같은 파일에 `MEMBER_MODELS`, `MEMBER_REASONING_EFFORTS` 배열을 선언하고, 개별 값을 비워 두면 해당 Codex 기본값을 사용한다.
+- Codex 모델과 추론 수준은 `team/config.sh`의 `MEMBERS`에서 역할별로 정한다. 각 항목의 모델·추론 수준을 비워 두면 Codex 사용자 기본값을 사용한다. `config.codex.sh`는 모델이 아니라 플러그인·스킬 배분만 담당한다.
 
 ### 혼합 팀 — 역할별로 다른 에이전트 지정
 
-역할별로 다른 공급자를 쓰려면 `team/config.sh`에 `MEMBER_AGENTS` 배열을 선언한다.
-저장소 기본값은 developer만 Codex이고, 나머지는 Claude다.
+역할별로 다른 공급자를 쓰려면 `team/config.sh`의 각 `MEMBERS` 항목에 공급자를 지정한다.
+저장소 기본값은 developer만 Codex이고, lead·reviewer는 Claude다.
 
 ```bash
 # <프로젝트_경로>/team/config.sh
 SESSION="team1"
-declare -a MEMBER_NAMES=("lead" "architect" "researcher" "designer" "developer" "reviewer")
-declare -a MEMBER_AGENTS=("" "codex" "" "" "" "codex")   # architect·reviewer만 Codex로 바꾸는 예시
+declare -a MEMBERS=(
+    "lead|리드|claude|claude-sonnet-5|medium"
+    "architect|아키텍트|codex|gpt-5.6-sol|high"
+    "developer|개발자|codex|gpt-5.6-terra|high"
+    "reviewer|리뷰어|claude|claude-sonnet-5|medium"
+)
 ```
 
 어느 역할을 Codex로 돌릴지는 프로젝트마다 다르다. 핵심은 **코드를 쓰는 모델과 판단하는
 모델을 분리**하는 것 — 같은 모델끼리는 맹점도 공유하기 때문이다.
 
-- 빈 문자열은 `--agent`/`TEAM_AGENT` 기본값을 따른다. 배열 자체를 선언하지 않으면
-  기존처럼 팀 전체가 같은 공급자로 뜬다(회귀 없음).
-- 배열 길이는 `MEMBER_NAMES`와 같아야 한다.
-- 모델은 그 파인의 공급자에 맞는 설정 파일(`config.claude.sh` 또는 `config.codex.sh`)의
-  같은 인덱스에서 읽는다 — 혼합 팀에서는 두 파일이 모두 필요할 수 있다.
-- 인증 확인(`[0/7]`)은 실제로 팀에 쓰이는 공급자 전부에 대해 이루어진다. 일부 역할만
+- 항목 형식은 `role|표시이름|agent|model|effort`다. `agent`를 비우면 `--agent`/`TEAM_AGENT`
+  기본값을 따르고, 모델·추론 수준을 비우면 각 CLI의 사용자 기본값을 따른다.
+- 배열 순서가 tmux 파인 배치 순서다. `MEMBERS` 하나로 인원·공급자·모델·추론 수준을 함께
+  선언하므로 인원 변경 때 공급자별 설정 파일의 배열 길이를 맞출 필요가 없다.
+- 인증 확인(`[0/6]`)은 실제로 팀에 쓰이는 공급자 전부에 대해 이루어진다. 일부 역할만
   Codex를 써도 Codex 로그인까지 함께 확인한다.
 - Codex로 지정된 파인은 위 "Codex 실행 모드"와 동일하게 신뢰 프롬프트·훅 승인이
   자동 처리되고, busy 마커·Stop 훅도 Claude 파인과 동일하게 동작한다.
@@ -242,32 +244,24 @@ declare -a MEMBER_AGENTS=("" "codex" "" "" "" "codex")   # architect·reviewer�
 
 ## 프로젝트별 팀 구성 커스터마이징
 
-- 기본 팀 구성은 `setup-team.sh`에 내장 — lead/architect/researcher/designer/developer/reviewer 6인
-- 인원 수·세션 이름을 프로젝트마다 다르게 하려면 **대상 프로젝트 루트**에 `team/config.sh` 배치
-- 모델 배정은 `team/config.claude.sh` 또는 `team/config.codex.sh`에 둔다
+- 기본 팀 구성은 이 저장소의 `team/config.sh`에 있다 — 현재 lead/developer/reviewer 3인
+- 인원 수·세션 이름·역할별 공급자·모델·추론 수준을 바꾸려면 **대상 프로젝트 루트**에 `team/config.sh` 배치
+- `config.claude.sh`와 `config.codex.sh`에는 공급자별 플러그인·스킬 배분만 둔다
 - 공통 구성과 선택한 공급자 전용 구성은 차례로 자동 로드되어 기본값을 덮어쓴다
 
 ```bash
-# <프로젝트_경로>/team/config.sh — 3인 팀으로 축소하는 예시
+# <프로젝트_경로>/team/config.sh — 3인 팀 예시
 SESSION="team1"   # tmux 세션 이름
-declare -a MEMBER_NAMES=("lead" "developer" "reviewer")
-```
-
-```bash
-# <프로젝트_경로>/team/config.claude.sh — Claude 모델 배정
-declare -a MEMBER_MODELS=(
-    "claude-sonnet-5"
-    "claude-sonnet-5"
-    "claude-sonnet-5"
+declare -a MEMBERS=(
+    "lead|리드|claude|claude-sonnet-5|medium"
+    "developer|개발자|codex|gpt-5.6-terra|high"
+    "reviewer|리뷰어|claude|claude-sonnet-5|medium"
 )
 ```
 
-- Claude도 같은 `config.claude.sh`에 `MEMBER_REASONING_EFFORTS` 배열(`low`/`medium`/`high`/`xhigh`/`max`)을 선언하면 파인별 `--effort`로 넘어간다. 개별 빈 값은 사용자의 `settings.json`(`effortLevel`) 기본값을 따른다.
-- Codex는 `team/config.codex.sh`에 같은 길이의 `MEMBER_MODELS`, `MEMBER_REASONING_EFFORTS` 배열을 선언한다. 파일이 없으면 이 저장소의 역할별 기본값을 사용하며, 개별 빈 값은 사용자의 Codex 기본 설정을 따른다.
-- 파인마다 다른 에이전트를 쓰려면 같은 `team/config.sh`에 `MEMBER_AGENTS` 배열을 추가한다 — 위 "혼합 팀" 참고
-- `MEMBER_NAMES`와 `MEMBER_MODELS`(그리고 선언했다면 `MEMBER_AGENTS`)는 배열 길이가 같아야 함
-- 파인 개수는 배열 길이로 자동 계산
-- 이 저장소의 `team/config.sh`는 복사해서 수정할 템플릿 — 기본값(6인)과 동일한 내용
+- `effort`에는 `low`/`medium`/`high`/`xhigh`/`max`를 쓴다. 빈 값은 Claude의 `settings.json` 또는 Codex 사용자 기본값을 따른다.
+- 파인 개수는 `MEMBERS` 배열 길이로 자동 계산된다.
+- 이 저장소의 `team/config.sh`는 복사해서 수정할 템플릿이다.
 - 이름을 바꾸면 대응하는 `team/{이름}.md`도 필요(없으면 역할 지침 없이 실행 — 위 "Claude/Codex 지침과 team/" 참고)
 
 ## 파인 간 통신 — `bin/say`
@@ -307,13 +301,13 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 
 `say`와의 차이:
 
-|                       | `say`                        | `SendMessage`                                            |
-| --------------------- | ---------------------------- | -------------------------------------------------------- |
-| 전달 방식             | tmux 입력창에 타이핑         | 세션 간 소켓                                             |
-| 수신 파인이 보는 형태 | 사람이 친 것과 **구분 불가** | `<cross-session-message from=...>` 태그 + 신뢰 안내 동반 |
+|                       | `say`                            | `SendMessage`                                                |
+| --------------------- | -------------------------------- | ------------------------------------------------------------ |
+| 전달 방식             | tmux 입력창에 타이핑             | 세션 간 소켓                                                 |
+| 수신 파인이 보는 형태 | 사람이 친 것과 **구분 불가**     | `<cross-session-message from=...>` 태그 + 신뢰 안내 동반     |
 | 큐 대기 기준          | 상대 파인이 **유휴**가 될 때까지 | 상대가 작업 중이면 **다음 도구 호출**, 유휴면 **즉시 새 턴** |
-| 훅에서 발신           | 가능 (셸 스크립트)           | 불가 (도구 호출)                                         |
-| 긴급 중단             | `SAY_NOWAIT=1`               | 없음 (항상 상대 턴 종료 대기)                            |
+| 훅에서 발신           | 가능 (셸 스크립트)               | 불가 (도구 호출)                                             |
+| 긴급 중단             | `SAY_NOWAIT=1`                   | 없음 (항상 상대 턴 종료 대기)                                |
 
 제약:
 
@@ -337,14 +331,14 @@ Enter 누락부터 큐 도입까지, 통신이 깨졌던 유형과 각각의 대
 - 평상시 1홉 — 각 파인 → lead
 - 설계 판단이 필요한 건만 architect 경유
 
-| 상황                           | 경로                        |
-| ------------------------------ | --------------------------- |
-| 일반 완료 보고                 | 각 파인 → lead              |
-| 설계 이탈 (developer/designer) | 파인 → architect → lead     |
-| 리뷰 승인                      | reviewer → lead             |
-| 리뷰 — 코드 품질 수정요청      | reviewer → 작성자 (직행, lead 사본 없음) |
+| 상황                           | 경로                                                          |
+| ------------------------------ | ------------------------------------------------------------- |
+| 일반 완료 보고                 | 각 파인 → lead                                                |
+| 설계 이탈 (developer/designer) | 파인 → architect → lead                                       |
+| 리뷰 승인                      | reviewer → lead                                               |
+| 리뷰 — 코드 품질 수정요청      | reviewer → 작성자 (직행, lead 사본 없음)                      |
 | 리뷰 — 설계 판단 필요          | reviewer → architect (lead 사본 없음) → architect 판정만 lead |
-| 화면에 필요한 API 요청         | designer → developer        |
+| 화면에 필요한 API 요청         | designer → developer                                          |
 
 코드 품질 수정요청의 "작성자"는 백엔드면 developer, 프론트엔드면 designer다.
 
@@ -407,7 +401,7 @@ $PROJECT_DIR/.claude-logs/
 
 ### 설계상의 선택
 
-- **역할별로 파일을 나눈다** — 파인 6개가 병렬로 도는 구조라 한 파일에 쓰면 경합·귀속 불명 발생
+- **역할별로 파일을 나눈다** — 여러 파인이 병렬로 도는 구조라 한 파일에 쓰면 경합·귀속 불명 발생
 - **`.team/` 바깥에 둔다** — `.team/`은 매 실행 `rm -rf` 대상이라 거기 두면 세션 재시작 시 소실
 - **작업 대상 리포의 `.gitignore`를 건드리지 않는다** — 대신 로그 디렉터리 안에 `.gitignore`(`*`)를 둬서 스스로를 제외, 남의 리포에 흔적 없이 커밋 제외 달성
 - **파인이 자기 로그를 읽을 수 있다** — cwd는 `.team/{역할}/`지만 역할 지침에 실제 프로젝트 루트가 안내됨
@@ -436,7 +430,7 @@ $PROJECT_DIR/.claude-logs/
 ## 역할별 스킬 제한
 
 - 문제: gstack setup은 스킬 수십 개를 `~/.claude/skills/`에 전부 설치하고, 그 frontmatter가 파인이 뜰 때마다
-  시스템 프롬프트에 포함됨 → 파인 6개 × 매 턴이라 고정비가 큰데, 대부분은 역할과 무관한 스킬
+  시스템 프롬프트에 포함됨 → 구성한 모든 파인 × 매 턴이라 고정비가 큰데, 대부분은 역할과 무관한 스킬
 - 해결: `~/.claude/skills`는 유저 전역이라 파인별 구성이 불가하므로, `setup-team.sh`가 파인마다
   `.team/{역할}/.claude/skills`에 **필요한 스킬만 심볼릭 링크**하고 그 디렉터리를 cwd로 실행,
   `--setting-sources project`로 유저 전역·플러그인 스킬은 차단
@@ -484,13 +478,13 @@ gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리
 
 배정에서 뺀 것과 그 이유:
 
-| 스킬                                                        | 제외 이유                                                        |
-| ----------------------------------------------------------- | ---------------------------------------------------------------- |
-| `dispatching-parallel-agents` `subagent-driven-development` | 파인 6개가 이미 병렬 실행 단위 — 파인 대신 서브에이전트를 띄운다 |
-| `requesting-code-review`                                    | 리뷰어 서브에이전트를 띄우게 되어 reviewer 파인이 논다           |
-| `using-git-worktrees`                                       | 파인 6개가 같은 워킹트리를 공유하는 구조와 충돌                  |
-| `using-superpowers`                                         | "1%라도 해당되면 무조건 스킬 호출" — 전 파인 고정비만 늘어남     |
-| `executing-plans` `writing-skills`                          | 각각 별도 세션 실행 전제 / 팀 업무 아님                          |
+| 스킬                                                        | 제외 이유                                                           |
+| ----------------------------------------------------------- | ------------------------------------------------------------------- |
+| `dispatching-parallel-agents` `subagent-driven-development` | 구성한 파인이 이미 병렬 실행 단위 — 파인 대신 서브에이전트를 띄운다 |
+| `requesting-code-review`                                    | 리뷰어 서브에이전트를 띄우게 되어 reviewer 파인이 논다              |
+| `using-git-worktrees`                                       | 구성한 파인이 같은 워킹트리를 공유하는 구조와 충돌                  |
+| `using-superpowers`                                         | "1%라도 해당되면 무조건 스킬 호출" — 전 파인 고정비만 늘어남        |
+| `executing-plans` `writing-skills`                          | 각각 별도 세션 실행 전제 / 팀 업무 아님                             |
 
 이 스킬들은 단독 실행을 전제로 쓰여 있어(사용자에게 직접 승인 요청, 서브에이전트 dispatch 등)
 그대로 두면 팀 구조와 어긋난다. 그래서 각 `team/{역할}.md`의 "## 스킬" 절에서 팀 규칙으로
@@ -504,14 +498,14 @@ gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리
 
 Codex 공식 카탈로그를 기준으로 Claude architect 기능의 대체재를 다음처럼 사용한다.
 
-| 기존 기능 | Codex 네이티브 대체재 | 적용 방침 |
-| --- | --- | --- |
-| Superpowers `brainstorming`·`writing-plans` | `superpowers@openai-curated`의 동명 스킬 | architect에 두 스킬만 자동 노출 |
-| gstack `diagram` | `figma@openai-curated`의 `figma-generate-diagram` | FigJam을 쓰는 프로젝트에서만 역할별 전체 설치 |
-| 문서 기반 spec → plan/task | `notion@openai-curated`의 `notion-spec-to-implementation` | Notion이 source of truth일 때만 역할별 전체 설치 |
-| GitHub issue/PR 문맥 | `github@openai-curated` | 로컬 저장소만 쓰면 불필요 |
-| lifecycle hook | Codex 네이티브 hooks | 이 저장소가 `SessionStart`·`Stop`을 자동 생성 |
-| Serena·gstack `health`·독립 plan review | 정확한 공식 대체재 없음 | Codex 기본 저장소 도구와 architect 지침으로 수행 |
+| 기존 기능                                   | Codex 네이티브 대체재                                     | 적용 방침                                        |
+| ------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------ |
+| Superpowers `brainstorming`·`writing-plans` | `superpowers@openai-curated`의 동명 스킬                  | architect에 두 스킬만 자동 노출                  |
+| gstack `diagram`                            | `figma@openai-curated`의 `figma-generate-diagram`         | FigJam을 쓰는 프로젝트에서만 역할별 전체 설치    |
+| 문서 기반 spec → plan/task                  | `notion@openai-curated`의 `notion-spec-to-implementation` | Notion이 source of truth일 때만 역할별 전체 설치 |
+| GitHub issue/PR 문맥                        | `github@openai-curated`                                   | 로컬 저장소만 쓰면 불필요                        |
+| lifecycle hook                              | Codex 네이티브 hooks                                      | 이 저장소가 `SessionStart`·`Stop`을 자동 생성    |
+| Serena·gstack `health`·독립 plan review     | 정확한 공식 대체재 없음                                   | Codex 기본 저장소 도구와 architect 지침으로 수행 |
 
 `setup-team.sh`는 Codex 공식 카탈로그에서 Superpowers의 두 스킬만 찾아
 `.team/architect/.agents/skills`에 링크한다. 전체 플러그인에 포함된 TDD·디버깅·worktree·
@@ -564,7 +558,7 @@ declare -A CODEX_PLUGIN_SKILL_SETS=(
 
 - claude 빌트인 스킬
 - `$PROJECT_DIR/.claude/skills`의 공용 스킬
-- 위 둘은 모든 파인이 그대로 사용, 자세한 근거와 예외는 `setup-team.sh`의 `[4/7]` 섹션 주석 참조
+- 위 둘은 모든 파인이 그대로 사용, 자세한 근거와 예외는 `setup-team.sh`의 `[4/6]` 섹션 주석 참조
 - 전역 규칙(`~/.claude/rules/`, `~/.claude/CLAUDE.md`)도 **대상 프로젝트가 홈 아래에 있으면** 차단되지 않고 그대로 로드됨
   — `--setting-sources project`의 규칙 차단은 cwd가 홈 밖일 때만 성립(실측). 즉 `/mnt/c/...` 같은 홈 밖 프로젝트로 팀을
   띄우면 파인이 전역 규칙 없이 뜨므로, 그쪽에 의존하는 지침이 있으면 프로젝트 `CLAUDE.md`로 옮겨야 함
@@ -576,20 +570,20 @@ declare -A CODEX_PLUGIN_SKILL_SETS=(
 - 문제: caveman·ponytail·serena는 유저 전역 `~/.claude/settings.json`의 `enabledPlugins`로 켜지는데,
   파인은 `--setting-sources project`로 뜨는 탓에 이 전역 설정을 못 읽음 → 방치하면 **세 플러그인이
   파인에서 전혀 걸리지 않음**(실측 확인)
-- 해결: `setup-team.sh`의 `[3/7]`이 플러그인을 설치하고, `start_claude_in_pane()`이 `--settings`에
+- 해결: `setup-team.sh`의 `[3/6]`이 플러그인을 설치하고, `start_claude_in_pane()`이 `--settings`에
   `enabledPlugins`·`extraKnownMarketplaces`를 역할별로 명시 주입(`team/config.claude.sh`의
   `PLUGIN_ROLES` 배열이 배분을 결정)
 
 실측 파인당 고정비 — `ponytail` ~2.2K tok / `caveman` ~3.9K tok / `serena` ~6K tok.
-파인 5개 × 매 턴이라 쓰지 않을 파인에는 주지 않는다.
+활성 파인 수만큼 매 턴 반복되는 비용이므로, 쓰지 않을 역할에는 주지 않는다.
 
-| 플러그인    | 배분                          | 이유                                                                                                                                                       |
-| ----------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| caveman     | 전 파인                       | 켠 파인이 아니라 lead가 이득을 회수하는 구조(파인들의 보고가 전부 lead 입력). 출력 문체를 팀 전체에서 통일하는 값이 고정비보다 크다는 사용자 결정          |
-| ponytail    | developer만                   | 사다리 7단 중 2~7단이 전부 코드 대상이라 코드를 안 쓰는 역할에는 1단 YAGNI만 남음. 그 한 줄은 역할 지침에 문장으로 넣는 편이 100배 쌈(2.2K 대 ~20토큰)     |
-| serena      | developer·reviewer·designer   | 고정비가 가장 큼(MCP 툴 정의 30개)이라 코드를 직접 다루는 역할에만 줌. lead·researcher는 코드를 안 다뤄 죽은 무게. architect는 Opus라 토큰 단가가 가장 비쌈                                          |
-| superpowers | 없음(`enabledPlugins` 미주입) | 위 "superpowers 스킬" 절대로 `[4/7]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 14개가 통째로 들어와 선별이 무의미해짐 |
-| frontend-design | 없음(`enabledPlugins` 미주입) | superpowers와 동일 — `[4/7]`이 designer에 직접 링크함                                                                                              |
+| 플러그인        | 배분                          | 이유                                                                                                                                                        |
+| --------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| caveman         | 전 파인                       | 켠 파인이 아니라 lead가 이득을 회수하는 구조(파인들의 보고가 전부 lead 입력). 출력 문체를 팀 전체에서 통일하는 값이 고정비보다 크다는 사용자 결정           |
+| ponytail        | developer만                   | 사다리 7단 중 2~7단이 전부 코드 대상이라 코드를 안 쓰는 역할에는 1단 YAGNI만 남음. 그 한 줄은 역할 지침에 문장으로 넣는 편이 100배 쌈(2.2K 대 ~20토큰)      |
+| serena          | developer·reviewer·designer   | 고정비가 가장 큼(MCP 툴 정의 30개)이라 코드를 직접 다루는 역할에만 줌. lead·researcher는 코드를 안 다뤄 죽은 무게. architect는 Opus라 토큰 단가가 가장 비쌈 |
+| superpowers     | 없음(`enabledPlugins` 미주입) | 위 "superpowers 스킬" 절대로 `[4/6]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 14개가 통째로 들어와 선별이 무의미해짐  |
+| frontend-design | 없음(`enabledPlugins` 미주입) | superpowers와 동일 — `[4/6]`이 designer에 직접 링크함                                                                                                       |
 
 배분 근거 실측은 [docs/architect-review/6_caveman-ponytail-role-scoping.md](docs/architect-review/6_caveman-ponytail-role-scoping.md) 참조.
 
@@ -600,7 +594,7 @@ some-sass(`.scss/.sass/.css`). 값이 나오는 지점은 `find_referencing_symb
 `import Button`, 재export를 놓치지만 심볼 탐색은 잡는다.
 
 > UI가 없는 프로젝트(이 리포처럼 bash + 문서)에 팀을 띄우면 designer 파인 자체가
-> 불필요하다. serena만 빼는 게 아니라 `team/config.sh`의 `MEMBER_NAMES`에서
+> 불필요하다. serena만 빼는 게 아니라 `team/config.sh`의 `MEMBERS`에서
 > designer를 빼는 것이 옳은 대응이다.
 
 `claude plugin enable`은 부르지 않는다 — 유저 전역 `settings.json`을 고쳐 팀 밖 세션까지 건드리는데,
