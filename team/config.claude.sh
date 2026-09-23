@@ -16,9 +16,9 @@ declare -A PLUGIN_MARKETPLACES=(
 
 # 플러그인 → 활성화할 역할. "*"는 모든 역할, 빈 값은 설치만 한다.
 declare -A PLUGIN_ROLES=(
-    ["superpowers@claude-plugins-official"]=""
-    ["frontend-design@claude-plugins-official"]=""
-    ["serena@claude-plugins-official"]="developer reviewer designer"
+    ["superpowers@claude-plugins-official"]="architect"
+    ["frontend-design@claude-plugins-official"]="designer"
+    ["serena@claude-plugins-official"]="*"
     ["ponytail@ponytail"]="lead developer"
     ["caveman@caveman"]="*"
 )
@@ -30,7 +30,7 @@ declare -A GSTACK_SKILL_SETS=(
     [architect]="spec diagram document-generate health plan-eng-review"
     [researcher]="scrape browse"
     [designer]="design-review design-html diagram"
-    [developer]="health codex learn"
+    [developer]="health learn"
     [reviewer]="review qa health"
 )
 

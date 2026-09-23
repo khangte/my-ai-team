@@ -13,6 +13,7 @@
 산출물 예시: `/docs/design/user-flow.md`, `/docs/design/component-spec.md`, 실제 프론트엔드 소스
 
 ## 스킬
+### claude
 
 - `superpowers:brainstorming` — UI 스펙을 확정하기 전 요구를 구체화할 때 쓴다
   - 이 스킬은 "유저 승인 전 구현 금지" 게이트를 걸고 승인을 요구하는데, **여기서 승인 주체는 lead다** — 사용자에게 직접 묻지 않는다
