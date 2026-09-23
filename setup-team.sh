@@ -695,10 +695,10 @@ if [ -n "${USED_AGENTS[claude]:-}" ]; then
 echo -e "\n${YELLOW}[1/6] Claude — rtk 훅 초기화...${NC}"
 
 if printf 'n\n' | RTK_TELEMETRY_DISABLED=1 timeout 15 rtk init -g --auto-patch; then
-    echo -e "${GREEN}✅ rtk 훅 등록 완료${NC}"
+    echo -e "  ${GREEN}✅  rtk 훅 등록 완료${NC}"
 else
-    echo -e "${YELLOW}⚠️  rtk init 실패 또는 timeout (이미 설정되어 있거나 수동 확인 필요)${NC}"
-    echo -e "${YELLOW}   확인: rtk init --show${NC}"
+    echo -e "  ${YELLOW}⚠️  rtk init 실패 또는 timeout (이미 설정되어 있거나 수동 확인 필요)${NC}"
+    echo -e "  ${YELLOW}   확인: rtk init --show${NC}"
 fi
 
 # ── [2/6] Claude — gstack 스킬 설치 ────────────────────────
@@ -721,9 +721,9 @@ else
 fi
 
 if (cd "$GSTACK_DIR" && timeout 60 ./setup >/dev/null); then
-    echo -e "${GREEN}✅ gstack 스킬 설치 완료${NC}"
+    echo -e "  ${GREEN}✅ gstack 스킬 설치 완료${NC}"
 else
-    echo -e "${YELLOW}⚠️  gstack setup 실패 또는 timeout (수동 확인 필요: cd $GSTACK_DIR && ./setup)${NC}"
+    echo -e "  ${YELLOW}⚠️  gstack setup 실패 또는 timeout (수동 확인 필요: cd $GSTACK_DIR && ./setup)${NC}"
 fi
 
 # ── [3/6] Claude — 필수 플러그인 설치 ──────────────────────
@@ -925,7 +925,7 @@ for role in "${!GSTACK_SKILL_SETS[@]}"; do
     echo "  $role: ${granted[*]:-(스킬 없음)}"
 done
 
-echo -e "${GREEN}✅ 역할별 스킬 제한 완료${NC}"
+echo -e "  ${GREEN}✅ 역할별 스킬 제한 완료${NC}"
 
 fi
 
@@ -1100,7 +1100,7 @@ for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
     done
     echo "  $role: ${granted[*]:-(Codex 역할별 스킬 없음)}"
 done
-echo -e "${GREEN}✅ Codex 역할별 런타임 디렉터리 준비 완료${NC}"
+echo -e "  ${GREEN}✅ Codex 역할별 런타임 디렉터리 준비 완료${NC}"
 
 fi
 
