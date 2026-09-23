@@ -669,7 +669,7 @@ tmux has-session -t "$SESSION" 2>/dev/null && {
         sleep 0.2
     done
     echo ""
-    echo "  기존 '$SESSION' 세션 종료"
+    echo "  🧹 기존 '$SESSION' 세션 종료"
 }
 
 # .team/ 런타임 루트는 두 공급자 블록이 공유한다. 혼합 팀에서 각 블록이
