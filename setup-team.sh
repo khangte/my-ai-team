@@ -710,7 +710,12 @@ echo -e "\n${YELLOW}[2/6] Claude — gstack 스킬 설치...${NC}"
 
 GSTACK_DIR="$HOME/.claude/skills/gstack"
 if [ -d "$GSTACK_DIR/.git" ]; then
-    git -C "$GSTACK_DIR" pull --ff-only -q
+    gstack_pull_out="$(git -C "$GSTACK_DIR" pull --ff-only 2>&1)"
+    if [[ "$gstack_pull_out" == *"Already up to date"* ]]; then
+        echo "  ℹ️  gstack 이미 최신 상태 (clone 생략)"
+    else
+        echo "  ⬇️  gstack 갱신됨"
+    fi
 else
     git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git "$GSTACK_DIR" -q
 fi
@@ -755,15 +760,23 @@ echo -e "\n${YELLOW}[3/6] Claude — 필수 플러그인 설치...${NC}"
 
 for mp in "${!PLUGIN_MARKETPLACES[@]}"; do
     # 이미 등록돼 있으면 add가 실패하지만 무해하므로 실패를 삼킨다.
-    claude plugin marketplace add "${PLUGIN_MARKETPLACES[$mp]}" >/dev/null 2>&1 || true
+    mp_add_out="$(claude plugin marketplace add "${PLUGIN_MARKETPLACES[$mp]}" 2>&1)" || true
+    if [[ "$mp_add_out" == *"already on disk"* ]]; then
+        echo "  ℹ️  marketplace $mp 이미 등록됨"
+    fi
 done
 
 # 설치만 한다. `claude plugin enable`은 부르지 않는다 — 그건 유저 전역
 # settings.json을 고쳐 팀 밖 세션에까지 영향을 주는데, 파인의 활성화는
 # start_claude_in_pane이 --settings로 따로 넣으므로 필요하지도 않다.
 for plugin in "${!PLUGIN_ROLES[@]}"; do
-    if claude plugin install "$plugin" >/dev/null 2>&1; then
-        echo "  ✅ $plugin → ${PLUGIN_ROLES[$plugin]:-(설치만)}"
+    plugin_install_out="$(claude plugin install "$plugin" 2>&1)"
+    if [ $? -eq 0 ]; then
+        if [[ "$plugin_install_out" == *"already installed"* ]]; then
+            echo "  ℹ️  $plugin 이미 설치됨 → ${PLUGIN_ROLES[$plugin]:-(설치만)}"
+        else
+            echo "  ✅  $plugin → ${PLUGIN_ROLES[$plugin]:-(설치만)}"
+        fi
     else
         echo -e "${YELLOW}  ⚠️  $plugin 설치 실패 (수동 확인: claude plugin install $plugin)${NC}"
     fi
