@@ -9,16 +9,16 @@
 # 띄우는 구성.
 #
 # 단계:
-#   [0] 실제로 사용되는 공급자(USED_AGENTS) 전부의 사전 요구사항·로그인 확인
+#   [0] 공통 (Claude·Codex): 실제로 사용되는 공급자(USED_AGENTS) 전부의 사전 요구사항·로그인 확인
 #       확인 직후 기존 tmux 세션을 정리한다 — 살아있는 파인이 .team/{역할}/
 #       아래에 계속 쓰는 상태로 .team/ 삭제를 돌리면 경합으로 실패하기 때문에,
 #       그 삭제보다 먼저 끝내 둔다.
-#   [1-3] Claude 사용 시: rtk·gstack·Claude 플러그인 준비
-#   [1-4] Codex 사용 시: AGENTS.md 병합, 역할별 스킬·lifecycle 훅 준비
+#   [1-3] Claude: rtk·gstack·Claude 플러그인 준비
+#   [1-4] Codex: AGENTS.md 병합, 역할별 스킬·lifecycle 훅 준비
 #         (두 블록은 혼합 팀에서 순서대로 모두 실행되며 .team/ 삭제는 한 번만 한다)
-#   [4] Claude 사용 시: 팀 공통 지침을 CLAUDE.md에 병합하고 역할별 런타임 디렉터리 구성
-#   [6] MEMBER_NAMES 배열 기준으로 파인을 분할하고 이름 부여
-#   [7] 각 파인에서 파인별 MEMBER_AGENTS[i]가 가리키는 CLI를 해당 모델로 실행
+#   [4] Claude: 팀 공통 지침을 CLAUDE.md에 병합하고 역할별 런타임 디렉터리 구성
+#   [5] 공통 (Claude·Codex): MEMBER_NAMES 배열 기준으로 파인을 분할하고 이름 부여
+#   [6] 공통 (Claude·Codex): 각 파인에서 MEMBER_AGENTS[i]가 가리키는 CLI를 해당 모델로 실행
 #       및 tmux가 파인 타이틀을 스피너로 덮어쓰는 문제를 막기 위한 타이틀 워처 기동
 #
 # 사용:
@@ -582,12 +582,12 @@ check_codex_login() {
     codex login status >/dev/null 2>&1
 }
 
-# ── [0/6] 사전 요구사항 확인 ────────────────────────────────
+# ── [0/6] 공통 (Claude·Codex) — 사전 요구사항 확인 ─────────
 # 혼합 팀에서는 실제로 파인에 배정된 공급자(USED_AGENTS) 전부를 검사한다 —
 # $TEAM_AGENT 하나만 보면 reviewer만 codex인 팀에서 codex 설치·로그인 확인이
 # 통째로 생략된다.
 used_agents_list="${!USED_AGENTS[*]}"
-echo -e "${YELLOW}[0/6] 사전 요구사항 확인 (${used_agents_list})...${NC}"
+echo -e "${YELLOW}[0/6] 공통 (Claude·Codex) — 사전 요구사항 확인 (${used_agents_list})...${NC}"
 
 NEED_FIRST_LOGIN=false
 
@@ -680,11 +680,11 @@ RUNTIME_DIR="$TEAM_SKILLS_ROOT/_runtime"
 rm -rf "$TEAM_SKILLS_ROOT"
 mkdir -p "$RUNTIME_DIR"
 
-# Claude 전용 준비. Codex는 1차 구현에서 Claude 플러그인·rtk 훅을 공유하지 않는다.
+# Claude 전용 단계 준비. Codex는 1차 구현에서 Claude 플러그인·rtk 훅을 공유하지 않는다.
 # 혼합 팀에서는 아래 두 블록이 각각 독립 조건으로 순서대로 실행된다.
 if [ -n "${USED_AGENTS[claude]:-}" ]; then
 
-# ── [1/6] rtk 훅 초기화 ────────────────────────────────────
+# ── [1/6] Claude — rtk 훅 초기화 ───────────────────────────
 # ~/.claude 는 로그인 후 생성되고 volume(claude-home) 안에 있으므로
 # 이미지 빌드 시점이 아니라 여기(런타임)에서 1회 등록한다.
 # --auto-patch: settings.json patch 여부를 묻지 않고 자동 진행
@@ -692,7 +692,7 @@ if [ -n "${USED_AGENTS[claude]:-}" ]; then
 # telemetry 동의 프롬프트가 무한 대기하는 알려진 버그(rtk-ai/rtk#1307)에 대한 안전장치
 # printf 'n\n': 위 telemetry 동의 프롬프트에 대한 응답(비동의)이며,
 # RTK_TELEMETRY_DISABLED가 무시될 경우를 대비한 이중 안전장치
-echo -e "\n${YELLOW}[1/6] rtk 훅 초기화...${NC}"
+echo -e "\n${YELLOW}[1/6] Claude — rtk 훅 초기화...${NC}"
 
 if printf 'n\n' | RTK_TELEMETRY_DISABLED=1 timeout 15 rtk init -g --auto-patch; then
     echo -e "${GREEN}✅ rtk 훅 등록 완료${NC}"
@@ -701,12 +701,12 @@ else
     echo -e "${YELLOW}   확인: rtk init --show${NC}"
 fi
 
-# ── [2/6] gstack 스킬 설치 ─────────────────────────────────
+# ── [2/6] Claude — gstack 스킬 설치 ────────────────────────
 # CLAUDE.md의 "Skill routing"이 참조하는 /office-hours, /plan-ceo-review 등은
 # gstack(https://github.com/garrytan/gstack) 패키지가 제공한다.
 # ~/.claude 는 volume(claude-home) 안에 있어 컨테이너를 새로 만들면 사라지므로
 # 이미지 빌드 시점이 아니라 여기(런타임)에서 매번 최신 상태로 맞춘다.
-echo -e "\n${YELLOW}[2/6] gstack 스킬 설치...${NC}"
+echo -e "\n${YELLOW}[2/6] Claude — gstack 스킬 설치...${NC}"
 
 GSTACK_DIR="$HOME/.claude/skills/gstack"
 if [ -d "$GSTACK_DIR/.git" ]; then
@@ -721,7 +721,7 @@ else
     echo -e "${YELLOW}⚠️  gstack setup 실패 또는 timeout (수동 확인 필요: cd $GSTACK_DIR && ./setup)${NC}"
 fi
 
-# ── [3/6] 필수 플러그인 설치 ─────────────────────────────────
+# ── [3/6] Claude — 필수 플러그인 설치 ──────────────────────
 # 마켓플레이스 플러그인은 ~/.claude/plugins/ 아래에 설치되는데, 이 경로는
 # volume(claude-home) 안이라 컨테이너를 새로 만들면 사라진다. gstack과 같은
 # 이유로 런타임에 매번 맞춘다.
@@ -735,7 +735,7 @@ fi
 #
 # 멱등성: `claude plugin install`은 이미 설치돼 있으면 그 사실만 알리고 성공으로
 # 끝나므로 재실행에 안전하다.
-echo -e "\n${YELLOW}[3/6] 필수 플러그인 설치...${NC}"
+echo -e "\n${YELLOW}[3/6] Claude — 필수 플러그인 설치...${NC}"
 
 # 설치할 플러그인 → 그 플러그인을 켤 역할 (plugin@marketplace 형식으로 소스를
 # 못 박는다 — 같은 이름이 여러 마켓플레이스에 있을 때 엉뚱한 쪽이 깔리는 것을 막는다).
@@ -769,7 +769,7 @@ for plugin in "${!PLUGIN_ROLES[@]}"; do
     fi
 done
 
-# ── [4/6] 역할별 스킬 제한 ─────────────────────────────────
+# ── [4/6] Claude — 역할별 스킬 제한 ────────────────────────
 # gstack setup은 스킬 56개를 ~/.claude/skills/ 아래 전부 깔고, 그 frontmatter
 # (약 22.8KB ≈ 5.7K 토큰)는 파인이 뜰 때마다 시스템 프롬프트로 들어간다.
 # 파인 6개 × 매 턴이므로 고정비가 크다. 실제로는 researcher가 /ios-qa를,
@@ -796,7 +796,7 @@ done
 # cwd가 홈 디렉터리 아래이면 그대로 로드된다(실측). 파인 cwd는 항상
 # $PROJECT_DIR/.team/{역할} 이므로 전역 규칙은 계속 들어온다.
 # 즉 여기서 줄어드는 것은 gstack 스킬 frontmatter와 플러그인·에이전트 정의다.
-echo -e "\n${YELLOW}[4/6] 역할별 스킬 제한...${NC}"
+echo -e "\n${YELLOW}[4/6] Claude — 역할별 스킬 제한...${NC}"
 
 # 역할 → 허용 스킬 목록. 값이 비면 gstack 스킬을 하나도 주지 않는다는 뜻이고,
 # 키 자체가 없으면 제한하지 않는다(전역 스킬 전체 유지).
@@ -916,14 +916,14 @@ echo -e "${GREEN}✅ 역할별 스킬 제한 완료${NC}"
 
 fi
 
-# Codex 전용 준비. USED_AGENTS[claude]와 독립 조건이므로 혼합 팀에서는
+# Codex 전용 단계 준비. USED_AGENTS[claude]와 독립 조건이므로 혼합 팀에서는
 # 위 Claude 블록에 이어 이 블록도 실행된다(일부 역할만 codex인 경우 등).
 if [ -n "${USED_AGENTS[codex]:-}" ]; then
 
-# ── [1-4/6] Codex 런타임 준비 ──────────────────────────────
+# ── [1-4/6] Codex — 런타임 준비 ────────────────────────────
 # Codex에는 Claude 플러그인을 재사용하지 않는다. standalone 스킬과 Codex 공식
 # 플러그인의 허용된 기능만 역할별 .agents/skills 또는 격리된 CODEX_HOME에 넣는다.
-echo -e "\n${YELLOW}[1-4/6] Codex 런타임 준비...${NC}"
+echo -e "\n${YELLOW}[1-4/6] Codex — 런타임 준비...${NC}"
 
 merge_team_agents_md() {
     local src="$SCRIPT_DIR/AGENTS.md"
@@ -1091,8 +1091,8 @@ echo -e "${GREEN}✅ Codex 역할별 런타임 디렉터리 준비 완료${NC}"
 
 fi
 
-# ── [5/6] TMUX 세션 & 레이아웃 구성 ────────────────────────
-echo -e "\n${YELLOW}[5/6] TMUX 세션 & 레이아웃 구성...${NC}"
+# ── [5/6] 공통 (Claude·Codex) — TMUX 세션 & 레이아웃 구성 ─
+echo -e "\n${YELLOW}[5/6] 공통 (Claude·Codex) — TMUX 세션 & 레이아웃 구성...${NC}"
 
 # -x 220 -y 50: main-vertical 레이아웃에서 파인 6개가 각각 읽을 만한 너비를
 # 확보하기 위한 최소 터미널 크기. tmux는 접속 클라이언트 크기로 윈도우를 다시
@@ -1145,8 +1145,8 @@ tmux set-option -t "$SESSION" mouse on
 
 echo "  ✅ 레이아웃 구성 완료 (${PANE_COUNT} panes)"
 
-# ── [6/6] 에이전트 자동 실행 ───────────────────────────────
-echo -e "\n${YELLOW}[6/6] 파인별 에이전트 실행 중 (${used_agents_list})... (파인당 최대 1분)${NC}"
+# ── [6/6] 공통 (Claude·Codex) — 에이전트 자동 실행 ────────
+echo -e "\n${YELLOW}[6/6] 공통 (Claude·Codex) — 파인별 에이전트 실행 중 (${used_agents_list})... (파인당 최대 1분)${NC}"
 
 # codex의 --add-dir는 존재하는 경로만 받는다. say의 lazy mkdir은
 # codex sandbox(workspace-write) 안에서 막히므로 파인 기동 전에 미리 만든다.
