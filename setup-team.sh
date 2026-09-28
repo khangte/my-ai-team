@@ -720,11 +720,17 @@ else
     git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git "$GSTACK_DIR" -q
 fi
 
-if (cd "$GSTACK_DIR" && timeout 60 ./setup >/dev/null); then
+gstack_setup_err="$(mktemp)"
+if (cd "$GSTACK_DIR" && timeout 60 ./setup >/dev/null 2>"$gstack_setup_err"); then
     echo -e "  ${GREEN}✅ gstack 스킬 설치 완료${NC}"
 else
     echo -e "  ${YELLOW}⚠️  gstack setup 실패 또는 timeout (수동 확인 필요: cd $GSTACK_DIR && ./setup)${NC}"
 fi
+if [ -s "$gstack_setup_err" ]; then
+    echo -e "  ${YELLOW}ℹ️  아래는 codex 등 비-Claude 호스트용 문서 생성 경고 (Claude 설치와 무관):${NC}"
+    sed 's/^/     /' "$gstack_setup_err"
+fi
+rm -f "$gstack_setup_err"
 
 # ── [3/6] Claude — 필수 플러그인 설치 ──────────────────────
 # 마켓플레이스 플러그인은 ~/.claude/plugins/ 아래에 설치되는데, 이 경로는
