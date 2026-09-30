@@ -759,7 +759,7 @@ echo -e "\n${YELLOW}[3/6] Claude — 필수 플러그인 설치...${NC}"
 #
 # 역할별 플러그인 배분은 토큰 고정비와 해당 역할의 사용 빈도를 고려해
 # team/config.claude.sh에서 정한다. 상세 근거는 설계 문서를 참조한다.
-# superpowers·frontend-design는 빈 값이다. [4/6]이 플러그인 캐시에서 스킬
+# superpowers는 빈 값이다(frontend-design은 designer에 켠다). [4/6]이 플러그인 캐시에서 스킬
 # 디렉터리를 직접 심볼릭 링크하므로 enabledPlugins 없이도 역할별로 이미 걸린다.
 # 여기서 또 켜면 superpowers 스킬 14개가 통째로 들어와 [4/6]의 선별이 무의미해진다
 # (frontend-design은 스킬이 1개뿐이라 차이가 없지만, 링크로 거는 방식을 맞춘다).
