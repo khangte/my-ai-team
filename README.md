@@ -435,14 +435,19 @@ $PROJECT_DIR/.claude-logs/
   `.team/{역할}/.claude/skills`에 **필요한 스킬만 심볼릭 링크**하고 그 디렉터리를 cwd로 실행,
   `--setting-sources project`로 유저 전역·플러그인 스킬은 차단
 
-| 역할       | 허용 스킬                                                       |
-| ---------- | --------------------------------------------------------------- |
-| lead       | (없음 — 배분·수합·git 커밋만 하므로 gstack 스킬 불필요)         |
-| architect  | `spec` `diagram` `document-generate` `health` `plan-eng-review` |
-| researcher | `scrape` `browse`                                               |
-| designer   | `design-review` `design-html` `diagram`                         |
-| developer  | `health` `codex` `learn`                                        |
-| reviewer   | `review` `qa` `health`                                          |
+| 역할       | 허용 스킬                   |
+| ---------- | --------------------------- |
+| lead       | `spec` `plan-eng-review`    |
+| architect  | `diagram`                   |
+| researcher | `scrape` `browse`           |
+| designer   | `design-review` `design-html` |
+| developer  | `health`                    |
+| reviewer   | `review`                    |
+
+- `spec`·`plan-eng-review`는 사용자에게 직접 묻는 대화형 스킬이라, 사용자와 대화하는 유일한 파인인 lead에 둔다
+  (모호한 요청 → lead `spec` → architect `writing-plans` → lead `plan-eng-review` → developer)
+- 실측(commerce-data-platform, 11일) 결과 역할 지침의 `## 스킬`에 사용 조건이 없는 스킬은 한 번도 호출되지 않았다.
+  그래서 배정한 스킬은 `team/{역할}.md`에 언제 쓰는지 함께 적고, 호출 0회였던 `document-generate`·`qa`·`learn`은 뺐다
 
 gstack `investigate`는 superpowers `systematic-debugging`과 교리·4단계 구성이
 문구까지 거의 같은 순수 중복이라 어느 역할에도 주지 않는다. 크기는 6.6배
@@ -462,15 +467,13 @@ gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리
 역할별 필요한 것만 `.team/{역할}/.claude/skills`에 링크해 되살린다
 (`team/config.claude.sh`의 `SUPERPOWERS_SKILL_SETS`).
 
-| 역할      | 배정 스킬                                                                |
-| --------- | ------------------------------------------------------------------------ |
-| lead      | `finishing-a-development-branch`                                         |
-| architect | `brainstorming` `writing-plans`                                          |
-| designer  | `brainstorming`                                                          |
-| developer | `test-driven-development` `systematic-debugging` `receiving-code-review` |
-| reviewer  | `verification-before-completion`                                         |
+| 역할      | 배정 스킬                                        |
+| --------- | ------------------------------------------------ |
+| lead      | `finishing-a-development-branch`                 |
+| architect | `writing-plans`                                  |
+| developer | `systematic-debugging` `receiving-code-review`   |
 
-- researcher는 배정 없음 — 14개 중 조사 업무에 대응하는 스킬이 없다
+- researcher·designer·reviewer는 배정 없음
 - gstack은 래퍼의 `SKILL.md`만 링크하지만, superpowers는 `references/` 등 하위 파일을
   런타임에 읽으므로 **스킬 디렉터리를 통째로** 링크한다
 - 플러그인 설치 경로에 버전 디렉터리가 끼므로(`.../superpowers/6.2.0/skills`)
@@ -485,14 +488,16 @@ gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리
 | `using-git-worktrees`                                       | 구성한 파인이 같은 워킹트리를 공유하는 구조와 충돌                  |
 | `using-superpowers`                                         | "1%라도 해당되면 무조건 스킬 호출" — 전 파인 고정비만 늘어남        |
 | `executing-plans` `writing-skills`                          | 각각 별도 세션 실행 전제 / 팀 업무 아님                             |
+| `brainstorming`                                             | 사용자와 대화하는 스킬이라 `say`로만 소통하는 파인과 맞지 않음. 모호한 요청 정리는 lead의 gstack `spec`이 맡는다 |
+| `test-driven-development`                                   | `writing-plans` 계획서에 테스트 우선 단계가 이미 들어 있음. 규칙은 `team/developer.md`의 "테스트 원칙"에 문장으로 남김 |
+| `verification-before-completion`                            | 핵심 규칙이 `team/reviewer.md`의 "승인 전 검증"과 같아 스킬 없이 지켜짐(실측 호출 0회, 직접 실행 검증 138회) |
 
 이 스킬들은 단독 실행을 전제로 쓰여 있어(사용자에게 직접 승인 요청, 서브에이전트 dispatch 등)
 그대로 두면 팀 구조와 어긋난다. 그래서 각 `team/{역할}.md`의 "## 스킬" 절에서 팀 규칙으로
-바꿔 읽도록 명시했다 — 예로 `brainstorming`의 "유저 승인" 게이트는 lead(`:0.0`) 승인으로 치환.
+바꿔 읽도록 명시했다 — 예로 `writing-plans`의 서브에이전트·worktree 실행 선택지 대신 lead에게 계획을 보고한다.
 
-`test-driven-development`를 developer에 배정하며 역할 경계도 조정: 기존 "테스트는 reviewer가"
-방침과 TDD가 충돌해, 현재는 **TDD 사이클(red→구현→green)까지 developer**,
-**커버리지·품질 최종 판정은 reviewer**로 나눴다.
+역할 경계: **테스트 우선 사이클(red→구현→green)까지 developer**,
+**커버리지·품질 최종 판정은 reviewer**.
 
 ### Codex architect 네이티브 확장
 
@@ -500,16 +505,16 @@ Codex 공식 카탈로그를 기준으로 Claude architect 기능의 대체재�
 
 | 기존 기능                                   | Codex 네이티브 대체재                                     | 적용 방침                                        |
 | ------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------ |
-| Superpowers `brainstorming`·`writing-plans` | `superpowers@openai-curated`의 동명 스킬                  | architect에 두 스킬만 자동 노출                  |
+| Superpowers `brainstorming`·`writing-plans` | `superpowers@openai-curated`의 동명 스킬                  | architect를 Codex로 돌릴 때 `CODEX_PLUGIN_SKILL_SETS`에 선언(기본 배정 없음) |
 | gstack `diagram`                            | `figma@openai-curated`의 `figma-generate-diagram`         | FigJam을 쓰는 프로젝트에서만 역할별 전체 설치    |
 | 문서 기반 spec → plan/task                  | `notion@openai-curated`의 `notion-spec-to-implementation` | Notion이 source of truth일 때만 역할별 전체 설치 |
 | GitHub issue/PR 문맥                        | `github@openai-curated`                                   | 로컬 저장소만 쓰면 불필요                        |
 | lifecycle hook                              | Codex 네이티브 hooks                                      | 이 저장소가 `SessionStart`·`Stop`을 자동 생성    |
 | Serena·gstack `health`·독립 plan review     | 정확한 공식 대체재 없음                                   | Codex 기본 저장소 도구와 architect 지침으로 수행 |
 
-`setup-team.sh`는 Codex 공식 카탈로그에서 Superpowers의 두 스킬만 찾아
-`.team/architect/.agents/skills`에 링크한다. 전체 플러그인에 포함된 TDD·디버깅·worktree·
-서브에이전트 스킬은 architect에 보이지 않는다. 승인 주체를 lead로 바꾸고 실행을
+`CODEX_PLUGIN_SKILL_SETS`에 선언하면 `setup-team.sh`가 Codex 공식 카탈로그에서 그 스킬만 찾아
+`.team/{역할}/.agents/skills`에 링크한다. 전체 플러그인에 포함된 나머지 스킬은 그 역할에 보이지 않는다.
+기본 구성에서 architect는 Claude라 비어 있다. 승인 주체를 lead로 바꾸고 실행을
 developer에게 넘기는 `team/architect.md` 규칙이 스킬의 단독 세션 지침보다 우선한다.
 
 각 Codex 파인은 `.team/{역할}/.codex-home`을 `CODEX_HOME`으로 사용한다. 인증, Codex 시스템
@@ -548,7 +553,7 @@ declare -A CODEX_PLUGIN_SKILL_SETS=(
 니어블랙+애시드그린, 헤어라인 브로드시트)을 명시하고, 브리프가 자유롭게 둔 축을
 거기에 쓰지 말라고 못박는다.
 
-`design-review`(브라우저 QA)·`design-html`(코드 생성)·`diagram`(렌더)은 역할이 달라 유지한다.
+`design-review`(브라우저 QA)·`design-html`(코드 생성)은 역할이 달라 유지한다.
 단 `design-html`은 Pretext(`@chenglou/pretext`) 참조가 38곳이라 그 스택에 묶인다.
 
 > 버전 디렉터리가 semver가 아니라 `unknown`이지만, 설치본이 하나뿐이라
@@ -581,9 +586,9 @@ declare -A CODEX_PLUGIN_SKILL_SETS=(
 | --------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | caveman         | 전 파인                       | 켠 파인이 아니라 lead가 이득을 회수하는 구조(파인들의 보고가 전부 lead 입력). 출력 문체를 팀 전체에서 통일하는 값이 고정비보다 크다는 사용자 결정           |
 | ponytail        | developer만                   | 사다리 7단 중 2~7단이 전부 코드 대상이라 코드를 안 쓰는 역할에는 1단 YAGNI만 남음. 그 한 줄은 역할 지침에 문장으로 넣는 편이 100배 쌈(2.2K 대 ~20토큰)      |
-| serena          | developer·reviewer·designer   | 고정비가 가장 큼(MCP 툴 정의 30개)이라 코드를 직접 다루는 역할에만 줌. lead·researcher는 코드를 안 다뤄 죽은 무게. architect는 Opus라 토큰 단가가 가장 비쌈 |
+| serena          | 전 파인                       | 심볼 탐색을 전 역할에서 쓰도록 확대(`8f18768`). 고정비가 가장 큼(MCP 툴 정의 30개)이라 줄일 때 첫 후보 |
 | superpowers     | 없음(`enabledPlugins` 미주입) | 위 "superpowers 스킬" 절대로 `[4/6]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 14개가 통째로 들어와 선별이 무의미해짐  |
-| frontend-design | 없음(`enabledPlugins` 미주입) | superpowers와 동일 — `[4/6]`이 designer에 직접 링크함                                                                                                       |
+| frontend-design | designer                      | `[4/6]`이 designer에 직접 링크하고 `enabledPlugins`로도 켬 — 스킬이 1개뿐이라 선별 손실이 없음                                                             |
 
 배분 근거 실측은 [docs/architect-review/6_caveman-ponytail-role-scoping.md](docs/architect-review/6_caveman-ponytail-role-scoping.md) 참조.
 

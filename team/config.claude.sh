@@ -19,27 +19,27 @@ declare -A PLUGIN_ROLES=(
     ["superpowers@claude-plugins-official"]=""
     ["frontend-design@claude-plugins-official"]="designer"
     ["serena@claude-plugins-official"]="*"
-    ["ponytail@ponytail"]="lead developer"
+    ["ponytail@ponytail"]="developer"
     ["caveman@caveman"]="*"
 )
 
 # 역할 → 필요한 스킬. setup-team.sh는 이 선언을 읽어 역할별 런타임 디렉터리에
 # 심볼릭 링크를 만들고, 설치·오류 처리는 런처에 남긴다.
 declare -A GSTACK_SKILL_SETS=(
-    [lead]=""
-    [architect]="spec diagram document-generate health plan-eng-review"
+    [lead]="spec plan-eng-review"
+    [architect]="diagram"
     [researcher]="scrape browse"
-    [designer]="design-review design-html diagram"
-    [developer]="health learn"
-    [reviewer]="review qa health"
+    [designer]="design-review design-html"
+    [developer]="health"
+    [reviewer]="review"
 )
 
 declare -A SUPERPOWERS_SKILL_SETS=(
     [lead]="finishing-a-development-branch"
-    [architect]="brainstorming writing-plans"
-    [designer]="brainstorming"
-    [developer]="test-driven-development systematic-debugging receiving-code-review"
-    [reviewer]="verification-before-completion"
+    [architect]="writing-plans"
+    [designer]=""
+    [developer]="systematic-debugging receiving-code-review"
+    [reviewer]=""
 )
 
 declare -A FRONTEND_DESIGN_SKILL_SETS=(

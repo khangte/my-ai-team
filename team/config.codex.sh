@@ -10,8 +10,8 @@
 # config.claude.sh의 GSTACK_SKILL_SETS와 동일하게 맞춘다(스킬명은 gstack
 # 접두어 없이 그대로 — find_codex_skill_source가 .agents/skills/<name>에서 찾는다).
 declare -A CODEX_SKILL_SETS=(
-    [designer]="design-review design-html diagram"
-    [developer]="health learn"
+    [designer]="design-review design-html"
+    [developer]="health"
 )
 
 # 역할 → 전체를 설치할 공식 Codex 플러그인. 각 Codex 파인은 격리된 CODEX_HOME을
@@ -20,8 +20,6 @@ declare -A CODEX_SKILL_SETS=(
 declare -A CODEX_PLUGIN_SETS=()
 
 # 역할 → 공식 플러그인에서 선택적으로 노출할 스킬. 형식은
-# plugin@marketplace:skill 이다. Superpowers 전체에는 architect 역할 밖의 TDD·디버깅·
-# 서브에이전트 흐름도 들어 있으므로 필요한 두 스킬만 링크한다.
-declare -A CODEX_PLUGIN_SKILL_SETS=(
-    [architect]="superpowers@openai-curated:brainstorming superpowers@openai-curated:writing-plans"
-)
+# plugin@marketplace:skill 이다. 플러그인 전체를 켜면 역할에 불필요한 스킬까지
+# 노출되므로 필요한 스킬만 골라 링크한다.
+declare -A CODEX_PLUGIN_SKILL_SETS=()
