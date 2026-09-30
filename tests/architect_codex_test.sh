@@ -28,10 +28,8 @@ test "${#CODEX_SKILL_SETS[@]}" -eq 0
 test ! -d "$repo_dir/skills/codex"
 
 # developer에는 공식 Superpowers 플러그인의 디버깅·리뷰 수용 스킬만 선택 노출한다.
-expected_plugin_skills="superpowers@openai-curated:systematic-debugging superpowers@openai-curated:receiving-code-review"
-test "${CODEX_PLUGIN_SKILL_SETS[developer]}" = "$expected_plugin_skills"
-test "${#CODEX_PLUGIN_SKILL_SETS[@]}" -eq 1
-test "${#CODEX_PLUGIN_SETS[@]}" -eq 0
+test "${CODEX_SUPERPOWERS_SKILL_SETS[developer]}" = "systematic-debugging receiving-code-review"
+test "${CODEX_PLUGIN_ROLES[product-design@openai-curated]}" = "designer"
 
 # marketplace 이름이 인증 방식에 따라 달라도 공식 플러그인을 해석한다.
 fixture="$repo_dir/tests/fixtures/codex-plugin-catalog.json"
@@ -39,6 +37,13 @@ resolved_id="$("$repo_dir/bin/resolve-codex-plugin" "$fixture" superpowers@opena
 resolved_source="$("$repo_dir/bin/resolve-codex-plugin" "$fixture" superpowers@openai-curated source)"
 test "$resolved_id" = "superpowers@openai-api-curated"
 test "$resolved_source" = "/catalog/plugins/superpowers"
+
+# 원격 카탈로그는 marketplace가 openai-curated-remote이고 source 경로가 없다.
+remote_fixture="$(mktemp)"
+trap 'rm -f "$remote_fixture"' EXIT
+printf '%s' '{"available":[{"pluginId":"product-design@openai-curated-remote","name":"product-design","marketplaceName":"openai-curated-remote","source":{"source":"remote"}}]}' > "$remote_fixture"
+test "$("$repo_dir/bin/resolve-codex-plugin" "$remote_fixture" product-design@openai-curated id)" = "product-design@openai-curated-remote"
+! "$repo_dir/bin/resolve-codex-plugin" "$remote_fixture" product-design@openai-curated source
 
 # 런처가 파인별 CODEX_HOME과 세션 시작 정리 훅을 사용해야 한다.
 grep -qF "export CODEX_HOME='\$role_codex_home'" "$repo_dir/setup-team.sh"
