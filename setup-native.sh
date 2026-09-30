@@ -131,6 +131,7 @@ if [ "$NEED_CLAUDE" = true ]; then
 
     step "bun 확인..."
     command -v bun &>/dev/null || curl -fsSL https://bun.sh/install | bash
+    export PATH="$HOME/.bun/bin:$PATH"
     echo "  ✅ bun $(bun --version 2>/dev/null)"
 fi
 
