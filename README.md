@@ -465,7 +465,7 @@ gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리
 [superpowers](https://github.com/obra/superpowers)는 gstack과 달리 **플러그인**이라
 `--setting-sources project`에 통째로 차단된다. 그래서 gstack과 같은 방식으로
 역할별 필요한 것만 `.team/{역할}/.claude/skills`에 링크해 되살린다
-(`team/config.claude.sh`의 `SUPERPOWERS_SKILL_SETS`).
+(`team/config.claude.sh`의 `CLAUDE_SUPERPOWERS_SKILL_SETS`).
 
 | 역할      | 배정 스킬                                        |
 | --------- | ------------------------------------------------ |
@@ -558,7 +558,7 @@ declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
 
 [frontend-design](https://github.com/anthropics/claude-plugins-official)(공식 마켓플레이스)도
 플러그인이라 superpowers와 같은 방식으로 링크한다(`team/config.claude.sh`의
-`FRONTEND_DESIGN_SKILL_SETS`).
+`CLAUDE_FRONTEND_DESIGN_SKILL_SETS`).
 스킬이 1개뿐이지만 배열로 둬서 배분 규칙을 나머지와 맞췄다.
 
 | 역할     | 배정 스킬         |
@@ -595,7 +595,7 @@ declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
   파인에서 전혀 걸리지 않음**(실측 확인)
 - 해결: `setup-team.sh`의 `[3/6]`이 플러그인을 설치하고, `start_claude_in_pane()`이 `--settings`에
   `enabledPlugins`·`extraKnownMarketplaces`를 역할별로 명시 주입(`team/config.claude.sh`의
-  `PLUGIN_ROLES` 배열이 배분을 결정)
+  `CLAUDE_PLUGIN_ROLES` 배열이 배분을 결정)
 
 실측 파인당 고정비 — `ponytail` ~2.2K tok / `caveman` ~3.9K tok / `serena` ~6K tok.
 활성 파인 수만큼 매 턴 반복되는 비용이므로, 쓰지 않을 역할에는 주지 않는다.

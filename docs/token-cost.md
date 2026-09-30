@@ -185,7 +185,7 @@ lead는 직접 작업하지 않고 배분·수합만 하지만, **모든 보고�
 
 ### 6. 역할별 플러그인 활성화 — 턴당 고정비
 
-`setup-team.sh` `[3/7]` 섹션의 `PLUGIN_ROLES`, 활성화는 `start_claude_in_pane()`.
+`setup-team.sh` `[3/7]` 섹션의 `CLAUDE_PLUGIN_ROLES`, 활성화는 `start_claude_in_pane()`.
 
 caveman·ponytail·serena는 유저 전역 `~/.claude/settings.json`의
 `enabledPlugins`로 켜진다. 그런데 파인은 `--setting-sources project`로 뜨는
@@ -267,7 +267,7 @@ developer가 구현, reviewer가 확인한 항목들이다. 근거 문서는
 ## 참고
 
 - 재현 명령: `rtk gain`, `rtk gain --history`, `rtk discover`
-- 관련 코드: `setup-team.sh` `[1/7]`, `[3/7]`(`PLUGIN_ROLES`), `[4/7]`, `start_claude_in_pane()`, `bin/say`, `CLAUDE.md`, `team/lead.md`
+- 관련 코드: `setup-team.sh` `[1/7]`, `[3/7]`(`CLAUDE_PLUGIN_ROLES`), `[4/7]`, `start_claude_in_pane()`, `bin/say`, `CLAUDE.md`, `team/lead.md`
 - 관련 문서: README "역할별 스킬 제한", "Stop 훅 — 보고 누락 방지", "팀 밖 세션에서 파인 호출",
   [pane-messaging.md](pane-messaging.md)
 - 커밋: `f0320d8`(T1-T6), `6acb8b9`(caveman 상시·ponytail 스코핑)

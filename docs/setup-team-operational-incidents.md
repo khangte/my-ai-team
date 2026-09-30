@@ -34,7 +34,7 @@
 - ponytail은 최종적으로 developer에만 준다. 기존 헬퍼 재사용부터 한 줄 구현까지의 사다리 중 코드 대상인 2~7단을 실제로 사용하는 역할이 developer이기 때문이다. lead·architect·reviewer의 YAGNI 판단은 역할 지침의 한 문장으로 보완하는 편이 고정비보다 훨씬 싸다.
 - serena는 고정비가 가장 크므로 현재는 developer·reviewer에만 준다. frontend를 실제로 구현하는 designer 역할을 다시 활성화하면 Serena의 LSP 백엔드가 ts/tsx·vue·svelte·html·scss와 심볼 참조 탐색을 지원한다는 점을 고려해 별도로 배정 여부를 판단한다.
 
-`PLUGIN_ROLES`와 역할별 스킬 집합은 `team/config.claude.sh`가 원본이다. 배분을 바꿀 때에는 역할별 사용 빈도뿐 아니라 lead에 집계되는 보고의 비용도 함께 검토한다.
+`CLAUDE_PLUGIN_ROLES`와 역할별 스킬 집합은 `team/config.claude.sh`가 원본이다. 배분을 바꿀 때에는 역할별 사용 빈도뿐 아니라 lead에 집계되는 보고의 비용도 함께 검토한다.
 
 ### 상충하는 과거 권고의 우선순위
 

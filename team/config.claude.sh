@@ -6,16 +6,16 @@
 # 파일은 건드릴 필요 없다(단, 역할 이름 자체를 새로 만들면 아래 배분표에
 # 그 역할 키를 추가해야 플러그인·스킬이 배정된다).
 
-# 마켓플레이스 이름 → GitHub 리포. 설치할 플러그인은 PLUGIN_ROLES에서
+# 마켓플레이스 이름 → GitHub 리포. 설치할 플러그인은 CLAUDE_PLUGIN_ROLES에서
 # plugin@marketplace 형식으로 지정한다.
-declare -A PLUGIN_MARKETPLACES=(
+declare -A CLAUDE_PLUGIN_MARKETPLACES=(
     [claude-plugins-official]="anthropics/claude-plugins-official"
     [ponytail]="DietrichGebert/ponytail"
     [caveman]="JuliusBrussee/caveman"
 )
 
 # 플러그인 → 활성화할 역할. "*"는 모든 역할, 빈 값은 설치만 한다.
-declare -A PLUGIN_ROLES=(
+declare -A CLAUDE_PLUGIN_ROLES=(
     ["superpowers@claude-plugins-official"]=""
     ["frontend-design@claude-plugins-official"]="designer"
     ["serena@claude-plugins-official"]="*"
@@ -25,7 +25,7 @@ declare -A PLUGIN_ROLES=(
 
 # 역할 → 필요한 스킬. setup-team.sh는 이 선언을 읽어 역할별 런타임 디렉터리에
 # 심볼릭 링크를 만들고, 설치·오류 처리는 런처에 남긴다.
-declare -A GSTACK_SKILL_SETS=(
+declare -A CLAUDE_GSTACK_SKILL_SETS=(
     [lead]="spec plan-eng-review"
     [architect]="diagram"
     [researcher]="scrape browse"
@@ -34,7 +34,7 @@ declare -A GSTACK_SKILL_SETS=(
     [reviewer]="review"
 )
 
-declare -A SUPERPOWERS_SKILL_SETS=(
+declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=(
     [lead]="finishing-a-development-branch"
     [architect]="writing-plans"
     [designer]=""
@@ -42,6 +42,6 @@ declare -A SUPERPOWERS_SKILL_SETS=(
     [reviewer]=""
 )
 
-declare -A FRONTEND_DESIGN_SKILL_SETS=(
+declare -A CLAUDE_FRONTEND_DESIGN_SKILL_SETS=(
     [designer]="frontend-design"
 )
