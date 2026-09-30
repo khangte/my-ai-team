@@ -192,7 +192,7 @@ done
 
 # 모델·추론강도는 이미 MEMBERS에서 role별로 확정됐으므로, 파인 인덱스
 # 그대로 참조한다(SPEC_MEMBER_MODELS/EFFORTS). 아래에서는 플러그인·스킬 배분표
-# (PLUGIN_ROLES, GSTACK_SKILL_SETS 등)만 공급자별로 로딩한다.
+# (CLAUDE_PLUGIN_ROLES, CLAUDE_GSTACK_SKILL_SETS 등)만 공급자별로 로딩한다.
 for agent in "${!USED_AGENTS[@]}"; do
     provider_config="$TEAM_DIR/config.${agent}.sh"
     [ -f "$provider_config" ] && source "$provider_config"
@@ -201,6 +201,13 @@ for agent in "${!USED_AGENTS[@]}"; do
     if [ -f "$project_provider_config" ]; then
         echo -e "${YELLOW}team/config.${agent}.sh 발견 → 공급자별 구성 사용: $project_provider_config${NC}"
         source "$project_provider_config"
+        # 옛 배열 이름은 더 이상 읽지 않는다 — 조용히 기본값으로 떨어지지 않게 알린다.
+        for legacy in PLUGIN_MARKETPLACES PLUGIN_ROLES GSTACK_SKILL_SETS SUPERPOWERS_SKILL_SETS \
+                      FRONTEND_DESIGN_SKILL_SETS CODEX_PLUGIN_SETS CODEX_PLUGIN_SKILL_SETS; do
+            if declare -p "$legacy" >/dev/null 2>&1; then
+                echo -e "${YELLOW}  ⚠️  $project_provider_config: 옛 이름 $legacy 는 무시됩니다 (현재 이름은 이 저장소의 team/config.${agent}.sh 참고)${NC}" >&2
+            fi
+        done
     fi
 done
 
@@ -355,13 +362,13 @@ start_claude_in_pane() {
     # (실측: 그냥 두면 caveman·ponytail·serena가 파인에서 전혀 안 걸린다).
     # rtk 훅을 여기서 다시 넣는 것과 같은 이유·같은 패턴이다.
     #
-    # 어떤 역할에 무엇을 주는지는 [3/6]의 PLUGIN_ROLES가 정한다.
+    # 어떤 역할에 무엇을 주는지는 [3/6]의 CLAUDE_PLUGIN_ROLES가 정한다.
     local plugins_json=""
     if [ -n "$role" ]; then
         local enabled_entries=() marketplace_entries=() seen_marketplaces=" "
-        for plugin in "${!PLUGIN_ROLES[@]}"; do
+        for plugin in "${!CLAUDE_PLUGIN_ROLES[@]}"; do
             # 값이 "*"이면 전 파인, 아니면 공백 구분 역할 목록에 있을 때만 준다.
-            local roles="${PLUGIN_ROLES[$plugin]}"
+            local roles="${CLAUDE_PLUGIN_ROLES[$plugin]}"
             if [ "$roles" != "*" ] && [[ " $roles " != *" $role "* ]]; then
                 continue
             fi
@@ -370,7 +377,7 @@ start_claude_in_pane() {
             # 출처를 빼면 파인이 마켓플레이스를 몰라 플러그인을 못 찾는다.
             local mp="${plugin##*@}"
             if [[ "$seen_marketplaces" != *" $mp "* ]]; then
-                marketplace_entries+=("\"${mp}\":{\"source\":{\"source\":\"github\",\"repo\":\"${PLUGIN_MARKETPLACES[$mp]}\"}}")
+                marketplace_entries+=("\"${mp}\":{\"source\":{\"source\":\"github\",\"repo\":\"${CLAUDE_PLUGIN_MARKETPLACES[$mp]}\"}}")
                 seen_marketplaces+="$mp "
             fi
         done
@@ -737,7 +744,7 @@ rm -f "$gstack_setup_err"
 # volume(claude-home) 안이라 컨테이너를 새로 만들면 사라진다. gstack과 같은
 # 이유로 런타임에 매번 맞춘다.
 #
-# 아래 [4/6]의 SUPERPOWERS_SKILL_SETS가 참조하는 superpowers 스킬이 여기서 깔리고,
+# 아래 [4/6]의 CLAUDE_SUPERPOWERS_SKILL_SETS가 참조하는 superpowers 스킬이 여기서 깔리고,
 # caveman/ponytail은 응답 스타일 규칙을, serena는 심볼 단위 코드 탐색 MCP를 제공한다.
 #
 # 여기서는 설치까지만 한다. 파인별 활성화는 start_claude_in_pane이 --settings에
@@ -764,9 +771,9 @@ echo -e "\n${YELLOW}[3/6] Claude — 필수 플러그인 설치...${NC}"
 # 여기서 또 켜면 superpowers 스킬 14개가 통째로 들어와 [4/6]의 선별이 무의미해진다
 # (frontend-design은 스킬이 1개뿐이라 차이가 없지만, 링크로 거는 방식을 맞춘다).
 
-for mp in "${!PLUGIN_MARKETPLACES[@]}"; do
+for mp in "${!CLAUDE_PLUGIN_MARKETPLACES[@]}"; do
     # 이미 등록돼 있으면 add가 실패하지만 무해하므로 실패를 삼킨다.
-    mp_add_out="$(claude plugin marketplace add "${PLUGIN_MARKETPLACES[$mp]}" 2>&1)" || true
+    mp_add_out="$(claude plugin marketplace add "${CLAUDE_PLUGIN_MARKETPLACES[$mp]}" 2>&1)" || true
     if [[ "$mp_add_out" == *"already on disk"* ]]; then
         echo "  ℹ️  marketplace $mp 이미 등록됨"
     fi
@@ -775,13 +782,13 @@ done
 # 설치만 한다. `claude plugin enable`은 부르지 않는다 — 그건 유저 전역
 # settings.json을 고쳐 팀 밖 세션에까지 영향을 주는데, 파인의 활성화는
 # start_claude_in_pane이 --settings로 따로 넣으므로 필요하지도 않다.
-for plugin in "${!PLUGIN_ROLES[@]}"; do
+for plugin in "${!CLAUDE_PLUGIN_ROLES[@]}"; do
     plugin_install_out="$(claude plugin install "$plugin" 2>&1)"
     if [ $? -eq 0 ]; then
         if [[ "$plugin_install_out" == *"already installed"* ]]; then
-            echo "  ℹ️  $plugin 이미 설치됨 → ${PLUGIN_ROLES[$plugin]:-(설치만)}"
+            echo "  ℹ️  $plugin 이미 설치됨 → ${CLAUDE_PLUGIN_ROLES[$plugin]:-(설치만)}"
         else
-            echo "  ✅  $plugin → ${PLUGIN_ROLES[$plugin]:-(설치만)}"
+            echo "  ✅  $plugin → ${CLAUDE_PLUGIN_ROLES[$plugin]:-(설치만)}"
         fi
     else
         echo -e "${YELLOW}  ⚠️  $plugin 설치 실패 (수동 확인: claude plugin install $plugin)${NC}"
@@ -890,11 +897,11 @@ merge_team_claude_md
 
 # TEAM_SKILLS_ROOT·RUNTIME_DIR·rm -rf는 위에서 공급자 공통으로 이미 처리했다.
 
-for role in "${!GSTACK_SKILL_SETS[@]}"; do
+for role in "${!CLAUDE_GSTACK_SKILL_SETS[@]}"; do
     role_skills_dir="$TEAM_SKILLS_ROOT/$role/.claude/skills"
     mkdir -p "$role_skills_dir"
     granted=()
-    for skill in ${GSTACK_SKILL_SETS[$role]}; do
+    for skill in ${CLAUDE_GSTACK_SKILL_SETS[$role]}; do
         # gstack setup이 만든 래퍼(~/.claude/skills/{skill}/SKILL.md)를 그대로 링크한다.
         # 래퍼의 SKILL.md 자체가 이미 gstack 리포를 가리키는 심볼릭 링크다.
         src="$HOME/.claude/skills/$skill/SKILL.md"
@@ -909,7 +916,7 @@ for role in "${!GSTACK_SKILL_SETS[@]}"; do
     done
     # superpowers 스킬은 래퍼 없이 플러그인 캐시의 스킬 디렉터리를 통째로 링크한다
     # (references/ 등 하위 파일을 런타임에 읽으므로 SKILL.md만 링크하면 깨진다).
-    for skill in ${SUPERPOWERS_SKILL_SETS[$role]:-}; do
+    for skill in ${CLAUDE_SUPERPOWERS_SKILL_SETS[$role]:-}; do
         src="$SUPERPOWERS_ROOT/$skill"
         [ -n "$SUPERPOWERS_ROOT" ] && [ -d "$src" ] || {
             echo -e "${YELLOW}  ⚠️  $role: superpowers '$skill' 없음 (플러그인 설치 확인)${NC}" >&2
@@ -919,7 +926,7 @@ for role in "${!GSTACK_SKILL_SETS[@]}"; do
         granted+=("$skill")
     done
     # frontend-design도 플러그인이라 superpowers와 같은 방식(디렉터리 통째 링크)이다.
-    for skill in ${FRONTEND_DESIGN_SKILL_SETS[$role]:-}; do
+    for skill in ${CLAUDE_FRONTEND_DESIGN_SKILL_SETS[$role]:-}; do
         src="$FRONTEND_DESIGN_ROOT/$skill"
         [ -n "$FRONTEND_DESIGN_ROOT" ] && [ -d "$src" ] || {
             echo -e "${YELLOW}  ⚠️  $role: frontend-design '$skill' 없음 (플러그인 설치 확인)${NC}" >&2
