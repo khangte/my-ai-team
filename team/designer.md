@@ -13,7 +13,14 @@
 산출물 예시: `/docs/design/user-flow.md`, `/docs/design/component-spec.md`, 실제 프론트엔드 소스
 
 ## 스킬
-### claude
+### Codex
+
+- `product-design` 플러그인 — 화면·흐름을 새로 설계하거나 기존 흐름을 점검할 때 쓴다
+  - `get-context`의 디자인 브리프 확인 질문은 사용자가 아니라 lead에게 묶어서 `say lead`로 보낸다
+  - `audit`(흐름 점검)·`image-to-code`·`url-to-code`는 lead 지시 범위 안에서만 쓰고, `share`(배포)는 쓰지 않는다
+  - 이미지 기반 시안(`ideate`)은 lead가 시안 비교를 요청했을 때만 만든다
+
+### Claude
 
 - `frontend-design` — 팔레트·타이포·레이아웃 같은 시각 방향을 정할 때 쓴다
   - 브리프가 대상을 특정하지 않으면 먼저 대상·사용자·페이지의 목적 한 가지를 정해 밝히고 시작한다

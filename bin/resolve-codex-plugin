@@ -11,7 +11,7 @@ if (!catalogFile || !selector || !field) {
 const data = JSON.parse(fs.readFileSync(catalogFile, "utf8"));
 const rows = [...(data.installed || []), ...(data.available || [])];
 const name = selector.split("@")[0];
-const allowedMarketplaces = new Set(["openai-curated", "openai-api-curated"]);
+const allowedMarketplaces = new Set(["openai-curated", "openai-api-curated", "openai-curated-remote"]);
 const plugin =
   rows.find((item) => item.pluginId === selector) ||
   rows.find(

@@ -1000,21 +1000,26 @@ prepare_codex_role_home() {
         return 1
     fi
 
-    [ -n "${CODEX_PLUGIN_SETS[$role]:-}" ] || return 0
+    # 값이 "*"이면 전 역할, 아니면 공백 구분 역할 목록에 있을 때만 설치한다.
+    local role_plugins=() roles
+    for plugin in "${!CODEX_PLUGIN_ROLES[@]}"; do
+        roles="${CODEX_PLUGIN_ROLES[$plugin]}"
+        [ "$roles" = "*" ] || [[ " $roles " == *" $role "* ]] || continue
+        role_plugins+=("$plugin")
+    done
+    [ ${#role_plugins[@]} -gt 0 ] || return 0
     load_codex_plugin_catalog || return 0
 
     # 공식 marketplace snapshot은 카탈로그로 공유한다. 설치 활성화 config와
     # 설치된 plugin cache는 role_home 아래에 생겨 역할별로 분리된다.
     mkdir -p "$role_home/.tmp"
+    # 원격 카탈로그(openai-curated-remote) 플러그인은 snapshot 없이도 설치된다.
     if [ -d "$base_codex_home/.tmp/plugins" ] && [ -f "$base_codex_home/.tmp/plugins.sha" ]; then
         ln -sfn "$(realpath "$base_codex_home/.tmp/plugins")" "$role_home/.tmp/plugins"
         ln -sfn "$(realpath "$base_codex_home/.tmp/plugins.sha")" "$role_home/.tmp/plugins.sha"
-    else
-        echo -e "${YELLOW}  ⚠️  $role: Codex 공식 marketplace snapshot이 없어 플러그인을 설치하지 못했습니다.${NC}" >&2
-        return 0
     fi
 
-    for plugin in ${CODEX_PLUGIN_SETS[$role]:-}; do
+    for plugin in "${role_plugins[@]}"; do
         case "$plugin" in
             *@openai-curated) ;;
             *)
@@ -1071,38 +1076,29 @@ for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
         granted+=("$skill")
     done
 
-    for plugin_skill in ${CODEX_PLUGIN_SKILL_SETS[$role]:-}; do
-        plugin="${plugin_skill%%:*}"
-        skill="${plugin_skill#*:}"
-        if [ "$plugin" = "$plugin_skill" ] || [ -z "$skill" ]; then
-            echo -e "${YELLOW}  ⚠️  $role: Codex 플러그인 스킬 형식 오류: $plugin_skill${NC}" >&2
-            continue
+    # superpowers는 원격 카탈로그라 source 경로가 없을 수 있다. 그때는 공식
+    # marketplace snapshot(~/.codex/.tmp/plugins)의 스킬 디렉터리를 쓴다.
+    superpowers_dir=""
+    if [ -n "${CODEX_SUPERPOWERS_SKILL_SETS[$role]:-}" ]; then
+        if load_codex_plugin_catalog; then
+            superpowers_dir="$(resolve_codex_plugin_field superpowers@openai-curated source)" || superpowers_dir=""
         fi
-        case "$plugin" in
-            *@openai-curated) ;;
-            *)
-                echo -e "${YELLOW}  ⚠️  $role: 공식 Codex 플러그인 ID가 아닙니다: $plugin${NC}" >&2
-                continue
-                ;;
-        esac
+        [ -n "$superpowers_dir" ] || superpowers_dir="$base_codex_home/.tmp/plugins/plugins/superpowers"
+    fi
+    for skill in ${CODEX_SUPERPOWERS_SKILL_SETS[$role]:-}; do
         case "$skill" in
             ""|.|..|*/*)
-                echo -e "${YELLOW}  ⚠️  $role: Codex 플러그인 스킬 이름 오류: $skill${NC}" >&2
+                echo -e "${YELLOW}  ⚠️  $role: superpowers 스킬 이름 오류: $skill${NC}" >&2
                 continue
                 ;;
         esac
-        load_codex_plugin_catalog || continue
-        plugin_source="$(resolve_codex_plugin_field "$plugin" source)" || {
-            echo -e "${YELLOW}  ⚠️  $role: Codex 플러그인을 찾지 못했습니다: $plugin${NC}" >&2
-            continue
-        }
-        src="$plugin_source/skills/$skill"
+        src="$superpowers_dir/skills/$skill"
         if [ ! -f "$src/SKILL.md" ]; then
-            echo -e "${YELLOW}  ⚠️  $role: $plugin에 Codex 스킬 '$skill'이 없습니다.${NC}" >&2
+            echo -e "${YELLOW}  ⚠️  $role: superpowers@openai-curated에 스킬 '$skill'이 없습니다.${NC}" >&2
             continue
         fi
         ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill"
-        granted+=("$plugin:$skill")
+        granted+=("superpowers:$skill")
     done
     echo "  $role: ${granted[*]:-(Codex 역할별 스킬 없음)}"
 done
