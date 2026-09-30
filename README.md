@@ -499,9 +499,22 @@ gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리
 역할 경계: **테스트 우선 사이클(red→구현→green)까지 developer**,
 **커버리지·품질 최종 판정은 reviewer**.
 
-### Codex architect 네이티브 확장
+### Codex 파인 스킬
 
-Codex 공식 카탈로그를 기준으로 Claude architect 기능의 대체재를 다음처럼 사용한다.
+Codex 파인(기본 구성에서 designer·developer)은 위 Claude용 스킬·플러그인을 읽지 못한다.
+`team/config.claude.sh`의 designer·developer 항목은 그 역할을 Claude로 돌릴 때만 적용되고,
+Codex 파인의 스킬은 `team/config.codex.sh`가 따로 정한다.
+
+| 역할      | Codex에서 받는 스킬                                                         |
+| --------- | --------------------------------------------------------------------------- |
+| developer | `superpowers@openai-curated`의 `systematic-debugging` `receiving-code-review` |
+| designer  | 없음                                                                        |
+
+gstack 스킬(`CODEX_SKILL_SETS`)은 비워 둔다. `setup-team.sh`는 gstack을 claude host로만
+설치하고(`./setup`), gstack의 codex 렌더링은 이름이 `gstack-<name>`이라
+`find_codex_skill_source`가 찾지 못한다 — 설정해도 경고만 내고 건너뛴다.
+
+Codex 공식 카탈로그를 기준으로 Claude 기능의 대체재를 다음처럼 사용한다.
 
 | 기존 기능                                   | Codex 네이티브 대체재                                     | 적용 방침                                        |
 | ------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------ |
@@ -514,8 +527,7 @@ Codex 공식 카탈로그를 기준으로 Claude architect 기능의 대체재�
 
 `CODEX_PLUGIN_SKILL_SETS`에 선언하면 `setup-team.sh`가 Codex 공식 카탈로그에서 그 스킬만 찾아
 `.team/{역할}/.agents/skills`에 링크한다. 전체 플러그인에 포함된 나머지 스킬은 그 역할에 보이지 않는다.
-기본 구성에서 architect는 Claude라 비어 있다. 승인 주체를 lead로 바꾸고 실행을
-developer에게 넘기는 `team/architect.md` 규칙이 스킬의 단독 세션 지침보다 우선한다.
+역할 지침(`team/{역할}.md`)의 팀 규칙이 스킬의 단독 세션 지침보다 우선한다.
 
 각 Codex 파인은 `.team/{역할}/.codex-home`을 `CODEX_HOME`으로 사용한다. 인증, Codex 시스템
 스킬, 공식 marketplace 카탈로그만 공유하고 plugin 활성화 config·설치 cache는 역할마다

@@ -22,17 +22,15 @@ test -n "${SPEC_MEMBER_REASONING_EFFORTS[$developer_index]}"
 
 # config.codex.sh는 스킬·플러그인 배분표만 담당한다(모델은 선언하지 않는다).
 source "$repo_dir/team/config.codex.sh"
-source "$repo_dir/team/config.claude.sh"
 
-# Codex 역할의 gstack 스킬은 Claude 쪽 배분표와 같게 맞춘다.
-for role in "${!CODEX_SKILL_SETS[@]}"; do
-    test "${CODEX_SKILL_SETS[$role]}" = "${GSTACK_SKILL_SETS[$role]}"
-done
-# 자체 제작 standalone 스킬은 두지 않는다.
+# gstack의 codex 렌더링은 설치되지 않으므로 standalone 스킬은 배정하지 않는다.
+test "${#CODEX_SKILL_SETS[@]}" -eq 0
 test ! -d "$repo_dir/skills/codex"
 
-# 기본 구성에서 architect는 Claude라 공식 플러그인 스킬을 선택 노출하지 않는다.
-test "${#CODEX_PLUGIN_SKILL_SETS[@]}" -eq 0
+# developer에는 공식 Superpowers 플러그인의 디버깅·리뷰 수용 스킬만 선택 노출한다.
+expected_plugin_skills="superpowers@openai-curated:systematic-debugging superpowers@openai-curated:receiving-code-review"
+test "${CODEX_PLUGIN_SKILL_SETS[developer]}" = "$expected_plugin_skills"
+test "${#CODEX_PLUGIN_SKILL_SETS[@]}" -eq 1
 test "${#CODEX_PLUGIN_SETS[@]}" -eq 0
 
 # marketplace 이름이 인증 방식에 따라 달라도 공식 플러그인을 해석한다.

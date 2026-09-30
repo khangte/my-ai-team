@@ -21,10 +21,10 @@
   - trivial 변경(오타·상수·주석·포맷·설정값)은 테스트를 생략한다
 
 ## 스킬
-### Claude
+### 공통 (Claude·Codex)
 
-- `superpowers:systematic-debugging` — 버그·테스트 실패·예상치 못한 동작을 만나면 수정안을 내기 전에 근본 원인부터 찾는다
-- `superpowers:receiving-code-review` — reviewer의 지적을 받았을 때 적용한다
+- `systematic-debugging` — 버그·테스트 실패·예상치 못한 동작을 만나면 수정안을 내기 전에 근본 원인부터 찾는다
+- `receiving-code-review` — reviewer의 지적을 받았을 때 적용한다
   - 지적이 여러 건이면 **불명확한 항목을 먼저 되묻고 그 전에는 아무것도 손대지 말라**는 스킬 지침을 따른다 — 되묻는 통로는 `say reviewer "..."`
   - 지적이 틀렸다고 판단되면 그대로 따르지 말고 근거를 들어 반박한다
 
