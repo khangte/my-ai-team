@@ -202,7 +202,7 @@ declare -a MEMBERS=(
   기본값을 따르고, 모델·추론 수준을 비우면 각 CLI의 사용자 기본값을 따른다.
 - 배열 순서가 tmux 파인 배치 순서다. `MEMBERS` 하나로 인원·공급자·모델·추론 수준을 함께
   선언하므로 인원 변경 때 공급자별 설정 파일의 배열 길이를 맞출 필요가 없다.
-- 인증 확인(`[0/6]`)은 실제로 팀에 쓰이는 공급자 전부에 대해 이루어진다. 일부 역할만
+- 인증 확인(`[0/7]`)은 실제로 팀에 쓰이는 공급자 전부에 대해 이루어진다. 일부 역할만
   Codex를 써도 Codex 로그인까지 함께 확인한다.
 - Codex로 지정된 파인은 위 "Codex 실행 모드"와 동일하게 신뢰 프롬프트·훅 승인이
   자동 처리되고, busy 마커·Stop 훅도 Claude 파인과 동일하게 동작한다.
@@ -581,7 +581,7 @@ declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
 
 - claude 빌트인 스킬
 - `$PROJECT_DIR/.claude/skills`의 공용 스킬
-- 위 둘은 모든 파인이 그대로 사용, 자세한 근거와 예외는 `setup-team.sh`의 `[4/6]` 섹션 주석 참조
+- 위 둘은 모든 파인이 그대로 사용, 자세한 근거와 예외는 `setup-team.sh`의 `[4/7]` 섹션 주석 참조
 - 전역 규칙(`~/.claude/rules/`, `~/.claude/CLAUDE.md`)도 **대상 프로젝트가 홈 아래에 있으면** 차단되지 않고 그대로 로드됨
   — `--setting-sources project`의 규칙 차단은 cwd가 홈 밖일 때만 성립(실측). 즉 `/mnt/c/...` 같은 홈 밖 프로젝트로 팀을
   띄우면 파인이 전역 규칙 없이 뜨므로, 그쪽에 의존하는 지침이 있으면 프로젝트 `CLAUDE.md`로 옮겨야 함
@@ -593,7 +593,7 @@ declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
 - 문제: caveman·ponytail·serena는 유저 전역 `~/.claude/settings.json`의 `enabledPlugins`로 켜지는데,
   파인은 `--setting-sources project`로 뜨는 탓에 이 전역 설정을 못 읽음 → 방치하면 **세 플러그인이
   파인에서 전혀 걸리지 않음**(실측 확인)
-- 해결: `setup-team.sh`의 `[3/6]`이 플러그인을 설치하고, `start_claude_in_pane()`이 `--settings`에
+- 해결: `setup-team.sh`의 `[3/7]`이 플러그인을 설치하고, `start_claude_in_pane()`이 `--settings`에
   `enabledPlugins`·`extraKnownMarketplaces`를 역할별로 명시 주입(`team/config.claude.sh`의
   `CLAUDE_PLUGIN_ROLES` 배열이 배분을 결정)
 
@@ -605,8 +605,8 @@ declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
 | caveman         | 전 파인                       | 켠 파인이 아니라 lead가 이득을 회수하는 구조(파인들의 보고가 전부 lead 입력). 출력 문체를 팀 전체에서 통일하는 값이 고정비보다 크다는 사용자 결정           |
 | ponytail        | developer만                   | 사다리 7단 중 2~7단이 전부 코드 대상이라 코드를 안 쓰는 역할에는 1단 YAGNI만 남음. 그 한 줄은 역할 지침에 문장으로 넣는 편이 100배 쌈(2.2K 대 ~20토큰)      |
 | serena          | 전 파인                       | 심볼 탐색을 전 역할에서 쓰도록 확대(`8f18768`). 고정비가 가장 큼(MCP 툴 정의 30개)이라 줄일 때 첫 후보 |
-| superpowers     | 없음(`enabledPlugins` 미주입) | 위 "superpowers 스킬" 절대로 `[4/6]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 14개가 통째로 들어와 선별이 무의미해짐  |
-| frontend-design | designer                      | `[4/6]`이 designer에 직접 링크하고 `enabledPlugins`로도 켬 — 스킬이 1개뿐이라 선별 손실이 없음                                                             |
+| superpowers     | 없음(`enabledPlugins` 미주입) | 위 "superpowers 스킬" 절대로 `[4/7]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 14개가 통째로 들어와 선별이 무의미해짐  |
+| frontend-design | designer                      | `[4/7]`이 designer에 직접 링크하고 `enabledPlugins`로도 켬 — 스킬이 1개뿐이라 선별 손실이 없음                                                             |
 
 배분 근거 실측은 [docs/architect-review/6_caveman-ponytail-role-scoping.md](docs/architect-review/6_caveman-ponytail-role-scoping.md) 참조.
 
