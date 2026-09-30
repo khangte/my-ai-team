@@ -16,7 +16,7 @@ declare -A PLUGIN_MARKETPLACES=(
 
 # 플러그인 → 활성화할 역할. "*"는 모든 역할, 빈 값은 설치만 한다.
 declare -A PLUGIN_ROLES=(
-    ["superpowers@claude-plugins-official"]="architect"
+    ["superpowers@claude-plugins-official"]=""
     ["frontend-design@claude-plugins-official"]="designer"
     ["serena@claude-plugins-official"]="*"
     ["ponytail@ponytail"]="lead developer"
