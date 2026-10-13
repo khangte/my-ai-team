@@ -136,23 +136,16 @@ tmux kill-session -t team1                    # 세션 종료
 
 ### 에이전트 공급자별 차이
 
-`MEMBERS`의 `agent` 열(`claude`/`codex`)로 역할마다 공급자를 고른다. 비우면 `--agent`/`TEAM_AGENT`(기본 claude)를 따른다.
-`setup-team.sh --agent codex` 또는 `TEAM_AGENT=codex`는 `agent`를 비운 역할의 기본 공급자를 바꾼다.
+`MEMBERS`의 `agent` 열(`claude`/`codex`)로 역할마다 공급자를 고른다. 규칙은 "프로젝트별 팀 구성 커스터마이징" 참고.
 
 | 항목              | Claude Code                                              | Codex                                                       |
 | ----------------- | -------------------------------------------------------- | ----------------------------------------------------------- |
-| 공통 규칙         | 대상 프로젝트 `CLAUDE.md`에 마커 블록 병합               | 대상 프로젝트 `AGENTS.md`에 마커 블록 병합                  |
-| 역할 지침         | `team/{역할}.md`를 `--append-system-prompt`로 주입       | `team/{역할}.md`로 만든 `.team/{역할}/AGENTS.md`            |
-| 실행 위치         | `.team/{역할}/`                                          | `.team/{역할}/`                                             |
+| 지침 로딩         | 공통 규칙은 `CLAUDE.md`에 병합, 역할 지침은 `--append-system-prompt` | 공통 규칙은 `AGENTS.md`에 병합, 역할 지침은 `.team/{역할}/AGENTS.md` |
 | 스킬·플러그인 배분 | `team/config.claude.sh`                                  | `team/config.codex.sh` (역할별 `CODEX_HOME`으로 격리)       |
-| 모델·추론 수준    | `MEMBERS`의 model·effort (빈 값은 `settings.json`)       | `MEMBERS`의 model·effort (빈 값은 Codex 사용자 기본값)      |
 | 신뢰·훅 승인      | 해당 없음                                                | 프로젝트 신뢰 대화상자·`.codex/hooks.json` 훅 승인 자동 처리 |
-| busy 마커·Stop 훅 | `UserPromptSubmit`·`Stop` 훅                             | `.codex/hooks.json`의 `SessionStart`·`Stop` 이벤트          |
 | rtk 토큰 절감 훅  | 적용                                                     | 미적용                                                      |
 | gstack 스킬       | 적용                                                     | 미적용                                                      |
-| 프롬프트·툴 로깅  | `.team-logs/{역할}.jsonl`                              | `.team-logs/{역할}.jsonl` (`.codex/hooks.json` 훅)        |
 
-- 첫 실행의 신뢰 대화상자·훅 승인은 `setup-team.sh`가 자동 처리한다 — 사람이 개입할 필요 없다.
 - `say` 통신과 역할 지침은 두 공급자에서 동일하게 동작한다.
 
 ### 혼합 팀 — 역할별로 다른 에이전트 지정
@@ -174,7 +167,6 @@ declare -a MEMBERS=(
 어느 역할을 Codex로 돌릴지는 프로젝트마다 다르다. 핵심은 **코드를 쓰는 모델과 판단하는
 모델을 분리**하는 것 — 같은 모델끼리는 맹점도 공유하기 때문이다.
 
-- 항목 형식과 기본값 규칙은 아래 "프로젝트별 팀 구성 커스터마이징" 참고.
 - 일부 역할만 Codex를 써도 `[0/7]`이 Codex 로그인까지 함께 확인한다.
 - 프롬프트·툴 로그는 두 공급자가 같은 `.team-logs/{역할}.jsonl`에 남기므로 혼합 팀도 한 곳에서 추적한다.
 
@@ -210,10 +202,10 @@ declare -a MEMBERS=(
 - `config.claude.sh`와 `config.codex.sh`에는 공급자별 플러그인·스킬 배분만 둔다
 - 공통 구성과 선택한 공급자 전용 구성은 차례로 자동 로드되어 기본값을 덮어쓴다
 - 항목 형식은 `role|표시이름|agent|model|effort`이고 배열 순서가 tmux 파인 배치 순서다. 인원은 `MEMBERS` 항목 증감으로 조절한다(예시는 위 "혼합 팀").
-- `agent`를 비우면 `--agent`/`TEAM_AGENT` 기본값을, `model`·`effort`를 비우면 각 CLI 기본값(Claude는 `settings.json`, Codex는 사용자 기본값)을 따른다.
+- `agent`를 비우면 `--agent`/`TEAM_AGENT`(기본 claude) 값을 따른다. `model`·`effort`를 비우면 각 CLI 기본값(Claude는 `settings.json`, Codex는 사용자 기본값)을 따른다.
 - `effort`에는 `low`/`medium`/`high`/`xhigh`/`max`를 쓴다.
 - 이 저장소의 `team/config.sh`는 복사해서 수정할 템플릿이다.
-- 이름을 바꾸면 대응하는 `team/{이름}.md`도 필요(없으면 역할 지침 없이 실행 — 위 "Claude/Codex 지침과 team/" 참고)
+- 이름을 바꾸면 대응하는 `team/{이름}.md`도 필요(없으면 역할 지침 없이 실행 — 위 "지침과 team/" 참고)
 
 ## 파인 간 통신 — `bin/say`
 
@@ -243,8 +235,7 @@ Claude Code v2.1.224부터 세션끼리 `SendMessage`로 대화할 수 있다(`L
 - 유휴 파인에는 `say`와 똑같이 새 턴이 생겨 토큰 이득이 없다(실측).
 - Codex 파인은 지원하지 않는다.
 - 비교와 실측은 [docs/token-cost.md](docs/token-cost.md) 참조.
-
-팀 밖 Claude 세션이 파인 하나를 직접 지시하는 용도로만 켜 둔다(`crossSessionInbound: accept`). Docker 실행 시 호스트에서는 파인이 보이지 않는다.
+- 팀 밖 Claude 세션이 파인 하나를 직접 지시하는 용도로만 켜 둔다(`crossSessionInbound: accept`).
 
 ### 보고 경로
 
@@ -267,9 +258,7 @@ Claude Code v2.1.224부터 세션끼리 `SendMessage`로 대화할 수 있다(`L
 **종결될 때** 최종 결과 하나만 받는다. architect처럼 지시를 내리는 역할도 지시 시점이
 아니라 그 결과를 검수한 뒤에 보고한다.
 
-실측 근거: lead 56턴 중 19턴이 툴 호출 0건이었고, 그중 16건이 보고 수신뿐이었다.
-프로토콜 수정 후 같은 규모 작업에서 사본 0건. 상세는
-[docs/pane-messaging.md](docs/pane-messaging.md) 10단계.
+실측 근거는 [docs/pane-messaging.md](docs/pane-messaging.md) 10단계 참조.
 
 ### Stop 훅 — 보고 누락 방지
 
@@ -325,11 +314,6 @@ $PROJECT_DIR/.team-logs/
 
 - 로깅 훅은 `setup-team.sh`가 `--settings`로 주입하는데, `--settings`는 전역 `~/.claude/settings.json`을
   병합이 아니라 **대체**함 → 그 스크립트를 거치지 않고 `claude`를 단독 실행하면 **로그가 남지 않음**
-
-| 실행 방식            | 훅 소스                        | 로깅    |
-| -------------------- | ------------------------------ | ------- |
-| `setup-team.sh` (팀) | `--settings`로 주입            | 쌓임    |
-| `claude` 단독 실행   | 전역 `~/.claude/settings.json` | 안 쌓임 |
 
 단독 실행에도 로그를 남기려면:
 
