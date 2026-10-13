@@ -2,7 +2,7 @@
 
 - Claude Code 또는 Codex 인스턴스 여러 개를 tmux 파인에 띄우는 오케스트레이션 셋업
 - 구성: `team/config.sh`의 `MEMBERS`에 선언한 역할로 만드는 멀티에이전트 팀
-  (기본값은 lead·developer·reviewer 3인, 필요하면 architect·researcher·designer를 추가)
+  (기본값은 lead·architect·researcher·designer·developer·reviewer 6인, 불필요한 역할은 `MEMBERS`에서 뺀다)
 
 ## 구조
 
@@ -27,7 +27,7 @@ team/                   프로젝트별 오버라이드 대상만 (역할 지침
   ├ config.sh           팀 공통 구성 템플릿 (역할·표시명·공급자·모델·추론 수준)
   ├ config.claude.sh    Claude 역할별 플러그인·스킬 배분표
   ├ config.codex.sh     Codex 역할별 플러그인·스킬 배분표
-└ {역할}.md             역할별 지침 (lead/architect/researcher/designer/developer/reviewer)
+  └ {역할}.md             역할별 지침 (lead/architect/researcher/designer/developer/reviewer)
 bin/                    항상 이 저장소 기준으로 고정 실행되는 스크립트 (오버라이드 대상 아님)
   ├ say                 파인 간 메시지 전송 래퍼 (setup-team.sh가 각 파인 PATH에 등록)
   └ log-hook            프롬프트·툴 사용을 .claude-logs/{역할}.jsonl에 기록하는 훅
@@ -44,17 +44,13 @@ setup-team.sh           tmux 세션 구성 + 선택한 에이전트 CLI 실행 (
 - `setup-team.sh`는 실행할 때마다 **대상 프로젝트 루트**에 `.team/`을 새로 생성
   - 내용: 역할별 스킬 심볼릭 링크 + `_runtime/`의 조립된 역할 지침·훅 설정
   - 매 실행마다 지워지고 다시 만들어짐 → 대상 프로젝트 `.gitignore`에 `.team/` 추가 권장
-- 프롬프트·툴 로그(`.claude-logs/`)도 같은 이유로 `.gitignore`에 추가 권장
-  - 로그 디렉터리가 자기 자신을 무시하는 `.gitignore`를 내부에 생성하므로 필수는 아님
-  - 다만 프로젝트 `.gitignore`에 한 줄 적어두면 제외 의도가 명시됨
-  - 상세는 아래 "프롬프트·툴 로깅" 참고
+- 프롬프트·툴 로그(`.claude-logs/`)는 내부 `.gitignore`로 스스로 제외되므로 별도 설정 불필요 (아래 "프롬프트·툴 로깅" 참고)
 
 ### 이 저장소의 위치
 
 - 이 저장소 자체는 개발 대상이 아니라 **팀 오케스트레이션 엔진**
 - 실제 개발할 프로젝트는 별도 폴더에 존재
 - `setup-team.sh`가 그 폴더를 인자로 받아 그 안에서 claude 인스턴스를 실행
-- 실제 **하네스** = 만들어진 tmux 세션 + 그 안의 claude 프로세스들
 
 ## 실행 방식 및 사용법
 
@@ -72,16 +68,11 @@ setup-team.sh           tmux 세션 구성 + 선택한 에이전트 CLI 실행 (
 git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
 ```
 
-- 모든 스크립트가 프로젝트 경로를 `realpath`로 해석
-- 따라서 아래 두 방식의 동작이 동일
-  - `ai-setup/` 안에서 상대경로로 실행
-  - 대상 프로젝트(작업 디렉터리)에서 `ai-setup/` 스크립트를 가리켜 실행
-
 #### WSL 네이티브
 
 ```bash
 # ai-setup/ 안에서 실행
-./setup-native.sh /path/to/project     # 최초 1회: team/config.sh의 MEMBER_AGENTS에 쓰인 공급자 의존성을 모두 설치
+./setup-native.sh /path/to/project     # 최초 1회: 팀에 쓰이는 공급자 의존성을 모두 설치
 ./setup-team.sh /path/to/project        # 지정한 프로젝트로 팀 세션 실행
 
 # Codex 팀
@@ -119,31 +110,31 @@ Docker 환경의 특이점:
 - `Dockerfile`은 npm/rtk/bun을 `/opt` 하위에 설치
   - 이유: 컨테이너 재생성 시 `/home/user`가 named volume(`claude-home`)으로 덮어써짐
   - WSL 네이티브는 이 제약이 없어 기본 경로 사용
-- 컨테이너 이름은 `claude-env`로 고정, `sleep infinity`로 상주
-  - 세션에서 빠져나온 뒤 재접속할 때 `setup-docker.sh` 재실행 불필요(재접속 방법은 아래)
+- 컨테이너 이름은 `claude-env`로 고정, `sleep infinity`로 상주 — 재접속 때 `setup-docker.sh` 재실행 불필요
 
 ### setup-team.sh 실행되면
 
-1. 의존성·인증 확인
+0. 의존성·인증 확인 `[0/7]`
    - tmux 설치 여부는 항상 확인
    - 실제로 팀에 쓰이는 공급자마다 필요한 도구·인증을 확인 (혼합 팀이면 둘 다)
      - Claude: claude/rtk/bun 설치, `claude auth status` 로그인 확인 (미로그인 시 `/login` 안내 후 대기)
      - Codex: codex 설치, `codex login status` 로그인 확인 (미로그인 시 `codex login` 안내 후 대기)
-2. 도구 준비
-   - rtk 훅 초기화
-   - gstack 스킬(`/office-hours`, `/review` 등 슬래시 커맨드) 설치
-3. 필수 마켓플레이스 플러그인(superpowers/frontend-design/serena/ponytail/caveman) 설치 — 역할별 활성화는 5번이 담당
-4. 역할별 스킬 제한 — `.team/{역할}/.claude/skills`에 그 역할이 쓸 스킬만 링크
-5. tmux 세션 구성
+   - 확인 직후 기존 tmux 세션을 정리 (`.team/` 삭제와의 경합 방지)
+1. rtk 훅 초기화 `[1/7]` (Claude)
+2. gstack 스킬(`/office-hours`, `/review` 등 슬래시 커맨드) 설치 `[2/7]` (Claude)
+3. 필수 마켓플레이스 플러그인(superpowers/frontend-design/serena/ponytail/caveman) 설치 `[3/7]` (Claude) — 역할별 활성화는 7번이 담당
+4. 팀 공통 지침을 `CLAUDE.md`에 병합 + 역할별 스킬 제한 `[4/7]` (Claude) — `.team/{역할}/.claude/skills`에 그 역할이 쓸 스킬만 링크
+5. `AGENTS.md` 병합, 역할별 스킬·플러그인·lifecycle 훅 준비 `[5/7]` (Codex)
+6. tmux 세션 구성 `[6/7]`
    - 팀 인원 수만큼 파인 분할
    - 파인 타이틀은 대문자로 표시 (예: `LEAD`, `ARCHITECT`)
-6. 각 파인에서 선택한 CLI 실행
+7. 각 파인에서 선택한 CLI 실행 `[7/7]` — 실행 로그에 파인별 model·effort 표시
    - Claude: 지정 모델, 역할 지침·훅 설정·플러그인 활성화를 주입한 `claude --dangerously-skip-permissions`
    - Codex: 역할별 `AGENTS.md`를 읽고 Git 메타데이터까지 쓸 수 있는
      `codex --dangerously-bypass-approvals-and-sandbox`
      - 읽기·코드 수정만 허용하려면 `CODEX_FULL_ACCESS=0`으로 실행
        (`workspace-write`는 `.git`을 항상 read-only로 보호하므로 `git add/commit`은 불가)
-7. 완료 후 `tmux attach -t [세션명]` 접속 안내
+8. 완료 후 `tmux attach -t [세션명]` 접속 안내
 
 ### 세션 확인 및 종료
 
@@ -182,30 +173,24 @@ tmux kill-session -t team1                    # 세션 종료
 ### 혼합 팀 — 역할별로 다른 에이전트 지정
 
 역할별로 다른 공급자를 쓰려면 `team/config.sh`의 각 `MEMBERS` 항목에 공급자를 지정한다.
-저장소 기본값은 developer만 Codex이고, lead·reviewer는 Claude다.
+저장소 기본값은 designer·developer만 Codex이고, 나머지(lead·architect·researcher·reviewer)는 Claude다.
 
 ```bash
 # <프로젝트_경로>/team/config.sh
 SESSION="team1"
 declare -a MEMBERS=(
-    "lead|리드|claude|claude-sonnet-5|medium"
-    "architect|아키텍트|codex|gpt-5.6-sol|high"
-    "developer|개발자|codex|gpt-5.6-terra|high"
-    "reviewer|리뷰어|claude|claude-sonnet-5|medium"
+    "lead|리드|claude|claude-opus-5-5|medium"
+    "architect|아키텍트|codex|gpt-6-sol|high"
+    "developer|개발자|codex|gpt-6-sol|medium"
+    "reviewer|리뷰어|claude|claude-opus-5-5|medium"
 )
 ```
 
 어느 역할을 Codex로 돌릴지는 프로젝트마다 다르다. 핵심은 **코드를 쓰는 모델과 판단하는
 모델을 분리**하는 것 — 같은 모델끼리는 맹점도 공유하기 때문이다.
 
-- 항목 형식은 `role|표시이름|agent|model|effort`다. `agent`를 비우면 `--agent`/`TEAM_AGENT`
-  기본값을 따르고, 모델·추론 수준을 비우면 각 CLI의 사용자 기본값을 따른다.
-- 배열 순서가 tmux 파인 배치 순서다. `MEMBERS` 하나로 인원·공급자·모델·추론 수준을 함께
-  선언하므로 인원 변경 때 공급자별 설정 파일의 배열 길이를 맞출 필요가 없다.
-- 인증 확인(`[0/7]`)은 실제로 팀에 쓰이는 공급자 전부에 대해 이루어진다. 일부 역할만
-  Codex를 써도 Codex 로그인까지 함께 확인한다.
-- Codex로 지정된 파인은 위 "Codex 실행 모드"와 동일하게 신뢰 프롬프트·훅 승인이
-  자동 처리되고, busy 마커·Stop 훅도 Claude 파인과 동일하게 동작한다.
+- 항목 형식과 기본값 규칙은 아래 "프로젝트별 팀 구성 커스터마이징" 참고.
+- 일부 역할만 Codex를 써도 `[0/7]`이 Codex 로그인까지 함께 확인한다.
 - **Codex 파인은 `.claude-logs/`에 기록을 남기지 않는다.** 로깅 훅이 Claude 전용이라,
   혼합 팀의 로그를 분석하면 Codex 파인 구간만 통째로 빈다. 보고 경로나 토큰 비용을
   실측할 계획이라면 그 역할을 Claude에 두는 편이 낫다.
@@ -235,32 +220,19 @@ declare -a MEMBERS=(
      `team/{이름}.md`를 읽어 `--append-system-prompt`로 주입
      - 예: lead 파인 → `team/lead.md`, architect 파인 → `team/architect.md`
    - 대응 파일이 없으면 시스템 프롬프트 추가 없이 그냥 실행
-     — 커스텀 `team/config.sh`로 낯선 이름을 쓸 때의 안전한 기본 동작
    - 오버라이드 규칙은 `team/config.sh`와 동일
      - **대상 프로젝트 루트**(`$PROJECT_DIR/team/{이름}.md`)에 파일이 있으면 우선 사용
      - 없으면 **이 저장소**(`team/{이름}.md`)의 기본값으로 폴백
-   - 결과: 대부분의 프로젝트는 기본 지침을 그대로 사용하고,
-     특정 역할만 바꾸려면 그 프로젝트 루트에 `team/{역할}.md` 한 파일만 두면 됨
 
 ## 프로젝트별 팀 구성 커스터마이징
 
-- 기본 팀 구성은 이 저장소의 `team/config.sh`에 있다 — 현재 lead/developer/reviewer 3인
+- 기본 팀 구성은 이 저장소의 `team/config.sh`에 있다 — 현재 lead/architect/researcher/designer/developer/reviewer 6인
 - 인원 수·세션 이름·역할별 공급자·모델·추론 수준을 바꾸려면 **대상 프로젝트 루트**에 `team/config.sh` 배치
 - `config.claude.sh`와 `config.codex.sh`에는 공급자별 플러그인·스킬 배분만 둔다
 - 공통 구성과 선택한 공급자 전용 구성은 차례로 자동 로드되어 기본값을 덮어쓴다
-
-```bash
-# <프로젝트_경로>/team/config.sh — 3인 팀 예시
-SESSION="team1"   # tmux 세션 이름
-declare -a MEMBERS=(
-    "lead|리드|claude|claude-sonnet-5|medium"
-    "developer|개발자|codex|gpt-5.6-terra|high"
-    "reviewer|리뷰어|claude|claude-sonnet-5|medium"
-)
-```
-
-- `effort`에는 `low`/`medium`/`high`/`xhigh`/`max`를 쓴다. 빈 값은 Claude의 `settings.json` 또는 Codex 사용자 기본값을 따른다.
-- 파인 개수는 `MEMBERS` 배열 길이로 자동 계산된다.
+- 항목 형식은 `role|표시이름|agent|model|effort`이고 배열 순서가 tmux 파인 배치 순서다. 인원은 `MEMBERS` 항목 증감으로 조절한다(예시는 위 "혼합 팀").
+- `agent`를 비우면 `--agent`/`TEAM_AGENT` 기본값을, `model`·`effort`를 비우면 각 CLI 기본값(Claude는 `settings.json`, Codex는 사용자 기본값)을 따른다.
+- `effort`에는 `low`/`medium`/`high`/`xhigh`/`max`를 쓴다.
 - 이 저장소의 `team/config.sh`는 복사해서 수정할 템플릿이다.
 - 이름을 바꾸면 대응하는 `team/{이름}.md`도 필요(없으면 역할 지침 없이 실행 — 위 "Claude/Codex 지침과 team/" 참고)
 
@@ -277,11 +249,7 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 `tmux send-keys`를 직접 쓰지 않는 이유: `Enter`가 별개 인자라 누락되기 쉽고, 누락 시 메시지가
 상대 입력창에 텍스트로만 남고 전송되지 않음. `say`는 Enter를 항상 부착해 이를 방지.
 
-유휴 판정은 화면 문구가 아니라 훅 기반 busy 마커로 함 — `--dangerously-skip-permissions` 모드는
-힌트줄 "esc to interrupt"가 유휴 상태에서도 남는 경우가 있어, UserPromptSubmit/Stop 훅이
-`/tmp/team-busy/{tmux_session_id}_{tmux_pane_id}` 마커를 찍고 지우는 방식으로
-실제 턴 경계를 판정한다. tmux가 새 세션·파인마다 부여하는 고유 ID를 쓰므로,
-같은 팀 세션 이름을 재사용해도 이전 실행의 stale 마커와 충돌하지 않는다.
+유휴 판정은 화면 문구가 아니라 훅 기반 busy 마커(`/tmp/team-busy/`)로 한다. 상세는 [docs/pane-messaging.md](docs/pane-messaging.md) "유휴 판정" 참조.
 
 파인 밖(호스트 셸)에서 호출:
 
@@ -289,42 +257,14 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 
 ### 팀 밖 세션에서 파인 호출 — `SendMessage`
 
-`say`와 별개로, Claude Code 자체의 cross-session messaging도 파인마다 켜져 있어
-팀 밖에서 도는 일반 Claude 세션이 파인에 직접 지시하는 것도 가능은 하다.
-다만 실제로는 lead 파인에 `tmux attach`로 붙어 명령하는 경우가 대부분이고,
-이 경로는 lead를 거치지 않고 특정 파인 하나를 바로 찔러야 할 때 정도에 쓴다.
+Claude Code의 cross-session messaging이 파인마다 켜져 있어, 팀 밖 Claude 세션이 파인 하나를 직접 지시할 수 있다.
+대부분은 lead에 `tmux attach`로 붙어 명령하므로, lead를 거치지 않고 특정 파인을 바로 찔러야 할 때만 쓴다.
 
-- 각 파인이 자기 인박스 소켓을 바인딩하므로 `/list-agents`에 6개가 그대로 보임
-- 이름은 cwd 기반 자동 생성 — `lead-1f`, `developer-a7` 형태 (tmux 파인 번호도 함께 표시됨)
-- 사용자는 자연어로 지시하면 됨 — `lead에게 "..." 전해줘`
-- 이름이 겹치면 `to`에 `lead-1f [bba91f]`처럼 ref를 붙여야 함
-
-`say`와의 차이:
-
-|                       | `say`                            | `SendMessage`                                                |
-| --------------------- | -------------------------------- | ------------------------------------------------------------ |
-| 전달 방식             | tmux 입력창에 타이핑             | 세션 간 소켓                                                 |
-| 수신 파인이 보는 형태 | 사람이 친 것과 **구분 불가**     | `<cross-session-message from=...>` 태그 + 신뢰 안내 동반     |
-| 큐 대기 기준          | 상대 파인이 **유휴**가 될 때까지 | 상대가 작업 중이면 **다음 도구 호출**, 유휴면 **즉시 새 턴** |
-| 훅에서 발신           | 가능 (셸 스크립트)               | 불가 (도구 호출)                                             |
-| 긴급 중단             | `SAY_NOWAIT=1`                   | 없음 (항상 상대 턴 종료 대기)                                |
-
-제약:
-
-- **Docker 실행 시 호스트에서는 파인이 보이지 않음** — 컨테이너가 자체 파일시스템을 가져 서로를 찾지 못함. 네이티브 실행에서만 유효
-- 발신 측(파인) 화면에 "held for approval" 중간 알림이 먼저 뜰 수 있음(팀 밖 세션이 권한을 묻는 모드라서) — 이후 정상 전달됨
-- 파인끼리는 여전히 `say`를 쓴다 — `SendMessage`도 큐는 있지만(공식 스키마: "messages enqueue and drain at the receiver's next tool round") 작업 완료를 기다리지 않아 진행 중인 맥락에 끼어들고, `SAY_NOWAIT` 같은 의도적 인터럽트 구분이 없으며, Stop 훅(셸 스크립트)에서는 아예 호출할 수 없다
-- **토큰 이득도 없다(실측).** "수신이 다음 도구 호출에 합류하니 별도 턴이 안 생긴다"는
-  기대로 전환을 검토했지만, 유휴 파인에 보내면 `say`와 똑같이 `UserPromptSubmit`이
-  찍힌다 — 보고를 받는 lead는 대부분 유휴이므로 절감분이 0이다. 게다가 지연 로드 툴이라
-  수신 파인이 `ToolSearch`로 스키마를 먼저 찾는 턴이 추가되고, 메시지에
-  `<cross-session-message from="uds:...">` 래퍼가 붙는다. Codex 파인은 아예 지원하지
-  않으므로 혼합 팀에서는 선택지도 아니다
-
-상대가 작업 중이면 큐에 쌓았다가 유휴가 되면 자동 전송(발신 파인은 대기하지 않음).
-`SAY_NOWAIT=1`이면 큐를 건너뛰고 즉시 전송 — 긴급 중단 지시용.
-
-Enter 누락부터 큐 도입까지, 통신이 깨졌던 유형과 각각의 대응은 [docs/pane-messaging.md](docs/pane-messaging.md) 참조.
+- 각 파인이 `/list-agents`에 보이고 이름은 cwd 기반(`lead-1f`, `developer-a7`)이다. 자연어로 지시하면 된다.
+- 이름이 겹치면 `to`에 `lead-1f [bba91f]`처럼 ref를 붙인다.
+- Docker 실행 시 호스트에서는 파인이 보이지 않는다. 네이티브 실행에서만 유효하다.
+- 파인끼리는 `say`를 쓴다. `SendMessage`는 Stop 훅에서 호출할 수 없고, `SAY_NOWAIT` 같은 인터럽트 구분이 없으며,
+  토큰 이득이 없고(실측), Codex 파인은 지원하지 않는다. 비교와 실측은 [docs/token-cost.md](docs/token-cost.md) 참조.
 
 ### 보고 경로
 
@@ -355,15 +295,10 @@ Enter 누락부터 큐 도입까지, 통신이 깨졌던 유형과 각각의 대
 
 - 파인이 `say` 실행을 잊어도 lead가 완료를 알 수 있도록, `setup-team.sh`가 lead를 뺀 각 파인에 Stop 훅을 주입해 응답 종료 시 완료 신호를 자동 전달 (폴링 불필요)
 - 예외: 방금 `say`로 보고했으면 생략 / lead 자신은 대상 제외 (무한루프 방지)
-- Claude·Codex 양쪽에서 동일하게 동작 — Codex는 `.codex/hooks.json`의 `Stop` 이벤트로 이식했다. 파인에는 승인할 사람이 없으므로 Codex의 훅 신뢰 승인(`/hooks` 화면)도 `setup-team.sh`가 자동 처리한다.
+- Claude·Codex 양쪽에서 동일하게 동작 — Codex는 `.codex/hooks.json`의 `Stop` 이벤트로 이식했다.
 
-"방금 보고했는가"는 `/tmp/team-say/{state_key}` 마커로 판정한다. 이 마커는 수신자를
-구분하지 않는 **"이번 턴에 보고했나" 1비트**라, 턴 경계마다 비워야 한다 — 그러지 않으면
-한 턴에 두 번 보고했을 때(`say architect` + `say lead`) Stop 훅이 한 번만 소비하고,
-다음 턴에 보고를 하고도 "미보고" 신호가 나간다(실측 오탐 4건). Claude 파인은
-`UserPromptSubmit`에서 비우고, 그 훅이 없는 Codex 파인은 `Stop`의 삭제가 유일한
-초기화 지점이다. `CLAUDE.md`·`AGENTS.md`의 "한 턴에 lead로 두 번 이상 `say` 하지
-않는다" 규칙이 지침 쪽에서도 같은 상황을 막는다.
+"방금 보고했는가"는 `/tmp/team-say/` 마커로 판정하며, 턴 경계마다 비운다. 이유와 오탐 실측은
+[docs/pane-messaging.md](docs/pane-messaging.md) 10단계 참조.
 
 ## 프롬프트·툴 로깅 — 재현성과 추적
 
@@ -393,24 +328,14 @@ $PROJECT_DIR/.claude-logs/
 {"ts":"...","role":"developer","event":"PreToolUse","session":"s1","tool":"Write","input":{"file_path":"/a/b.py","content_len":500}}
 ```
 
-복원 방법:
-
-- `session`으로 같은 세션의 프롬프트와 툴 호출을 묶음
-- `ts`로 순서를 정렬
-- 결과: "어떤 지시에서 시작해 어떤 명령으로 이어졌는지"가 복원됨
-
 ### 설계상의 선택
 
-- **역할별로 파일을 나눈다** — 여러 파인이 병렬로 도는 구조라 한 파일에 쓰면 경합·귀속 불명 발생
-- **`.team/` 바깥에 둔다** — `.team/`은 매 실행 `rm -rf` 대상이라 거기 두면 세션 재시작 시 소실
-- **작업 대상 리포의 `.gitignore`를 건드리지 않는다** — 대신 로그 디렉터리 안에 `.gitignore`(`*`)를 둬서 스스로를 제외, 남의 리포에 흔적 없이 커밋 제외 달성
-- **파인이 자기 로그를 읽을 수 있다** — cwd는 `.team/{역할}/`지만 역할 지침에 실제 프로젝트 루트가 안내됨
-- **본문은 길이만 남긴다** — Write/Edit 전문을 남기면 로그가 빠르게 비대해지고 시크릿 노출 표면도 커짐. 재현에 필요한 건 "무엇을 건드렸나"지 전문이 아님
-
-### 시크릿 처리
-
-- 마스킹 범위: 알려진 패턴(`sk-`, `ghp_`, `AKIA`, `xox*-`, `API_KEY=` 등), `.env`를 건드리는 명령(통째로 가림), Read 계열(경로만 기록)
-- 한계: 임의 형식의 키를 프롬프트에 직접 붙여넣으면 패턴에 안 걸림 — 보완으로 로그 파일을 `600` 권한 생성. 훅 실패 시 로그만 포기, 파인 작업은 막지 않음
+- **역할별 파일** — 여러 파인이 병렬로 도는 구조라 한 파일에 쓰면 경합·귀속 불명이 생긴다.
+- **`.team/` 바깥** — `.team/`은 매 실행 `rm -rf` 대상이라 거기 두면 재시작 시 소실된다.
+- **대상 리포 `.gitignore` 불변** — 로그 디렉터리 안에 `.gitignore`(`*`)를 둬서 스스로를 제외한다.
+- **본문은 길이만 기록** — Write/Edit 전문은 로그를 비대하게 하고 시크릿 노출 표면을 키운다.
+- **시크릿 마스킹** — 알려진 패턴(`sk-`, `ghp_`, `AKIA`, `xox*-`, `API_KEY=` 등)과 `.env` 명령은 가리고 Read는 경로만 남긴다.
+  임의 형식의 키는 못 걸러내므로 로그 파일을 `600`으로 만든다. 훅이 실패해도 파인 작업은 막지 않는다.
 
 ### 단독 실행에서는 쌓이지 않는다
 
@@ -593,7 +518,7 @@ declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
 - 문제: caveman·ponytail·serena는 유저 전역 `~/.claude/settings.json`의 `enabledPlugins`로 켜지는데,
   파인은 `--setting-sources project`로 뜨는 탓에 이 전역 설정을 못 읽음 → 방치하면 **세 플러그인이
   파인에서 전혀 걸리지 않음**(실측 확인)
-- 해결: `setup-team.sh`의 `[3/7]`이 플러그인을 설치하고, `start_claude_in_pane()`이 `--settings`에
+- 해결: `setup-team.sh`의 `[3/7]`이 플러그인을 설치하고, 파인 실행 시 `--settings`에
   `enabledPlugins`·`extraKnownMarketplaces`를 역할별로 명시 주입(`team/config.claude.sh`의
   `CLAUDE_PLUGIN_ROLES` 배열이 배분을 결정)
 
@@ -604,7 +529,7 @@ declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
 | --------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | caveman         | 전 파인                       | 켠 파인이 아니라 lead가 이득을 회수하는 구조(파인들의 보고가 전부 lead 입력). 출력 문체를 팀 전체에서 통일하는 값이 고정비보다 크다는 사용자 결정           |
 | ponytail        | developer만                   | 사다리 7단 중 2~7단이 전부 코드 대상이라 코드를 안 쓰는 역할에는 1단 YAGNI만 남음. 그 한 줄은 역할 지침에 문장으로 넣는 편이 100배 쌈(2.2K 대 ~20토큰)      |
-| serena          | 전 파인                       | 심볼 탐색을 전 역할에서 쓰도록 확대(`8f18768`). 고정비가 가장 큼(MCP 툴 정의 30개)이라 줄일 때 첫 후보 |
+| serena          | 전 파인                       | 심볼 탐색을 전 역할에서 쓰도록 확대. 고정비가 가장 큼(MCP 툴 정의 30개)이라 줄일 때 첫 후보 |
 | superpowers     | 없음(`enabledPlugins` 미주입) | 위 "superpowers 스킬" 절대로 `[4/7]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 14개가 통째로 들어와 선별이 무의미해짐  |
 | frontend-design | designer                      | `[4/7]`이 designer에 직접 링크하고 `enabledPlugins`로도 켬 — 스킬이 1개뿐이라 선별 손실이 없음                                                             |
 
@@ -624,15 +549,3 @@ some-sass(`.scss/.sass/.css`). 값이 나오는 지점은 `find_referencing_symb
 파인 활성화는 `--settings`가 이미 담당하므로 불필요하다.
 
 실측 고정비, PATH 관련 함정(활성화가 조용히 실패하는 경우)은 [docs/token-cost.md](docs/token-cost.md) 참조.
-
-## Remote Control — 폰으로 lead 파인 제어
-
-- Claude Code CLI 자체 기능 — 이 저장소 구조와 무관
-- 사용법
-  - lead 파인에 붙어 `/remote-control` 실행 → 접속 링크(또는 QR) 출력
-  - claude.ai 계정으로 로그인된 기기에서 그 링크를 열면 lead 세션에 접속
-  - 작업 중인 세션은 끊기지 않음
-- 제약
-  - claude.ai 구독 계정 로그인 필요 (조직 정책으로 막혀 있을 수 있음)
-  - 세션당 연결은 하나만 유지 — 다른 파인에도 걸려면 파인별로 각각 실행
-  - Docker 실행 시 컨테이너 밖에서의 접속 가능 여부는 포트·네트워크 설정에 따라 다름
