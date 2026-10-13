@@ -366,9 +366,9 @@ of this directory?")도 이전엔 자동 처리가 없어 같은 자리에서 �
 | 공급자 | 초기화 지점 | 비고 |
 | --- | --- | --- |
 | Claude | `UserPromptSubmit`(턴 시작) + `Stop`(소비) | 이중 안전장치 |
-| Codex | `Stop`(소비)만 | `UserPromptSubmit` 훅 자체가 없다 |
+| Codex | `UserPromptSubmit`(턴 시작) + `Stop`(소비) | 0.161.0부터 `UserPromptSubmit` 지원 확인, 이중 안전장치 |
 
-Codex 파인은 Stop 훅의 삭제가 유일한 초기화 지점이다. 한 턴 안에서 마커가
+Codex 파인도 `UserPromptSubmit`에서 비운다(이전에는 Stop 훅의 삭제가 유일한 초기화 지점이었다). 한 턴 안에서 마커가
 여러 번 찍혀도 파일은 하나이므로 Stop에서 무조건 지우면 1비트 의미가 유지된다 —
 현재 구현이 그렇다. 다만 Claude 쪽의 턴 시작 초기화가 주는 여유가 없으므로,
 Codex 파인의 Stop 훅을 건드릴 때 이 삭제를 조건부로 바꾸지 않아야 한다.

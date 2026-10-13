@@ -500,7 +500,11 @@ write_codex_role_agents() {
     # 프롬프트·툴 로깅은 Claude와 같은 bin/log-hook을 쓴다(payload 필드가 같다).
     local log_cmd_json; log_cmd_json="$(json_escape "${BIN_DIR}/log-hook ${role:-unknown} '${PROJECT_DIR}' --quiet")"
     local log_hook_json="[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]}]"
-    local hooks_json="{\"hooks\":{\"SessionStart\":[{\"matcher\":\"startup|resume|clear|compact\",\"hooks\":[{\"type\":\"command\",\"command\":\"${session_start_cmd_json}\"}]}],\"UserPromptSubmit\":${log_hook_json},\"PreToolUse\":${log_hook_json},\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd_json}\"}]}]}}"
+    # 보고 마커는 "이번 턴에 보고했나" 1비트라 턴 시작마다 비운다(Claude와 동일).
+    # busy 마커는 say가 전송 시점에 직접 만들므로 여기서 건드리지 않는다.
+    local report_clear_json; report_clear_json="$(json_escape "rm -f /tmp/team-say/${state_key}")"
+    local userprompt_json="[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]},{\"hooks\":[{\"type\":\"command\",\"command\":\"${report_clear_json}\"}]}]"
+    local hooks_json="{\"hooks\":{\"SessionStart\":[{\"matcher\":\"startup|resume|clear|compact\",\"hooks\":[{\"type\":\"command\",\"command\":\"${session_start_cmd_json}\"}]}],\"UserPromptSubmit\":${userprompt_json},\"PreToolUse\":${log_hook_json},\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd_json}\"}]}]}}"
     mkdir -p "$work_dir/.codex"
     printf '%s' "$hooks_json" > "$work_dir/.codex/hooks.json"
 }
