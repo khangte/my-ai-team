@@ -257,14 +257,15 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 
 ### 팀 밖 세션에서 파인 호출 — `SendMessage`
 
-Claude Code의 cross-session messaging이 파인마다 켜져 있어, 팀 밖 Claude 세션이 파인 하나를 직접 지시할 수 있다.
-대부분은 lead에 `tmux attach`로 붙어 명령하므로, lead를 거치지 않고 특정 파인을 바로 찔러야 할 때만 쓴다.
+Claude Code v2.1.224부터 세션끼리 `SendMessage`로 대화할 수 있다(`ListAgents`로 상대 탐색, `crossSessionInbound` 설정 추가).
+이 프로젝트는 파인 간 통신에 사용하지 않고 `say`만 쓴다.
 
-- 각 파인이 `/list-agents`에 보이고 이름은 cwd 기반(`lead-1f`, `developer-a7`)이다. 자연어로 지시하면 된다.
-- 이름이 겹치면 `to`에 `lead-1f [bba91f]`처럼 ref를 붙인다.
-- Docker 실행 시 호스트에서는 파인이 보이지 않는다. 네이티브 실행에서만 유효하다.
-- 파인끼리는 `say`를 쓴다. `SendMessage`는 Stop 훅에서 호출할 수 없고, `SAY_NOWAIT` 같은 인터럽트 구분이 없으며,
-  토큰 이득이 없고(실측), Codex 파인은 지원하지 않는다. 비교와 실측은 [docs/token-cost.md](docs/token-cost.md) 참조.
+- `SendMessage`는 Stop 훅(셸 스크립트)에서 호출할 수 없고, `SAY_NOWAIT` 같은 의도적 인터럽트 구분이 없다.
+- 유휴 파인에는 `say`와 똑같이 새 턴이 생겨 토큰 이득이 없다(실측).
+- Codex 파인은 지원하지 않는다.
+- 비교와 실측은 [docs/token-cost.md](docs/token-cost.md) 참조.
+
+팀 밖 Claude 세션이 파인 하나를 직접 지시하는 용도로만 켜 둔다(`crossSessionInbound: accept`). Docker 실행 시 호스트에서는 파인이 보이지 않는다.
 
 ### 보고 경로
 
