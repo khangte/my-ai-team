@@ -402,10 +402,6 @@ Codex는 `AGENTS.md`를 읽는다. **두 파일을 함께 갱신하지 않으면
 
 ## 남은 작업 (후속)
 
-- Codex 파인의 프롬프트·툴 JSONL 로깅. `log_cmd`는 `start_claude_in_pane`에만 있어
-  `.claude-logs/`에 Codex 파인의 기록이 남지 않는다. 혼합 팀에서 보고 경로를 실측할 때
-  Codex 파인 구간만 공백으로 비는 원인이다(실제로 겪음 — developer 파인의 발신 시점을
-  lead 수신 로그로 역추정해야 했다).
+- (완료) Codex 파인의 프롬프트·툴 JSONL 로깅은 `.codex/hooks.json`으로 이식했다 ([codex-support-plan.md](codex-support-plan.md) 참조).
 - 보고 프로토콜 변경([pane-messaging.md](pane-messaging.md) 10단계)이 Codex 파인에서도
-  동일하게 지켜지는지 확인. Claude 파인에서는 실측했지만 Codex 쪽은 위 로깅 부재로
-  같은 방식의 검증이 안 된다.
+  동일하게 지켜지는지 확인. Claude 파인에서는 실측했다. Codex 쪽은 로깅 이식 후 같은 방식으로 검증할 수 있다.

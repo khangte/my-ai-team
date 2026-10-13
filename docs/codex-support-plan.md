@@ -308,7 +308,7 @@ busy 마커와 종료 신호 구조를 유지한다.
   대응하는 훅이 없어, 공급자 중립 지점으로 옮겼다(`per-role-agent-plan.md` §A).
 - `Stop`: busy 마커 제거, 보고 마커 소비, 본 보고가 없으면 lead에 자동 종료 신호 전송
 - `SessionStart`: stale busy 마커 제거
-- `UserPromptSubmit`, `PreToolUse`: 역할별 JSONL 로그 기록 — **Claude 전용, 미이식**
+- `UserPromptSubmit`, `PreToolUse`: 역할별 JSONL 로그 기록
 
 Claude 파인은 `UserPromptSubmit`에서 busy 마커를 찍고 보고 마커를 비우지만, Codex
 파인에는 이 훅이 없다. busy 마커는 `say`가 대신 켜므로 문제없고, 보고 마커는 `Stop`이
@@ -386,13 +386,14 @@ Codex 인증 상태도 `/home/user` 볼륨에 보존되므로 기존 볼륨 이�
 - [x] Stop 자동 보고와 중복 보고 가드 연결 (`stop_hook_cmd_for_role()` 공용)
 - [x] `/clear` 또는 세션 재시작에 대응하는 stale 마커 정리 검증
       (`SessionStart` matcher `startup|resume|clear|compact`)
-- [ ] Codex 훅 입력 샘플 캡처와 `bin/log-hook` 호환성 확인
-- [ ] Codex 로그 경로 일반화
+- [x] Codex 훅 입력 샘플 캡처와 `bin/log-hook` 호환성 확인 (codex-cli 0.161.0)
+- [x] Codex 로그 경로 일반화 — 디렉터리 이름 `.claude-logs/`는 유지
 
-로깅 두 항목은 아직 미구현이다. `log_cmd`는 `start_claude_in_pane`에만 있어
-Codex 파인은 `.claude-logs/{역할}.jsonl`을 남기지 않는다. 혼합 팀에서 보고 경로를
-실측할 때 Codex 파인 구간이 통째로 비므로, 관측이 필요한 역할을 Codex에 배정할 때
-이 한계를 먼저 고려해야 한다.
+Codex 훅 payload는 Claude와 필드가 같다(`session_id`, `hook_event_name`, `prompt`,
+`tool_name`, `tool_input`). 그대로 `bin/log-hook`을 쓰되 두 가지를 맞췄다.
+
+- Codex는 훅 stdout을 훅 출력으로 해석해 `PreToolUse Failed`를 띄우므로 `--quiet`로 통과를 끈다.
+- `apply_patch`는 패치 전문이 `tool_input.command`에 오므로 파일 경로와 `patch_len`만 남긴다.
 
 완료 조건:
 
@@ -404,7 +405,7 @@ Codex 파인은 `.claude-logs/{역할}.jsonl`을 남기지 않는다. 혼합 팀
       Codex는 `UserPromptSubmit`이 없어 `Stop`의 삭제가 유일한 초기화 지점이다.
 - [x] 본 보고 없이 종료하면 lead가 자동 신호를 받는다.
 - [ ] 프롬프트와 툴 로그에 시크릿 본문이 그대로 기록되지 않는다 —
-      Codex 로깅 자체가 미구현이라 판정 대상이 없다.
+      Codex 로깅은 구현됐으나 시크릿 마스킹 실측은 아직 없다.
 
 ### 3단계 — 스킬·플러그인 이식
 

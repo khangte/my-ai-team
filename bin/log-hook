@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""log-hook <역할> <프로젝트_루트> — 프롬프트/툴 사용을 JSONL로 기록하는 훅.
+"""log-hook <역할> <프로젝트_루트> [--quiet] — 프롬프트/툴 사용을 JSONL로 기록하는 훅.
 
 stdin으로 훅 JSON을 받아 $PROJECT_DIR/.claude-logs/{역할}.jsonl 에 한 줄 덧붙인다.
 UserPromptSubmit(프롬프트)과 PreToolUse(툴 사용) 양쪽에서 같은 스크립트를 쓴다.
@@ -68,11 +68,19 @@ def scrub_command(cmd):
     return mask(cmd)
 
 
-def summarize_input(tool_input):
+PATCH_FILE_RE = re.compile(r"^\*\*\* (?:Add|Update|Delete) File: (.+)$", re.MULTILINE)
+
+
+def summarize_input(tool_input, tool_name=None):
     """tool_input에서 재현에 필요한 정보만 추린다."""
     if not isinstance(tool_input, dict):
         return {}
     out = {}
+    # Codex apply_patch는 패치 전문이 command에 담겨 온다. 본문은 길이만 남기고
+    # 건드린 파일 경로만 기록한다.
+    patch = tool_input.get("command")
+    if tool_name == "apply_patch" and isinstance(patch, str):
+        return {"files": [mask(f) for f in PATCH_FILE_RE.findall(patch)], "patch_len": len(patch)}
     for key in KEEP_KEYS:
         val = tool_input.get(key)
         if not isinstance(val, str):
@@ -91,8 +99,10 @@ def main():
 
     raw = sys.stdin.read()
     # 훅은 stdin을 그대로 통과시켜야 뒤에 붙는 훅이 같은 입력을 받는다.
-    sys.stdout.write(raw)
-    sys.stdout.flush()
+    # --quiet(Codex)는 stdout을 훅 출력으로 해석해 "Failed"를 띄우므로 통과시키지 않는다.
+    if "--quiet" not in sys.argv[3:]:
+        sys.stdout.write(raw)
+        sys.stdout.flush()
 
     data = json.loads(raw)
     event = data.get("hook_event_name") or (
@@ -109,7 +119,7 @@ def main():
         entry["prompt"] = mask(data.get("prompt") or "")
     else:
         entry["tool"] = data.get("tool_name")
-        entry["input"] = summarize_input(data.get("tool_input"))
+        entry["input"] = summarize_input(data.get("tool_input"), entry["tool"])
 
     log_dir = os.path.join(project_dir, ".claude-logs")
     os.makedirs(log_dir, exist_ok=True)

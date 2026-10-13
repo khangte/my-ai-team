@@ -173,7 +173,7 @@ tmux kill-session -t team1                    # 세션 종료
 | busy 마커·Stop 훅 | `UserPromptSubmit`·`Stop` 훅                             | `.codex/hooks.json`의 `SessionStart`·`Stop` 이벤트          |
 | rtk 토큰 절감 훅  | 적용                                                     | 미적용                                                      |
 | gstack 스킬       | 적용                                                     | 미적용                                                      |
-| 프롬프트·툴 로깅  | `.claude-logs/{역할}.jsonl`                              | 미적용                                                      |
+| 프롬프트·툴 로깅  | `.claude-logs/{역할}.jsonl`                              | `.claude-logs/{역할}.jsonl` (`.codex/hooks.json` 훅)        |
 
 - 첫 실행의 신뢰 대화상자·훅 승인은 `setup-team.sh`가 자동 처리한다 — 사람이 개입할 필요 없다.
 - `say` 통신과 역할 지침은 두 공급자에서 동일하게 동작한다.
@@ -199,8 +199,7 @@ declare -a MEMBERS=(
 
 - 항목 형식과 기본값 규칙은 아래 "프로젝트별 팀 구성 커스터마이징" 참고.
 - 일부 역할만 Codex를 써도 `[0/7]`이 Codex 로그인까지 함께 확인한다.
-- 로깅 훅이 Claude 전용이라 혼합 팀의 `.claude-logs/`에는 Codex 파인 구간이 비어 있다.
-  보고 경로나 토큰 비용을 실측할 계획이라면 그 역할을 Claude에 두는 편이 낫다.
+- 프롬프트·툴 로그는 두 공급자가 같은 `.claude-logs/{역할}.jsonl`에 남기므로 혼합 팀도 한 곳에서 추적한다.
 
 ## 지침과 team/ — 지침이 파인에 로딩되는 방식
 
@@ -311,7 +310,7 @@ Claude Code v2.1.224부터 세션끼리 `SendMessage`로 대화할 수 있다(`L
 
 ## 프롬프트·툴 로깅 — 재현성과 추적
 
-> Claude 파인 전용이다. Codex 파인은 기록하지 않는다.
+> Claude·Codex 파인 공통이다. 로그 위치와 형식이 같다.
 
 배경:
 
@@ -319,7 +318,9 @@ Claude Code v2.1.224부터 세션끼리 `SendMessage`로 대화할 수 있다(`L
 
 구현:
 
-- `setup-team.sh`가 모든 Claude 파인에 `UserPromptSubmit`·`PreToolUse` 훅(`bin/log-hook`)을 주입해 자동 기록
+- `setup-team.sh`가 모든 파인에 `UserPromptSubmit`·`PreToolUse` 훅(`bin/log-hook`)을 주입해 자동 기록
+  - Claude는 `--settings`, Codex는 `.codex/hooks.json`으로 주입 (Codex는 `--quiet`로 stdout 통과를 끈다)
+  - Codex `apply_patch`는 패치 전문 대신 건드린 파일 경로(`files`)와 `patch_len`만 남긴다
 
 ```
 $PROJECT_DIR/.claude-logs/

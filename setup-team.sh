@@ -497,7 +497,10 @@ write_codex_role_agents() {
     stop_hook_cmd_for_role "$role" "$pane_id" "$state_key"
     local hook_cmd_json; hook_cmd_json="$(json_escape "$STOP_HOOK_CMD")"
     local session_start_cmd_json; session_start_cmd_json="$(json_escape "rm -f /tmp/team-busy/${state_key}")"
-    local hooks_json="{\"hooks\":{\"SessionStart\":[{\"matcher\":\"startup|resume|clear|compact\",\"hooks\":[{\"type\":\"command\",\"command\":\"${session_start_cmd_json}\"}]}],\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd_json}\"}]}]}}"
+    # 프롬프트·툴 로깅은 Claude와 같은 bin/log-hook을 쓴다(payload 필드가 같다).
+    local log_cmd_json; log_cmd_json="$(json_escape "${BIN_DIR}/log-hook ${role:-unknown} '${PROJECT_DIR}' --quiet")"
+    local log_hook_json="[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]}]"
+    local hooks_json="{\"hooks\":{\"SessionStart\":[{\"matcher\":\"startup|resume|clear|compact\",\"hooks\":[{\"type\":\"command\",\"command\":\"${session_start_cmd_json}\"}]}],\"UserPromptSubmit\":${log_hook_json},\"PreToolUse\":${log_hook_json},\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd_json}\"}]}]}}"
     mkdir -p "$work_dir/.codex"
     printf '%s' "$hooks_json" > "$work_dir/.codex/hooks.json"
 }
