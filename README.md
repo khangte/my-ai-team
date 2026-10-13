@@ -31,7 +31,7 @@ team/                   프로젝트별 오버라이드 대상만 (역할 지침
   └ {역할}.md             역할별 지침 (lead/architect/researcher/designer/developer/reviewer)
 bin/                    항상 이 저장소 기준으로 고정 실행되는 스크립트 (오버라이드 대상 아님)
   ├ say                 파인 간 메시지 전송 래퍼 (setup-team.sh가 각 파인 PATH에 등록)
-  └ log-hook            프롬프트·툴 사용을 .claude-logs/{역할}.jsonl에 기록하는 훅
+  └ log-hook            프롬프트·툴 사용을 .team-logs/{역할}.jsonl에 기록하는 훅
 docs/                   설계 배경·실측 분석 문서
   └ architect-review/   architect의 리뷰 판정 문서 ({순번}_{주제}.md)
 Dockerfile              팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
@@ -45,7 +45,7 @@ setup-team.sh           tmux 세션 구성 + 선택한 에이전트 CLI 실행 (
 - `setup-team.sh`는 실행할 때마다 **대상 프로젝트 루트**에 `.team/`을 새로 생성
   - 내용: 역할별 스킬 심볼릭 링크 + `_runtime/`의 조립된 역할 지침·훅 설정
   - 매 실행마다 지워지고 다시 만들어짐 → 대상 프로젝트 `.gitignore`에 `.team/` 추가 권장
-- 프롬프트·툴 로그(`.claude-logs/`)는 내부 `.gitignore`로 스스로 제외되므로 별도 설정 불필요 (아래 "프롬프트·툴 로깅" 참고)
+- 프롬프트·툴 로그(`.team-logs/`)는 내부 `.gitignore`로 스스로 제외되므로 별도 설정 불필요 (아래 "프롬프트·툴 로깅" 참고)
 
 ### 이 저장소의 위치
 
@@ -173,7 +173,7 @@ tmux kill-session -t team1                    # 세션 종료
 | busy 마커·Stop 훅 | `UserPromptSubmit`·`Stop` 훅                             | `.codex/hooks.json`의 `SessionStart`·`Stop` 이벤트          |
 | rtk 토큰 절감 훅  | 적용                                                     | 미적용                                                      |
 | gstack 스킬       | 적용                                                     | 미적용                                                      |
-| 프롬프트·툴 로깅  | `.claude-logs/{역할}.jsonl`                              | `.claude-logs/{역할}.jsonl` (`.codex/hooks.json` 훅)        |
+| 프롬프트·툴 로깅  | `.team-logs/{역할}.jsonl`                              | `.team-logs/{역할}.jsonl` (`.codex/hooks.json` 훅)        |
 
 - 첫 실행의 신뢰 대화상자·훅 승인은 `setup-team.sh`가 자동 처리한다 — 사람이 개입할 필요 없다.
 - `say` 통신과 역할 지침은 두 공급자에서 동일하게 동작한다.
@@ -199,7 +199,7 @@ declare -a MEMBERS=(
 
 - 항목 형식과 기본값 규칙은 아래 "프로젝트별 팀 구성 커스터마이징" 참고.
 - 일부 역할만 Codex를 써도 `[0/7]`이 Codex 로그인까지 함께 확인한다.
-- 프롬프트·툴 로그는 두 공급자가 같은 `.claude-logs/{역할}.jsonl`에 남기므로 혼합 팀도 한 곳에서 추적한다.
+- 프롬프트·툴 로그는 두 공급자가 같은 `.team-logs/{역할}.jsonl`에 남기므로 혼합 팀도 한 곳에서 추적한다.
 
 ## 지침과 team/ — 지침이 파인에 로딩되는 방식
 
@@ -323,7 +323,7 @@ Claude Code v2.1.224부터 세션끼리 `SendMessage`로 대화할 수 있다(`L
   - Codex `apply_patch`는 패치 전문 대신 건드린 파일 경로(`files`)와 `patch_len`만 남긴다
 
 ```
-$PROJECT_DIR/.claude-logs/
+$PROJECT_DIR/.team-logs/
 ├── .gitignore        내용은 "*" — 디렉터리가 스스로를 커밋에서 제외
 ├── lead.jsonl
 ├── developer.jsonl

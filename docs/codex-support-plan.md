@@ -387,7 +387,7 @@ Codex 인증 상태도 `/home/user` 볼륨에 보존되므로 기존 볼륨 이�
 - [x] `/clear` 또는 세션 재시작에 대응하는 stale 마커 정리 검증
       (`SessionStart` matcher `startup|resume|clear|compact`)
 - [x] Codex 훅 입력 샘플 캡처와 `bin/log-hook` 호환성 확인 (codex-cli 0.161.0)
-- [x] Codex 로그 경로 일반화 — 디렉터리 이름 `.claude-logs/`는 유지
+- [x] Codex 로그 경로 일반화 — 디렉터리를 `.claude-logs/`에서 `.team-logs/`로 변경
 
 Codex 훅 payload는 Claude와 필드가 같다(`session_id`, `hook_event_name`, `prompt`,
 `tool_name`, `tool_input`). 그대로 `bin/log-hook`을 쓰되 두 가지를 맞췄다.
@@ -435,8 +435,7 @@ Codex 훅 payload는 Claude와 필드가 같다(`session_id`, `hook_event_name`,
 - [x] 권한 모드별 위험 설명 추가 (`--dangerously-skip-permissions`,
       `CODEX_FULL_ACCESS=0`)
 - [ ] Docker 볼륨 이름 변경 여부 결정 및 필요 시 마이그레이션 안내 작성
-- [ ] Claude 전용 명칭이 남은 런타임 파일과 주석 정리 — `.claude-logs/`가 대표적이다.
-      Codex 로깅을 이식하면 이름과 실제가 어긋나므로, 그 작업과 함께 다룬다.
+- [ ] Claude 전용 명칭이 남은 런타임 파일과 주석 정리 — 로그 디렉터리는 `.team-logs/`로 바꿨다.
 
 ## 검증 계획
 
