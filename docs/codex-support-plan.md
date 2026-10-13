@@ -308,12 +308,12 @@ busy 마커와 종료 신호 구조를 유지한다.
   대응하는 훅이 없어, 공급자 중립 지점으로 옮겼다(`per-role-agent-plan.md` §A).
 - `Stop`: busy 마커 제거, 보고 마커 소비, 본 보고가 없으면 lead에 자동 종료 신호 전송
 - `SessionStart`: stale busy 마커 제거
-- `UserPromptSubmit`, `PreToolUse`: 역할별 JSONL 로그 기록
+- `UserPromptSubmit`: 역할별 JSONL 로그 기록 + 보고 마커 초기화
+- `PreToolUse`: 역할별 JSONL 로그 기록
 
-Claude 파인은 `UserPromptSubmit`에서 busy 마커를 찍고 보고 마커를 비우지만, Codex
-파인에는 이 훅이 없다. busy 마커는 `say`가 대신 켜므로 문제없고, 보고 마커는 `Stop`이
-무조건 지우므로 1비트 의미가 유지된다. 이 비대칭은 의도된 것이며, Codex `Stop` 훅의
-마커 삭제를 조건부로 바꾸면 깨진다.
+Claude 파인은 `UserPromptSubmit`에서 busy 마커를 찍고 보고 마커를 비운다. Codex 파인은
+busy 마커를 `say`가 대신 켜므로 보고 마커 초기화만 같은 훅에서 한다. `Stop`의 마커
+삭제는 그대로 둔다 — 조건부로 바꾸면 깨진다.
 
 ### 변경할 동작
 
@@ -402,7 +402,7 @@ Codex 훅 payload는 Claude와 필드가 같다(`session_id`, `hook_event_name`,
 - [x] 본 보고가 있으면 Stop 종료 신호가 중복 전달되지 않는다.
       단 마커가 턴 경계에서 초기화되어야 성립한다 — 초기화 누락으로 보고를 하고도
       신호가 나가던 오탐을 실측·수정했다([pane-messaging.md](pane-messaging.md) 10단계).
-      Codex는 `UserPromptSubmit`이 없어 `Stop`의 삭제가 유일한 초기화 지점이다.
+      Codex도 `UserPromptSubmit`에서 비운다(0.161.0 확인).
 - [x] 본 보고 없이 종료하면 lead가 자동 신호를 받는다.
 - [ ] 프롬프트와 툴 로그에 시크릿 본문이 그대로 기록되지 않는다 —
       Codex 로깅은 구현됐으나 시크릿 마스킹 실측은 아직 없다.
