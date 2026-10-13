@@ -40,19 +40,6 @@ setup-native.sh         WSL 등 호스트에 직접 의존성 설치 (Docker 없
 setup-team.sh           tmux 세션 구성 + 선택한 에이전트 CLI 실행 (핵심 스크립트)
 ```
 
-### 런타임 산출물
-
-- `setup-team.sh`는 실행할 때마다 **대상 프로젝트 루트**에 `.team/`을 새로 생성
-  - 내용: 역할별 스킬 심볼릭 링크 + `_runtime/`의 조립된 역할 지침·훅 설정
-  - 매 실행마다 지워지고 다시 만들어짐 → 대상 프로젝트 `.gitignore`에 `.team/` 추가 권장
-- 프롬프트·툴 로그(`.team-logs/`)는 내부 `.gitignore`로 스스로 제외되므로 별도 설정 불필요 (아래 "프롬프트·툴 로깅" 참고)
-
-### 이 저장소의 위치
-
-- 이 저장소 자체는 개발 대상이 아니라 **팀 오케스트레이션 엔진**
-- 실제 개발할 프로젝트는 별도 폴더에 존재
-- `setup-team.sh`가 그 폴더를 인자로 받아 그 안에서 에이전트 CLI(Claude Code·Codex)를 실행
-
 ## 실행 방식 및 사용법
 
 |               | WSL 네이티브                        | Docker                                            |
@@ -106,13 +93,6 @@ git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
 > - 세션 이름 기본값은 `team1`, `team/config.sh`의 `SESSION=` 값으로 변경 가능
 >   (아래 "프로젝트별 팀 구성 커스터마이징" 참고)
 
-Docker 환경의 특이점:
-
-- `Dockerfile`은 npm/rtk/bun을 `/opt` 하위에 설치
-  - 이유: 컨테이너 재생성 시 `/home/user`가 named volume(`claude-home`)으로 덮어써짐
-  - WSL 네이티브는 이 제약이 없어 기본 경로 사용
-- 컨테이너 이름은 `claude-env`로 고정, `sleep infinity`로 상주 — 재접속 때 `setup-docker.sh` 재실행 불필요
-
 ### setup-team.sh 실행되면
 
 0. 의존성·인증 확인 `[0/7]` (공통)
@@ -153,9 +133,6 @@ tmux kill-session -t team1                    # 세션 종료
 
 - 두 공급자 모두 권한 우회 플래그로 실행됨(Claude `--dangerously-skip-permissions`, Codex `--dangerously-bypass-approvals-and-sandbox`) — 툴 사용마다 사람 승인이 필요하면 멀티에이전트 자동 진행이 불가능해서
 - 대가: 파인이 확인 없이 파일을 수정·삭제 → **git으로 관리되는 프로젝트**에서 쓰거나 Docker로 격리 권장
-- Claude 한정 파급효과: 권한 우회 세션은 cross-session messaging도 기본 승인 대기로 보류되는데, 사람이 안 붙어 있어
-  `dialogExpiry`(기본 5분) 후 그대로 폐기됨 → `setup-team.sh`가 각 Claude 파인에 `crossSessionInbound: accept`를
-  함께 주입 (아래 "팀 밖 세션에서 파인 호출" 참고)
 
 ### 에이전트 공급자별 차이
 
@@ -211,11 +188,6 @@ declare -a MEMBERS=(
    - **파인이 읽는 것은 `$PROJECT_DIR`의 파일이지 이 저장소의 것이 아니다.**
      그래서 `setup-team.sh`가 실행할 때마다 이 저장소의 `CLAUDE.md`·`AGENTS.md` 내용을
      대상 프로젝트의 같은 이름 파일에 마커 블록으로 병합한다
-   - 병합 규칙 — 사용자가 쓴 내용은 건드리지 않는다
-     - 파일이 없으면 블록만 담아 새로 생성
-     - 마커가 있으면 그 사이만 교체 (블록 앞뒤 내용 보존)
-     - 마커가 없으면 파일 끝에 블록 추가
-     - `$PROJECT_DIR`가 이 저장소 자신이면 아무것도 하지 않음
    - 따라서 팀 공통 규칙은 이 저장소의 `CLAUDE.md`·`AGENTS.md`만 고치면 다음 실행부터 전 프로젝트에 반영됨
      - 단 **README 등 이 저장소 파일을 참조하는 문장은 쓰지 않는다** — 대상 프로젝트에는 그 파일이 없다
    - 역할별 지시(팀원 배분, "하지 말 것" 등)는 여기에 넣지 않음
