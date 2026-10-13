@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """log-hook <역할> <프로젝트_루트> [--quiet] — 프롬프트/툴 사용을 JSONL로 기록하는 훅.
 
-stdin으로 훅 JSON을 받아 $PROJECT_DIR/.claude-logs/{역할}.jsonl 에 한 줄 덧붙인다.
+stdin으로 훅 JSON을 받아 $PROJECT_DIR/.team-logs/{역할}.jsonl 에 한 줄 덧붙인다.
 UserPromptSubmit(프롬프트)과 PreToolUse(툴 사용) 양쪽에서 같은 스크립트를 쓴다.
 
 훅은 harness가 실행하므로 여기서 죽으면 파인 동작에 영향이 간다.
@@ -121,7 +121,7 @@ def main():
         entry["tool"] = data.get("tool_name")
         entry["input"] = summarize_input(data.get("tool_input"), entry["tool"])
 
-    log_dir = os.path.join(project_dir, ".claude-logs")
+    log_dir = os.path.join(project_dir, ".team-logs")
     os.makedirs(log_dir, exist_ok=True)
 
     # 로그 디렉터리가 스스로를 커밋 대상에서 제외한다. 작업 대상 리포의
