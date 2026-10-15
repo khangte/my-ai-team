@@ -176,6 +176,7 @@ HARD_CAP=1800
 
 # 실제 전송 + 검증. 유휴를 확인한 뒤에만 호출한다.
 deliver() {
+    # 입력을 제출하고 마지막 입력 프롬프트의 잔류 여부를 확인한다.
     # 전달 직후 이 파인의 busy 마커를 켠다 — turn-start를 harness 훅(Claude의
     # UserPromptSubmit)에 기대지 않고 say가 직접 확정한다. Codex는 이런 훅이
     # 없어 그 파인은 항상 마커 없이 "유휴"로 오판되던 문제의 근본 수정이다.
@@ -200,8 +201,11 @@ deliver() {
     # 그대로 남아있으면 Enter가 무시됐거나 대상 파인 지정이 잘못된 것이다.
     # 메시지가 길면 입력창에서 줄바꿈되므로 앞부분만 잘라 검사한다.
     sleep 0.2
-    probe="${msg:0:40}"
-    if [ -n "$probe" ] && tmux capture-pane -t "$pane" -p | tail -5 | grep -qF -- "$probe"; then
+    local probe="${msg:0:40}"
+    # 짧은 문자열은 안내 문구와 쉽게 겹쳐 전달 여부를 판별할 수 없다.
+    [ "${#probe}" -ge 8 ] || return 0
+    if tmux capture-pane -t "$pane" -p \
+        | grep -E '^[[:space:]]*[›>]' | tail -n 1 | grep -qF -- "$probe"; then
         echo "say: WARNING - '$pane'에 메시지가 전달되지 않고 입력창에 남아있는 것으로 보입니다: $probe..." >&2
         # 실제 턴이 시작되지 않았으므로 다음 큐 재시도가 30분 동안 stale busy
         # 마커에 막히지 않게 되돌린다.
@@ -335,7 +339,9 @@ fi
 # --drain-one은 Stop 훅에서 호출되어 한 건만 동기적으로 전달한다. 일반 watcher가
 # 호출 셸과 함께 종료되더라도 다음 Stop에서 보존된 FIFO 큐를 계속 소비한다.
 process_queue() {
+    # 항목별 전송 횟수를 제한하고 실패 상한에 도달한 항목은 기록 후 제거한다.
     if mkdir "$lock_file" 2>/dev/null; then
+        local delivery_attempts=0 max_delivery_attempts=3
         watcher_pid="$BASHPID"
         watcher_started="$(process_start_time "$watcher_pid")"
         printf '%s %s\n' "$watcher_pid" "$watcher_started" > "$lock_file/owner"
@@ -377,19 +383,27 @@ process_queue() {
             queue_unlock
 
             [ -n "$msg" ] || continue
-            if deliver; then
-                queue_lock
-                if ! { tail -n +2 "$queue_file" > "$queue_file.tmp" && mv "$queue_file.tmp" "$queue_file"; }; then
-                    queue_unlock
-                    continue
+            if [ "$delivery_attempts" -lt "$max_delivery_attempts" ]; then
+                delivery_attempts=$((delivery_attempts + 1))
+                if ! deliver; then
+                    if [ "$delivery_attempts" -lt "$max_delivery_attempts" ]; then
+                        # 원문과 횟수를 유지한 채 다음 루프에서 다시 시도한다.
+                        sleep 1
+                        continue
+                    fi
+                    # watcher의 stderr는 폐기되므로 별도 파일에도 기록한다.
+                    printf '%s say: dropped pane=%s attempts=%s message=%s\n' \
+                        "$(date -Is)" "$pane" "$delivery_attempts" "$msg" >> "$QUEUE_DIR/dropped.log"
+                    echo "say: WARNING - '$pane' 전송 ${delivery_attempts}회 실패, 큐 항목 제거: $msg" >&2
                 fi
+            fi
+            queue_lock
+            if ! { tail -n +2 "$queue_file" > "$queue_file.tmp" && mv "$queue_file.tmp" "$queue_file"; }; then
                 queue_unlock
-            else
-                # 원문은 큐 첫 줄에 그대로 있다. busy 마커도 deliver가
-                # 되돌렸으므로 다음 루프에서 다시 제출을 시도한다.
-                sleep 1
                 continue
             fi
+            queue_unlock
+            delivery_attempts=0
             [ "$drain_once" = true ] && break
             # 연속 전송 시 입력창이 따라오도록 간격을 준다.
             sleep 1
