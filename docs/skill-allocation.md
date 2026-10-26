@@ -2,6 +2,10 @@
 
 > README의 "역할별 스킬·플러그인" 절 상세. 배분 표와 제외 이유를 모아 둔다.
 
+> **gstack은 제거했다.** 설치 단계(`setup-team.sh` `[2/7]`)와 `CLAUDE_GSTACK_SKILL_SETS` 값을 주석 처리했고,
+> 아래 gstack 서술은 되살릴 때 참고하는 기록이다. lead의 `spec`·`plan-eng-review`는 `team/lead.md`의
+> "스킬 없이 하는 절차"로, reviewer의 `review`는 체크리스트로 대신한다.
+
 ## 역할별 스킬 제한
 
 공급자마다 방식이 다르다. 아래는 Claude 기준이고, Codex는 아래 "Codex 파인 스킬" 절을 본다.
@@ -12,6 +16,7 @@
   `.team/{역할}/.claude/skills`에 **필요한 스킬만 심볼릭 링크**하고 그 디렉터리를 cwd로 실행,
   `--setting-sources project`로 유저 전역·플러그인 스킬은 차단
 
+<!-- gstack 제거로 비활성화
 | 역할       | 허용 스킬                   |
 | ---------- | --------------------------- |
 | lead       | `spec` `plan-eng-review`    |
@@ -20,6 +25,7 @@
 | designer   | `design-review` `design-html` |
 | developer  | `health`                    |
 | reviewer   | `review`                    |
+-->
 
 - `spec`·`plan-eng-review`는 사용자에게 직접 묻는 대화형 스킬이라, 사용자와 대화하는 유일한 파인인 lead에 둔다
   (모호한 요청 → lead `spec` → architect `writing-plans` → lead `plan-eng-review` → developer)

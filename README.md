@@ -98,12 +98,13 @@ git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
 0. 의존성·인증 확인 `[0/7]` (공통)
    - tmux 설치 여부는 항상 확인
    - 실제로 팀에 쓰이는 공급자마다 필요한 도구·인증을 확인 (혼합 팀이면 둘 다)
-     - Claude: claude/rtk/bun 설치, `claude auth status` 로그인 확인 (미로그인 시 `/login` 안내 후 대기)
+     - Claude: claude/rtk 설치, `claude auth status` 로그인 확인 (미로그인 시 `/login` 안내 후 대기)
      - Codex: codex 설치, `codex login status` 로그인 확인 (미로그인 시 `codex login` 안내 후 대기)
    - 확인 직후 기존 tmux 세션을 정리 (`.team/` 삭제와의 경합 방지)
 1. 공급자별 준비 — 팀에 쓰이는 공급자만 실행, 혼합 팀이면 Claude 블록 뒤에 Codex 블록
    - Claude 파인이 있을 때 `[1/7]`~`[4/7]`
-     - rtk 훅 초기화, gstack 스킬(`/office-hours`, `/review` 등) 설치
+     - rtk 훅 초기화
+     <!-- gstack 제거로 비활성화: gstack 스킬(`/office-hours`, `/review` 등) 설치 -->
      - 필수 마켓플레이스 플러그인(superpowers/frontend-design/serena/ponytail/caveman) 설치 — 역할별 활성화는 파인 실행 단계가 담당
      - 팀 공통 지침을 `CLAUDE.md`에 병합 + 역할별 스킬 제한 — `.team/{역할}/.claude/skills`에 그 역할이 쓸 스킬만 링크
    - Codex 파인이 있을 때 `[5/7]`
@@ -144,7 +145,9 @@ tmux kill-session -t team1                    # 세션 종료
 | 스킬·플러그인 배분 | `team/config.claude.sh`                                  | `team/config.codex.sh` (역할별 `CODEX_HOME`으로 격리)       |
 | 신뢰·훅 승인      | 해당 없음                                                | 프로젝트 신뢰 대화상자·`.codex/hooks.json` 훅 승인 자동 처리 |
 | rtk 토큰 절감 훅  | 적용                                                     | 미적용                                                      |
+<!-- gstack 제거로 비활성화
 | gstack 스킬       | 적용                                                     | 미적용                                                      |
+-->
 
 - `say` 통신과 역할 지침은 두 공급자에서 동일하게 동작한다.
 
@@ -325,6 +328,7 @@ $PROJECT_DIR/.team-logs/
 `~/.claude/skills`·플러그인은 유저 전역이라 파인마다 고정비가 쌓인다. `setup-team.sh`가 역할마다 필요한 것만 링크·활성화한다
 (`--setting-sources project`로 전역 스킬 차단). 배분은 `team/config.claude.sh`·`team/config.codex.sh`가 정한다.
 
+<!-- gstack 제거로 비활성화 (gstack 열)
 | 역할       | gstack 스킬                   | superpowers 스킬                               | 플러그인 (Claude)                      |
 | ---------- | ----------------------------- | ---------------------------------------------- | -------------------------------------- |
 | lead       | `spec` `plan-eng-review`      | `finishing-a-development-branch`               | caveman, serena                        |
@@ -333,6 +337,16 @@ $PROJECT_DIR/.team-logs/
 | designer   | `design-review` `design-html` | -                                              | caveman, serena, frontend-design       |
 | developer  | `health`                      | `systematic-debugging` `receiving-code-review` | caveman, serena, ponytail              |
 | reviewer   | `review`                      | -                                              | caveman, serena                        |
+-->
+
+| 역할       | superpowers 스킬                               | 플러그인 (Claude)                      |
+| ---------- | ---------------------------------------------- | -------------------------------------- |
+| lead       | `finishing-a-development-branch`               | caveman, serena                        |
+| architect  | `writing-plans`                                | caveman, serena                        |
+| researcher | -                                              | caveman, serena                        |
+| designer   | -                                              | caveman, serena, frontend-design       |
+| developer  | `systematic-debugging` `receiving-code-review` | caveman, serena, ponytail              |
+| reviewer   | -                                              | caveman, serena                        |
 
 - Codex 파인은 위 스킬을 읽지 못한다. `team/config.codex.sh`가 따로 배분(기본: developer에 superpowers 스킬 2개, designer에 `product-design@openai-curated-remote`)하고, 역할마다 `CODEX_HOME`을 격리한다.
 - 고정비: ponytail ~2.2K / caveman ~3.9K / serena ~6K 토큰 (파인당, 매 턴). 절감량은 [docs/token-cost.md](docs/token-cost.md) 참조.

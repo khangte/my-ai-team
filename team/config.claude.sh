@@ -25,13 +25,15 @@ declare -A CLAUDE_PLUGIN_ROLES=(
 
 # 역할 → 필요한 스킬. setup-team.sh는 이 선언을 읽어 역할별 런타임 디렉터리에
 # 심볼릭 링크를 만들고, 설치·오류 처리는 런처에 남긴다.
+# gstack은 제거했다. 값만 비웠고 키는 남긴다 — setup-team.sh의 역할별 스킬 디렉터리 루프가
+# 이 배열의 키를 순회하며 superpowers 스킬도 함께 링크하기 때문이다. 되살리려면 주석 값을 복원한다.
 declare -A CLAUDE_GSTACK_SKILL_SETS=(
-    [lead]="spec plan-eng-review"
-    [architect]="diagram"
-    [researcher]="scrape browse"
-    [designer]="design-review design-html"
-    [developer]="health"
-    [reviewer]="review"
+    [lead]=""            # [lead]="spec plan-eng-review"
+    [architect]=""       # [architect]="diagram"
+    [researcher]=""      # [researcher]="scrape browse"
+    [designer]=""        # [designer]="design-review design-html"
+    [developer]=""       # [developer]="health"
+    [reviewer]=""        # [reviewer]="review"
 )
 
 declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=(

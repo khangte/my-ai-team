@@ -15,7 +15,7 @@
 #         그 삭제보다 먼저 끝내 둔다.
 #   Claude 블록 (Claude 파인이 있을 때):
 #     [1/7] rtk 훅 초기화
-#     [2/7] gstack 스킬 설치
+#     [2/7] (비활성화) gstack 스킬 설치
 #     [3/7] 필수 플러그인 설치
 #     [4/7] 팀 공통 지침을 CLAUDE.md에 병합 + 역할별 스킬 제한(런타임 디렉터리 구성)
 #   Codex 블록 (Codex 파인이 있을 때, 혼합 팀에서는 Claude 블록 뒤에 이어서 실행):
@@ -615,7 +615,7 @@ command -v tmux &>/dev/null || MISSING+=("tmux (apt-get install -y tmux)")
 if [ -n "${USED_AGENTS[claude]:-}" ]; then
     command -v claude &>/dev/null || MISSING+=("claude (npm install -g @anthropic-ai/claude-code)")
     command -v rtk    &>/dev/null || MISSING+=("rtk (curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh)")
-    command -v bun    &>/dev/null || MISSING+=("bun (curl -fsSL https://bun.sh/install | bash)")
+    # gstack 전용 의존성이라 비활성화: command -v bun    &>/dev/null || MISSING+=("bun (curl -fsSL https://bun.sh/install | bash)")
 fi
 if [ -n "${USED_AGENTS[codex]:-}" ]; then
     command -v codex &>/dev/null || MISSING+=("codex (npm install -g @openai/codex)")
@@ -631,7 +631,7 @@ echo "  ✅ tmux $(tmux -V | awk '{print $2}')"
 if [ -n "${USED_AGENTS[claude]:-}" ]; then
     echo "  ✅ claude $(claude --version 2>/dev/null | head -1)"
     echo "  ✅ rtk $(rtk --version 2>/dev/null | head -1)"
-    echo "  ✅ bun $(bun --version 2>/dev/null | head -1)"
+    # echo "  ✅ bun $(bun --version 2>/dev/null | head -1)"
 
     echo -n "  Claude 로그인 확인... "
     if check_login; then
@@ -720,36 +720,38 @@ else
     echo -e "  ${YELLOW}   확인: rtk init --show${NC}"
 fi
 
-# ── [2/7] Claude — gstack 스킬 설치 ────────────────────────
-# CLAUDE.md의 "Skill routing"이 참조하는 /office-hours, /plan-ceo-review 등은
-# gstack(https://github.com/garrytan/gstack) 패키지가 제공한다.
-# ~/.claude 는 volume(claude-home) 안에 있어 컨테이너를 새로 만들면 사라지므로
-# 이미지 빌드 시점이 아니라 여기(런타임)에서 매번 최신 상태로 맞춘다.
-echo -e "\n${YELLOW}[2/7] Claude — gstack 스킬 설치...${NC}"
-
-GSTACK_DIR="$HOME/.claude/skills/gstack"
-if [ -d "$GSTACK_DIR/.git" ]; then
-    gstack_pull_out="$(git -C "$GSTACK_DIR" pull --ff-only 2>&1)"
-    if [[ "$gstack_pull_out" == *"Already up to date"* ]]; then
-        echo "  ℹ️  gstack 이미 최신 상태 (clone 생략)"
-    else
-        echo "  ⬇️  gstack 갱신됨"
-    fi
-else
-    git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git "$GSTACK_DIR" -q
-fi
-
-gstack_setup_err="$(mktemp)"
-if (cd "$GSTACK_DIR" && timeout 60 ./setup >/dev/null 2>"$gstack_setup_err"); then
-    echo -e "  ${GREEN}✅ gstack 스킬 설치 완료${NC}"
-else
-    echo -e "  ${YELLOW}⚠️  gstack setup 실패 또는 timeout (수동 확인 필요: cd $GSTACK_DIR && ./setup)${NC}"
-fi
-if [ -s "$gstack_setup_err" ]; then
-    echo -e "  ${YELLOW}ℹ️  아래는 codex 등 비-Claude 호스트용 문서 생성 경고 (Claude 설치와 무관):${NC}"
-    sed 's/^/     /' "$gstack_setup_err"
-fi
-rm -f "$gstack_setup_err"
+# gstack 제거로 [2/7] 단계는 비활성화했다(재활성화하려면 아래 주석을 푼다).
+# 스킬 배분은 team/config.claude.sh의 CLAUDE_GSTACK_SKILL_SETS 참고.
+# # ── [2/7] Claude — gstack 스킬 설치 ────────────────────────
+# # CLAUDE.md의 "Skill routing"이 참조하는 /office-hours, /plan-ceo-review 등은
+# # gstack(https://github.com/garrytan/gstack) 패키지가 제공한다.
+# # ~/.claude 는 volume(claude-home) 안에 있어 컨테이너를 새로 만들면 사라지므로
+# # 이미지 빌드 시점이 아니라 여기(런타임)에서 매번 최신 상태로 맞춘다.
+# echo -e "\n${YELLOW}[2/7] Claude — gstack 스킬 설치...${NC}"
+#
+# GSTACK_DIR="$HOME/.claude/skills/gstack"
+# if [ -d "$GSTACK_DIR/.git" ]; then
+#     gstack_pull_out="$(git -C "$GSTACK_DIR" pull --ff-only 2>&1)"
+#     if [[ "$gstack_pull_out" == *"Already up to date"* ]]; then
+#         echo "  ℹ️  gstack 이미 최신 상태 (clone 생략)"
+#     else
+#         echo "  ⬇️  gstack 갱신됨"
+#     fi
+# else
+#     git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git "$GSTACK_DIR" -q
+# fi
+#
+# gstack_setup_err="$(mktemp)"
+# if (cd "$GSTACK_DIR" && timeout 60 ./setup >/dev/null 2>"$gstack_setup_err"); then
+#     echo -e "  ${GREEN}✅ gstack 스킬 설치 완료${NC}"
+# else
+#     echo -e "  ${YELLOW}⚠️  gstack setup 실패 또는 timeout (수동 확인 필요: cd $GSTACK_DIR && ./setup)${NC}"
+# fi
+# if [ -s "$gstack_setup_err" ]; then
+#     echo -e "  ${YELLOW}ℹ️  아래는 codex 등 비-Claude 호스트용 문서 생성 경고 (Claude 설치와 무관):${NC}"
+#     sed 's/^/     /' "$gstack_setup_err"
+# fi
+# rm -f "$gstack_setup_err"
 
 # ── [3/7] Claude — 필수 플러그인 설치 ──────────────────────
 # 마켓플레이스 플러그인은 ~/.claude/plugins/ 아래에 설치되는데, 이 경로는
