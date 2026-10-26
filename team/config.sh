@@ -20,14 +20,11 @@ SESSION="team1"   # tmux 세션 이름 (프로젝트별로 변경 가능)
 #   - effort: low/medium/high/xhigh/max. 비우면 --effort를 넘기지 않아
 #     CLI 기본값(Claude는 settings.json의 effortLevel)을 따른다.
 #
-# lead는 직접 작업하지 않고 배분·수합만 하지만 모든 보고가 모여 컨텍스트가
-# 가장 빨리 불어나는 파인이다. 비싼 모델 × 최장 컨텍스트 조합을 피해 Sonnet을
-# 쓴다. 깊은 판단이 필요한 쪽은 architect이므로 그쪽만 상위 모델을 둔다.
 declare -a MEMBERS=(
     "lead|리드|claude|claude-opus-5-5|medium"
     "architect|아키텍트|claude|claude-opus-5-5|high"
-    "researcher|리서쳐|claude|claude-sonnet-5-5|medium"
-    "designer|디자이너|codex|gpt-6-astra|low"
+    # "researcher|리서쳐|claude|claude-sonnet-5-5|medium"
+    # "designer|디자이너|codex|gpt-6-astra|low"
     "developer|개발자|codex|gpt-6.1-sol|medium"
     "reviewer|리뷰어|claude|claude-sonnet-5-5|medium"
 )

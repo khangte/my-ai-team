@@ -17,7 +17,7 @@ declare -A CLAUDE_PLUGIN_MARKETPLACES=(
 # 플러그인 → 활성화할 역할. "*"는 모든 역할, 빈 값은 설치만 한다.
 declare -A CLAUDE_PLUGIN_ROLES=(
     ["superpowers@claude-plugins-official"]=""
-    ["frontend-design@claude-plugins-official"]="designer"
+    # ["frontend-design@claude-plugins-official"]="designer"
     ["serena@claude-plugins-official"]="*"
     ["ponytail@ponytail"]="developer"
     ["caveman@caveman"]="*"
@@ -44,6 +44,6 @@ declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=(
     [reviewer]=""
 )
 
-declare -A CLAUDE_FRONTEND_DESIGN_SKILL_SETS=(
-    [designer]="frontend-design"
-)
+# declare -A CLAUDE_FRONTEND_DESIGN_SKILL_SETS=(
+#     [designer]="frontend-design"
+# )

@@ -24,12 +24,18 @@ test -n "${SPEC_MEMBER_REASONING_EFFORTS[$developer_index]}"
 source "$repo_dir/team/config.codex.sh"
 
 # gstack의 codex 렌더링은 설치되지 않으므로 standalone 스킬은 배정하지 않는다.
-test "${#CODEX_SKILL_SETS[@]}" -eq 0
+for role in "${!CODEX_SKILL_SETS[@]}"; do
+    test -z "${CODEX_SKILL_SETS[$role]}"
+done
 test ! -d "$repo_dir/skills/codex"
 
 # developer에는 공식 Superpowers 플러그인의 디버깅·리뷰 수용 스킬만 선택 노출한다.
 test "${CODEX_SUPERPOWERS_SKILL_SETS[developer]}" = "systematic-debugging receiving-code-review"
-test "${CODEX_PLUGIN_ROLES[product-design@openai-curated-remote]}" = "designer"
+test -z "${CODEX_PLUGIN_ROLES[product-design@openai-curated-remote]:-}"
+test "${CODEX_SUPERPOWERS_SKILL_SETS[lead]}" = "finishing-a-development-branch"
+test "${CODEX_SUPERPOWERS_SKILL_SETS[architect]}" = "writing-plans"
+test "${CODEX_PLUGIN_ROLES[engineering-suite-ponytail@openai-curated-remote]}" = "developer"
+test "${CODEX_PLUGIN_ROLES[caveman@openai-curated-remote]}" = "*"
 
 # 런처가 파인별 CODEX_HOME과 세션 시작 정리 훅을 사용해야 한다.
 grep -qF "export CODEX_HOME='\$role_codex_home'" "$repo_dir/setup-team.sh"

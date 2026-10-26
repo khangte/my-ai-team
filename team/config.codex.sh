@@ -13,17 +13,30 @@
 # superpowers는 넣지 않는다 — 여기 넣으면 전체가 설치·활성화돼 선별이 무의미해지고,
 # 링크할 원본은 공식 marketplace snapshot에 이미 있다(아래 CODEX_SUPERPOWERS_SKILL_SETS).
 declare -A CODEX_PLUGIN_ROLES=(
-    ["product-design@openai-curated-remote"]="designer"
+    # ["product-design@openai-curated-remote"]="designer"
+    ["engineering-suite-ponytail@openai-curated-remote"]="developer"
+    ["caveman@openai-curated-remote"]="*"
 )
 
 # 역할 → 필요한 스킬. setup-team.sh는 이 선언을 읽어 역할별 .agents/skills에
 # 심볼릭 링크를 만든다. standalone 스킬은 .agents/skills/<name>·~/.codex/skills/<name>에서 찾는다.
 # gstack은 넣지 않는다 — setup-team.sh는 gstack을 claude host로만 설치하고, codex용
 # 렌더링은 이름이 gstack-<name>이라 찾지 못한다(설정해도 경고 후 건너뜀).
-declare -A CODEX_SKILL_SETS=()
+declare -A CODEX_SKILL_SETS=(
+    [lead]=""
+    [architect]=""
+    [researcher]=""
+    [designer]=""
+    [developer]=""
+    [reviewer]=""
+)
 
 # superpowers 플러그인에서 역할별로 골라 링크할 스킬. 플러그인 전체를 켜면
 # 역할에 불필요한 스킬까지 노출되므로 필요한 것만 고른다.
 declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
+    [lead]="finishing-a-development-branch"
+    [architect]="writing-plans"
+    [designer]=""
     [developer]="systematic-debugging receiving-code-review"
+    [reviewer]=""
 )
