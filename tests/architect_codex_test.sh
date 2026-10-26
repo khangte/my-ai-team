@@ -35,7 +35,7 @@ test -z "${CODEX_PLUGIN_ROLES[product-design@openai-curated-remote]:-}"
 test "${CODEX_SUPERPOWERS_SKILL_SETS[lead]}" = "finishing-a-development-branch"
 test "${CODEX_SUPERPOWERS_SKILL_SETS[architect]}" = "writing-plans"
 test "${CODEX_PLUGIN_ROLES[engineering-suite-ponytail@openai-curated-remote]}" = "developer"
-test "${CODEX_PLUGIN_ROLES[caveman@openai-curated-remote]}" = "*"
+test -z "${CODEX_PLUGIN_ROLES[caveman@openai-curated-remote]:-}"
 
 # 런처가 파인별 CODEX_HOME과 세션 시작 정리 훅을 사용해야 한다.
 grep -qF "export CODEX_HOME='\$role_codex_home'" "$repo_dir/setup-team.sh"

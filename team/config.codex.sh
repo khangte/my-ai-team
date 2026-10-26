@@ -15,7 +15,7 @@
 declare -A CODEX_PLUGIN_ROLES=(
     # ["product-design@openai-curated-remote"]="designer"
     ["engineering-suite-ponytail@openai-curated-remote"]="developer"
-    ["caveman@openai-curated-remote"]="*"
+    # ["caveman@openai-curated-remote"]="*"
 )
 
 # 역할 → 필요한 스킬. setup-team.sh는 이 선언을 읽어 역할별 .agents/skills에

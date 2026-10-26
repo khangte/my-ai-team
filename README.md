@@ -342,11 +342,11 @@ $PROJECT_DIR/.team-logs/
 | 역할       | superpowers 스킬                               | 플러그인 (Claude)                      |
 | ---------- | ---------------------------------------------- | -------------------------------------- |
 | lead       | `finishing-a-development-branch`               | caveman, serena                        |
-| architect  | `writing-plans`                                | caveman, serena                        |
-| researcher | -                                              | caveman, serena                        |
-| designer   | -                                              | caveman, serena, frontend-design       |
-| developer  | `systematic-debugging` `receiving-code-review` | caveman, serena, ponytail              |
-| reviewer   | -                                              | caveman, serena                        |
+| architect  | `writing-plans`                                | serena                                 |
+| researcher | -                                              | serena                                 |
+| designer   | -                                              | serena, frontend-design                |
+| developer  | `systematic-debugging` `receiving-code-review` | serena, ponytail                       |
+| reviewer   | -                                              | serena                                 |
 
 - Codex 파인은 위 스킬을 읽지 못한다. `team/config.codex.sh`가 따로 배분(기본: developer에 superpowers 스킬 2개, designer에 `product-design@openai-curated-remote`)하고, 역할마다 `CODEX_HOME`을 격리한다.
 - 고정비: ponytail ~2.2K / caveman ~3.9K / serena ~6K 토큰 (파인당, 매 턴). 절감량은 [docs/token-cost.md](docs/token-cost.md) 참조.

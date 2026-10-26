@@ -20,7 +20,7 @@ declare -A CLAUDE_PLUGIN_ROLES=(
     # ["frontend-design@claude-plugins-official"]="designer"
     ["serena@claude-plugins-official"]="*"
     ["ponytail@ponytail"]="developer"
-    ["caveman@caveman"]="*"
+    ["caveman@caveman"]="lead"
 )
 
 # 역할 → 필요한 스킬. setup-team.sh는 이 선언을 읽어 역할별 런타임 디렉터리에
