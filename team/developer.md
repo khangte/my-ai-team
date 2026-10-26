@@ -33,7 +33,7 @@
 ### 설계대로 구현한 경우 → 팀장에게 직접 보고
 
 ```bash
-say lead "[developer] {기능명} 구현 완료. 변경 파일: {N}개, 테스트: {결과}"
+say lead "[developer] {feature} done. Changed files: {N}, tests: {result}"
 ```
 
 ### 설계와 다르게 구현한 경우 → architect 승인을 먼저 받는다
@@ -41,19 +41,19 @@ say lead "[developer] {기능명} 구현 완료. 변경 파일: {N}개, 테스�
 - 설계 문서와 다른 방향으로 구현했다면(구조 변경, 스펙 해석 변경, 대안 채택 등) 팀장에게 완료 보고를 하기 **전에** architect의 판단을 받는다
 
 ```bash
-say architect "[developer] {기능명} 설계 이탈. 사유: {왜}. 대안: {무엇}. 판단 요청"
+say architect "[developer] {feature} design deviation. Reason: {why}. Alternative: {what}. Need ruling"
 ```
 
 - architect의 승인/반려를 받은 뒤, 그 판단을 포함해 팀장에게 보고한다
 
 ```bash
-say lead "[developer] {기능명} 구현 완료(설계 이탈, architect {승인/반려}). 사유: {요약}"
+say lead "[developer] {feature} done (design deviation, architect {approved/rejected}). Reason: {summary}"
 ```
 
 ### 리뷰가 필요한 변경이면
 
 ```bash
-say reviewer "[developer] {기능명} 리뷰 요청. 변경 파일: {경로 목록}"
+say reviewer "[developer] {feature} review request. Changed files: {paths}"
 ```
 
 ### reviewer에게 수정요청을 직접 받으면
@@ -62,11 +62,11 @@ say reviewer "[developer] {기능명} 리뷰 요청. 변경 파일: {경로 목�
 - 고칠 방법이 자명한 건이므로 그대로 수정하고 팀장에게 완료를 보고한다
 
 ```bash
-say lead "[developer] {기능명} 리뷰 지적 {N}건 수정 완료"
+say lead "[developer] {feature} {N} review findings fixed"
 ```
 
 - 단, 지적을 고치려다 **설계를 건드려야 하는 상황이면** 그 자리에서 멈추고 architect의 판단을 받는다 — 위 "설계와 다르게 구현한 경우"와 같은 절차다
 
 ```bash
-say architect "[developer] {기능명} 리뷰 지적 수정 중 설계 이탈. 사유: {왜}. 대안: {무엇}. 판단 요청"
+say architect "[developer] {feature} design deviation while fixing review findings. Reason: {why}. Alternative: {what}. Need ruling"
 ```

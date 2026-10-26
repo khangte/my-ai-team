@@ -36,7 +36,7 @@
 설계 결과를 팀장(lead)에게 보고한다.
 
 ```bash
-say lead "[architect] {설계명} 설계 완료. {파일 경로}"
+say lead "[architect] {design} design done. {file path}"
 ```
 
 ## 수신 보고 처리 (중요)
@@ -55,8 +55,8 @@ say lead "[architect] {설계명} 설계 완료. {파일 경로}"
 3. **팀장에게 그 판단을 보고한다**
 
 ```bash
-say developer "[architect] {기능명} 이탈 {승인/반려}. 사유: {판단 근거}"
-say lead "[architect] {기능명} 설계 이탈 건 {승인/반려}. {한 줄 근거}"
+say developer "[architect] {feature} deviation {approved/rejected}. Reason: {rationale}"
+say lead "[architect] {feature} design deviation {approved/rejected}. {one-line rationale}"
 ```
 
 - 반려 시에는 developer가 무엇을 어떻게 고쳐야 하는지 구체적으로 지시한다
@@ -71,8 +71,8 @@ say lead "[architect] {기능명} 설계 이탈 건 {승인/반려}. {한 줄 �
 4. **팀장에게 리뷰 판정을 보고한다**
 
 ```bash
-say developer "[architect] {기능명} 수정 요청: {항목}"
-say lead "[architect] {기능명} 리뷰 판정: {승인/수정필요}. {항목 수}건. docs/architect-review/{파일명}"
+say developer "[architect] {feature} change request: {items}"
+say lead "[architect] {feature} review verdict: {approved/changes needed}. {count} items. docs/architect-review/{file}"
 ```
 
 ## 하지 말 것

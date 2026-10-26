@@ -67,7 +67,7 @@
 - 판단할 사안이 없으므로 architect를 거치지 않는다
 
 ```bash
-say lead "[reviewer] {기능명} 리뷰 완료. 결과: 승인. 지적사항 없음"
+say lead "[reviewer] {feature} review done. Result: approved. No findings"
 ```
 
 - **승인을 기다리는 파인에게도 직접 보낸다** — 리뷰를 요청한 작성자(developer·designer)나 이 승인을 받아야 다음 단계(architect 게이트 종결 요청 등)로 넘어갈 수 있는 파인이 있으면, 그 파인에게도 같은 결과를 보낸다
@@ -75,7 +75,7 @@ say lead "[reviewer] {기능명} 리뷰 완료. 결과: 승인. 지적사항 없
   - 이 전달은 lead 사본 금지 규칙과 별개다. 다음 단계를 진행시키기 위한 필수 전달이다
 
 ```bash
-say developer "[reviewer] {기능명} 리뷰 완료. 결과: 승인. 지적사항 없음"
+say developer "[reviewer] {feature} review done. Result: approved. No findings"
 ```
 
 ### 수정요청 — 코드 품질만 → 작성자에게 직행
@@ -85,8 +85,8 @@ say developer "[reviewer] {기능명} 리뷰 완료. 결과: 승인. 지적사�
 - 지적 항목을 구체적으로 적는다
 
 ```bash
-say developer "[reviewer] {기능명} 리뷰: 수정요청 {N}건. {파일:라인} {지적}. {파일:라인} {지적}"
-say designer  "[reviewer] {화면명} 리뷰: 수정요청 {N}건. {파일:라인} {지적}"
+say developer "[reviewer] {feature} review: {N} changes requested. {file:line} {finding}. {file:line} {finding}"
+say designer  "[reviewer] {screen} review: {N} changes requested. {file:line} {finding}"
 ```
 
 - **lead에는 보내지 않는다** — 작성자가 수정을 마치면 작성자가 직접 lead에 보고한다. 여기서 사본을 보내면 lead는 아직 할 일이 없는 상태로 턴만 소비한다
@@ -96,13 +96,13 @@ say designer  "[reviewer] {화면명} 리뷰: 수정요청 {N}건. {파일:라�
 - 구조 변경·스펙 해석이 걸린 지적은 architect가 방향을 정해야 한다
 
 ```bash
-say architect "[reviewer] {기능명} 리뷰 완료. 결과: 수정요청. {수정 항목 수}건. 핵심: {소견}"
+say architect "[reviewer] {feature} review done. Result: changes requested. {count} items. Key: {opinion}"
 ```
 
 - 설계 정합성 위반을 발견한 경우 그 사실을 명시한다 — architect가 판단해야 할 사안이다
 
 ```bash
-say architect "[reviewer] {기능명} 설계 이탈 발견. {어긋난 지점}. 판단 요청"
+say architect "[reviewer] {feature} design deviation found. {where it diverges}. Need ruling"
 ```
 
 - **두 경우 모두 lead에는 보내지 않는다** — architect가 판정을 내리면 architect가 lead에 보고한다. 같은 사안을 둘이 각자 보고하면 lead 턴이 두 번 든다

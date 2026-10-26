@@ -100,7 +100,7 @@ tmux capture-pane -t :0.{N} -p \
 5. 작업이 끝났는데 보고를 누락한 것이면 독촉한다
 
 ```bash
-say {역할} "작업 상태를 lead에 보고하세요"
+say {역할} "Report your task status to lead"
 ```
 
 6. 미완료 목록이 비면 결과를 통합해 사용자에게 보고한다
