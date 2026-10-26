@@ -41,3 +41,4 @@
 ## Commit
 
 - 커밋 메시지는 caveman-commit 스킬로 작성한다.
+- `type(scope):` 키워드만 영어로 쓰고, 요약·본문은 한글로 쓴다.
