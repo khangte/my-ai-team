@@ -161,8 +161,8 @@ tmux kill-session -t team1                    # 세션 종료
 SESSION="team1"
 declare -a MEMBERS=(
     "lead|리드|claude|claude-opus-5-5|medium"
-    "architect|아키텍트|codex|gpt-6-sol|high"
-    "developer|개발자|codex|gpt-6-sol|medium"
+    "architect|아키텍트|codex|gpt-6.1-sol|high"
+    "developer|개발자|codex|gpt-6.1-sol|medium"
     "reviewer|리뷰어|claude|claude-opus-5-5|medium"
 )
 ```
@@ -348,6 +348,6 @@ $PROJECT_DIR/.team-logs/
 | developer  | `systematic-debugging` `receiving-code-review` | serena, ponytail                       |
 | reviewer   | -                                              | serena                                 |
 
-- Codex 파인은 위 스킬을 읽지 못한다. `team/config.codex.sh`가 따로 배분(기본: developer에 superpowers 스킬 2개, designer에 `product-design@openai-curated-remote`)하고, 역할마다 `CODEX_HOME`을 격리한다.
+- Codex 파인은 위 스킬을 읽지 못한다. `team/config.codex.sh`가 따로 배분(기본: superpowers 스킬은 위 표와 같고, 플러그인은 developer에 `engineering-suite-ponytail@openai-curated-remote`, designer에 `product-design@openai-curated-remote`)하고, 역할마다 `CODEX_HOME`을 격리한다.
 - 고정비: ponytail ~2.2K / caveman ~3.9K / serena ~6K 토큰 (파인당, 매 턴). 절감량은 [docs/token-cost.md](docs/token-cost.md) 참조.
 - 배분·제외 근거, Codex 대체재, 플러그인 이유는 [docs/skill-allocation.md](docs/skill-allocation.md) 참조.

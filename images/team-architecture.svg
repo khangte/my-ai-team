@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 650" font-family="Georgia, 'Iowan Old Style', serif" role="img" aria-label="lead 파인이 맨 위에서 5개 역할 파인(architect, researcher, designer, developer, reviewer)에게 작업을 배분하고 보고를 받는 구조. reviewer는 코드 품질 수정요청을 developer에게 직행으로 보내고, developer/designer/reviewer는 설계 판단이 필요할 때(설계 이탈, 설계 정합성 위반 등) architect를 경유한다.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 612" font-family="Georgia, 'Iowan Old Style', serif" role="img" aria-label="lead 파인이 맨 위에서 5개 역할 파인(architect, researcher, designer, developer, reviewer)에게 작업을 배분하고 보고를 받는 구조. reviewer는 코드 품질 수정요청을 developer에게 직행으로 보내고, developer/designer/reviewer는 설계 판단이 필요할 때(설계 이탈, 설계 정합성 위반 등) architect를 경유한다.">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#262420" />
@@ -11,7 +11,7 @@
     </marker>
   </defs>
 
-  <rect x="0" y="0" width="1280" height="650" fill="#f6f5f2"/>
+  <rect x="0" y="0" width="1280" height="612" fill="#f6f5f2"/>
 
   <!-- lead box -->
   <rect x="520" y="24" width="240" height="64" rx="8" fill="#edeae3" stroke="#b5502e" stroke-width="2"/>
@@ -20,10 +20,8 @@
 
   <!-- lead skill panel -->
   <rect x="780" y="28" width="330" height="56" rx="6" fill="#edeae3" stroke="#d8d3c8" stroke-width="1"/>
-  <text x="795" y="48" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">GSTACK</text>
-  <text x="880" y="48" font-size="10.5" fill="#262420">spec · plan-eng-review</text>
-  <text x="795" y="70" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">SUPERPOWERS</text>
-  <text x="880" y="70" font-size="10.5" fill="#262420">finishing-a-development-branch</text>
+  <text x="795" y="60" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">SUPERPOWERS</text>
+  <text x="880" y="60" font-size="10.5" fill="#262420">finishing-a-development-branch</text>
 
   <!-- trunk + bus -->
   <line x1="640" y1="88" x2="640" y2="118" stroke="#262420" stroke-width="1.5"/>
@@ -83,72 +81,64 @@
   <text x="300" y="262" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="10" fill="#b5502e">설계 판단 필요 (경유)</text>
 
   <!-- skill panels: 5 boxes, 210 wide, 35 gap, same centers as role boxes -->
-  <rect x="45" y="280" width="210" height="150" rx="6" fill="#edeae3" stroke="#d8d3c8" stroke-width="1"/>
+  <rect x="45" y="280" width="210" height="102" rx="6" fill="#edeae3" stroke="#d8d3c8" stroke-width="1"/>
   <text x="150" y="298" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">DOMAIN</text>
   <text x="150" y="314" text-anchor="middle" font-size="11" fill="#262420">설계 · 계획 · 기술문서</text>
-  <text x="150" y="336" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">GSTACK</text>
-  <text x="150" y="351" text-anchor="middle" font-size="10.5" fill="#262420">diagram</text>
-  <text x="150" y="388" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">SUPERPOWERS</text>
-  <text x="150" y="404" text-anchor="middle" font-size="10.5" fill="#262420">writing-plans</text>
+  <text x="150" y="340" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">SUPERPOWERS</text>
+  <text x="150" y="356" text-anchor="middle" font-size="10.5" fill="#262420">writing-plans</text>
 
-  <rect x="290" y="280" width="210" height="150" rx="6" fill="#edeae3" stroke="#d8d3c8" stroke-width="1"/>
+  <rect x="290" y="280" width="210" height="102" rx="6" fill="#edeae3" stroke="#d8d3c8" stroke-width="1"/>
   <text x="395" y="298" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">DOMAIN</text>
   <text x="395" y="314" text-anchor="middle" font-size="11" fill="#262420">조사 · 비교분석 · 레퍼런스</text>
-  <text x="395" y="336" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">GSTACK</text>
-  <text x="395" y="351" text-anchor="middle" font-size="10.5" fill="#262420">scrape · browse</text>
-  <text x="395" y="388" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">SUPERPOWERS</text>
-  <text x="395" y="404" text-anchor="middle" font-size="10.5" fill="#8a8375" font-style="italic">배정 없음</text>
+  <text x="395" y="340" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">SUPERPOWERS</text>
+  <text x="395" y="356" text-anchor="middle" font-size="10.5" fill="#8a8375" font-style="italic">배정 없음</text>
 
-  <rect x="535" y="280" width="210" height="150" rx="6" fill="#edeae3" stroke="#d8d3c8" stroke-width="1"/>
+  <rect x="535" y="280" width="210" height="102" rx="6" fill="#edeae3" stroke="#d8d3c8" stroke-width="1"/>
   <text x="640" y="298" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">DOMAIN</text>
   <text x="640" y="314" text-anchor="middle" font-size="11" fill="#262420">UX 흐름 · 컴포넌트 · 스타일가이드</text>
-  <text x="640" y="336" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">GSTACK</text>
-  <text x="640" y="351" text-anchor="middle" font-size="10.5" fill="#8a8375" font-style="italic">배정 없음</text>
-  <text x="640" y="388" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">CODEX PLUGIN</text>
-  <text x="640" y="404" text-anchor="middle" font-size="10.5" fill="#262420">product-design</text>
+  <text x="640" y="340" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">CODEX PLUGIN</text>
+  <text x="640" y="356" text-anchor="middle" font-size="10.5" fill="#262420">product-design</text>
 
-  <rect x="780" y="280" width="210" height="150" rx="6" fill="#edeae3" stroke="#d8d3c8" stroke-width="1"/>
+  <rect x="780" y="280" width="210" height="102" rx="6" fill="#edeae3" stroke="#d8d3c8" stroke-width="1"/>
   <text x="885" y="298" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">DOMAIN</text>
   <text x="885" y="314" text-anchor="middle" font-size="11" fill="#262420">구현 · 버그수정 · DB · 배포스크립트</text>
-  <text x="885" y="336" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">GSTACK</text>
-  <text x="885" y="351" text-anchor="middle" font-size="10.5" fill="#8a8375" font-style="italic">배정 없음</text>
-  <text x="885" y="388" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">SUPERPOWERS</text>
-  <text x="885" y="404" text-anchor="middle" font-size="10.5" fill="#262420">systematic-debugging</text>
-  <text x="885" y="419" text-anchor="middle" font-size="10.5" fill="#262420">receiving-code-review</text>
+  <text x="885" y="340" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">SUPERPOWERS</text>
+  <text x="885" y="356" text-anchor="middle" font-size="10.5" fill="#262420">systematic-debugging</text>
+  <text x="885" y="371" text-anchor="middle" font-size="10.5" fill="#262420">receiving-code-review</text>
 
-  <rect x="1025" y="280" width="210" height="150" rx="6" fill="#edeae3" stroke="#d8d3c8" stroke-width="1"/>
+  <rect x="1025" y="280" width="210" height="102" rx="6" fill="#edeae3" stroke="#d8d3c8" stroke-width="1"/>
   <text x="1130" y="298" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">DOMAIN</text>
   <text x="1130" y="314" text-anchor="middle" font-size="11" fill="#262420">리뷰 · 보안 · 커버리지</text>
-  <text x="1130" y="336" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">GSTACK</text>
-  <text x="1130" y="351" text-anchor="middle" font-size="10.5" fill="#262420">review</text>
-  <text x="1130" y="388" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">SUPERPOWERS</text>
-  <text x="1130" y="404" text-anchor="middle" font-size="10.5" fill="#8a8375" font-style="italic">배정 없음</text>
+  <text x="1130" y="340" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#6b665c" letter-spacing="0.06em">SUPERPOWERS</text>
+  <text x="1130" y="356" text-anchor="middle" font-size="10.5" fill="#8a8375" font-style="italic">배정 없음</text>
 
   <!-- plugin footer -->
-  <rect x="45" y="446" width="1190" height="184" rx="8" fill="#edeae3" stroke="#d8d3c8" stroke-width="1"/>
-  <text x="70" y="472" font-family="ui-monospace, Consolas, monospace" font-size="12" font-weight="600" fill="#262420" letter-spacing="0.06em">PLUGINS</text>
+  <rect x="45" y="398" width="1190" height="194" rx="8" fill="#edeae3" stroke="#d8d3c8" stroke-width="1"/>
+  <text x="70" y="424" font-family="ui-monospace, Consolas, monospace" font-size="12" font-weight="600" fill="#262420" letter-spacing="0.06em">PLUGINS</text>
 
   <!-- currently active plugins -->
-  <text x="70" y="499" font-size="12" font-weight="600" fill="#262420">현재 활성 플러그인</text>
-  <text x="70" y="523" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#262420">caveman · serena</text>
-  <text x="70" y="543" font-size="12" fill="#6b665c">Claude 전체: lead · architect · researcher · reviewer</text>
-  <text x="70" y="574" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#262420">product-design</text>
-  <text x="70" y="594" font-size="12" fill="#6b665c">Codex: designer</text>
+  <text x="70" y="451" font-size="12" font-weight="600" fill="#262420">현재 활성 플러그인</text>
+  <text x="70" y="475" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#262420">serena</text>
+  <text x="70" y="493" font-size="12" fill="#6b665c">Claude 전체: lead · architect · researcher · reviewer</text>
+  <text x="70" y="515" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#262420">caveman</text>
+  <text x="70" y="533" font-size="12" fill="#6b665c">Claude: lead</text>
+  <text x="70" y="555" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#262420">product-design / engineering-suite-ponytail</text>
+  <text x="70" y="573" font-size="12" fill="#6b665c">Codex: designer / developer</text>
 
-  <line x1="470" y1="492" x2="470" y2="610" stroke="#d8d3c8" stroke-width="1"/>
+  <line x1="470" y1="444" x2="470" y2="572" stroke="#d8d3c8" stroke-width="1"/>
 
   <!-- selected skill links -->
-  <text x="495" y="499" font-size="12" font-weight="600" fill="#262420">SUPERPOWERS · 스킬만 링크</text>
-  <text x="495" y="523" font-size="12" fill="#6b665c">전체 플러그인 비활성화 · 역할별 선택</text>
-  <text x="495" y="554" font-size="12" fill="#262420">Claude: 설치된 플러그인에서 링크</text>
-  <text x="495" y="578" font-size="12" fill="#262420">Codex: 공식 marketplace snapshot에서 링크</text>
+  <text x="495" y="451" font-size="12" font-weight="600" fill="#262420">SUPERPOWERS · 스킬만 링크</text>
+  <text x="495" y="475" font-size="12" fill="#6b665c">전체 플러그인 비활성화 · 역할별 선택</text>
+  <text x="495" y="506" font-size="12" fill="#262420">Claude: 설치된 플러그인에서 링크</text>
+  <text x="495" y="530" font-size="12" fill="#262420">Codex: 공식 marketplace snapshot에서 링크</text>
 
-  <line x1="855" y1="492" x2="855" y2="610" stroke="#d8d3c8" stroke-width="1"/>
+  <line x1="855" y1="444" x2="855" y2="572" stroke="#d8d3c8" stroke-width="1"/>
 
   <!-- conditional Claude assignments -->
-  <text x="880" y="499" font-size="12" font-weight="600" fill="#262420">Claude로 전환할 때</text>
-  <text x="880" y="523" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#262420">frontend-design → designer</text>
-  <text x="880" y="543" font-size="12" fill="#6b665c">스킬: design-review · design-html · frontend-design</text>
-  <text x="880" y="574" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#262420">ponytail → developer</text>
-  <text x="880" y="594" font-size="12" fill="#6b665c">스킬: health 추가</text>
+  <text x="880" y="451" font-size="12" font-weight="600" fill="#262420">Claude로 전환할 때</text>
+  <text x="880" y="475" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#262420">frontend-design → designer</text>
+  <text x="880" y="495" font-size="12" fill="#6b665c">스킬: frontend-design</text>
+  <text x="880" y="526" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#262420">ponytail → developer</text>
+  <text x="880" y="546" font-size="12" fill="#6b665c">Codex의 engineering-suite-ponytail 대신</text>
 </svg>
