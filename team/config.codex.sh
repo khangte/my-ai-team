@@ -14,9 +14,9 @@
 # `codex plugin add`는 설치와 활성화를 분리하지 못해 선별이 무의미해진다.
 declare -A CODEX_PLUGIN_ROLES=(
     ["superpowers@openai-curated-remote"]=""
-    # ["product-design@openai-curated-remote"]="designer"
+    ["product-design@openai-curated-remote"]="designer"
     ["engineering-suite-ponytail@openai-curated-remote"]="developer"
-    # ["caveman@openai-curated-remote"]="*"
+    ["caveman@openai-curated-remote"]="*"
 )
 
 # 역할 → standalone 스킬. .agents/skills/<name>·~/.codex/skills/<name>에서 찾아 링크한다.
