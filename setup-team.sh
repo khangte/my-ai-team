@@ -8,18 +8,18 @@
 # 수 있다(혼합 팀). 예: developer 파인만 Codex, 나머지는 기본값(Claude)으로
 # 띄우는 구성.
 #
-# 단계 (표시 순서 그대로):
+# 단계 (혼합 팀 기준 번호. 실제 출력은 실행되는 단계만 이어서 센다):
 #   [0/7] 공통 (Claude·Codex): 실제로 사용되는 공급자(USED_AGENTS) 전부의 사전 요구사항·로그인 확인
 #         확인 직후 기존 tmux 세션을 정리한다 — 살아있는 파인이 .team/{역할}/
 #         아래에 계속 쓰는 상태로 .team/ 삭제를 돌리면 경합으로 실패하기 때문에,
 #         그 삭제보다 먼저 끝내 둔다.
 #   Claude 블록 (Claude 파인이 있을 때):
 #     [1/7] rtk 훅 초기화
-#     [2/7] (비활성화) gstack 스킬 설치
-#     [3/7] 필수 플러그인 설치
-#     [4/7] 팀 공통 지침을 CLAUDE.md에 병합 + 역할별 스킬 제한(런타임 디렉터리 구성)
+#     [2/7] 필수 플러그인 설치
+#     [3/7] 팀 공통 지침을 CLAUDE.md에 병합 + 역할별 스킬 제한(런타임 디렉터리 구성)
 #   Codex 블록 (Codex 파인이 있을 때, 혼합 팀에서는 Claude 블록 뒤에 이어서 실행):
-#     [5/7] AGENTS.md 병합, 역할별 스킬·플러그인·lifecycle 훅 준비
+#     [4/7] 필수 플러그인 설치
+#     [5/7] AGENTS.md 병합, 역할별 스킬·lifecycle 훅 준비
 #   (.team/ 삭제는 두 블록 앞에서 한 번만 한다)
 #   [6/7] 공통 (Claude·Codex): MEMBER_NAMES 배열 기준으로 파인을 분할하고 이름 부여
 #   [7/7] 공통 (Claude·Codex): 각 파인에서 MEMBER_AGENTS[i]가 가리키는 CLI를 해당 모델로 실행
@@ -277,8 +277,8 @@ start_claude_in_pane() {
     tmux send-keys -t "$pane" C-c 2>/dev/null; sleep 0.3
     tmux send-keys -t "$pane" C-u 2>/dev/null; sleep 0.2
 
-    # 역할별 스킬 제한([4/7])이 만든 디렉터리가 있으면 그곳을 cwd로 삼고
-    # --setting-sources project로 유저 전역·플러그인 스킬을 차단한다([4/7] 주석 참조).
+    # 역할별 스킬 제한([3/7])이 만든 디렉터리가 있으면 그곳을 cwd로 삼고
+    # --setting-sources project로 유저 전역·플러그인 스킬을 차단한다([3/7] 주석 참조).
     local work_dir="$PROJECT_DIR" skills_arg=""
     if [ -n "$role" ] && [ -d "$TEAM_SKILLS_ROOT/$role/.claude/skills" ]; then
         work_dir="$TEAM_SKILLS_ROOT/$role"
@@ -367,7 +367,7 @@ start_claude_in_pane() {
     # (실측: 그냥 두면 caveman·ponytail·serena가 파인에서 전혀 안 걸린다).
     # rtk 훅을 여기서 다시 넣는 것과 같은 이유·같은 패턴이다.
     #
-    # 어떤 역할에 무엇을 주는지는 [3/7]의 CLAUDE_PLUGIN_ROLES가 정한다.
+    # 어떤 역할에 무엇을 주는지는 [2/7]의 CLAUDE_PLUGIN_ROLES가 정한다.
     local plugins_json=""
     if [ -n "$role" ]; then
         local enabled_entries=() marketplace_entries=() seen_marketplaces=" "
@@ -606,7 +606,12 @@ check_codex_login() {
 # $TEAM_AGENT 하나만 보면 reviewer만 codex인 팀에서 codex 설치·로그인 확인이
 # 통째로 생략된다.
 used_agents_list="${!USED_AGENTS[*]}"
-echo -e "${YELLOW}[0/7] 공통 (Claude·Codex) — 사전 요구사항 확인 (${used_agents_list})...${NC}"
+# 표시 번호는 실제로 도는 단계만 센다 — 단일 공급자 팀에서 번호가 건너뛰지 않게.
+STEP=0
+STEP_TOTAL=2
+[ -n "${USED_AGENTS[claude]:-}" ] && STEP_TOTAL=$((STEP_TOTAL + 3))
+[ -n "${USED_AGENTS[codex]:-}" ] && STEP_TOTAL=$((STEP_TOTAL + 2))
+echo -e "${YELLOW}[$((STEP++))/$STEP_TOTAL] 공통 (Claude·Codex) — 사전 요구사항 확인 (${used_agents_list})...${NC}"
 
 NEED_FIRST_LOGIN=false
 
@@ -630,8 +635,6 @@ fi
 echo "  ✅ tmux $(tmux -V | awk '{print $2}')"
 if [ -n "${USED_AGENTS[claude]:-}" ]; then
     echo "  ✅ claude $(claude --version 2>/dev/null | head -1)"
-    echo "  ✅ rtk $(rtk --version 2>/dev/null | head -1)"
-    # echo "  ✅ bun $(bun --version 2>/dev/null | head -1)"
 
     echo -n "  Claude 로그인 확인... "
     if check_login; then
@@ -652,6 +655,9 @@ if [ -n "${USED_AGENTS[claude]:-}" ]; then
         fi
         echo -e "${GREEN}✅ 로그인 확인 완료${NC}"
     fi
+
+    echo "  ✅ rtk $(rtk --version 2>/dev/null | head -1)"
+    # echo "  ✅ bun $(bun --version 2>/dev/null | head -1)"
 fi
 if [ -n "${USED_AGENTS[codex]:-}" ]; then
     echo "  ✅ codex $(codex --version 2>/dev/null | head -1)"
@@ -711,7 +717,7 @@ if [ -n "${USED_AGENTS[claude]:-}" ]; then
 # telemetry 동의 프롬프트가 무한 대기하는 알려진 버그(rtk-ai/rtk#1307)에 대한 안전장치
 # printf 'n\n': 위 telemetry 동의 프롬프트에 대한 응답(비동의)이며,
 # RTK_TELEMETRY_DISABLED가 무시될 경우를 대비한 이중 안전장치
-echo -e "\n${YELLOW}[1/7] Claude — rtk 훅 초기화...${NC}"
+echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Claude — rtk 훅 초기화...${NC}"
 
 if printf 'n\n' | RTK_TELEMETRY_DISABLED=1 timeout 15 rtk init -g --auto-patch; then
     echo -e "  ${GREEN}✅  rtk 훅 등록 완료${NC}"
@@ -720,14 +726,14 @@ else
     echo -e "  ${YELLOW}   확인: rtk init --show${NC}"
 fi
 
-# gstack 제거로 [2/7] 단계는 비활성화했다(재활성화하려면 아래 주석을 푼다).
+# gstack 제거로 이 단계는 비활성화했다(재활성화하려면 아래 주석을 푼다).
 # 스킬 배분은 team/config.claude.sh의 CLAUDE_GSTACK_SKILL_SETS 참고.
-# # ── [2/7] Claude — gstack 스킬 설치 ────────────────────────
+# # ── [비활성화] Claude — gstack 스킬 설치 ────────────────────────
 # # CLAUDE.md의 "Skill routing"이 참조하는 /office-hours, /plan-ceo-review 등은
 # # gstack(https://github.com/garrytan/gstack) 패키지가 제공한다.
 # # ~/.claude 는 volume(claude-home) 안에 있어 컨테이너를 새로 만들면 사라지므로
 # # 이미지 빌드 시점이 아니라 여기(런타임)에서 매번 최신 상태로 맞춘다.
-# echo -e "\n${YELLOW}[2/7] Claude — gstack 스킬 설치...${NC}"
+# echo -e "\n${YELLOW}[비활성화] Claude — gstack 스킬 설치...${NC}"
 #
 # GSTACK_DIR="$HOME/.claude/skills/gstack"
 # if [ -d "$GSTACK_DIR/.git" ]; then
@@ -753,12 +759,12 @@ fi
 # fi
 # rm -f "$gstack_setup_err"
 
-# ── [3/7] Claude — 필수 플러그인 설치 ──────────────────────
+# ── [2/7] Claude — 필수 플러그인 설치 ──────────────────────
 # 마켓플레이스 플러그인은 ~/.claude/plugins/ 아래에 설치되는데, 이 경로는
 # volume(claude-home) 안이라 컨테이너를 새로 만들면 사라진다. gstack과 같은
 # 이유로 런타임에 매번 맞춘다.
 #
-# 아래 [4/7]의 CLAUDE_SUPERPOWERS_SKILL_SETS가 참조하는 superpowers 스킬이 여기서 깔리고,
+# 아래 [3/7]의 CLAUDE_SUPERPOWERS_SKILL_SETS가 참조하는 superpowers 스킬이 여기서 깔리고,
 # caveman/ponytail은 응답 스타일 규칙을, serena는 심볼 단위 코드 탐색 MCP를 제공한다.
 #
 # 여기서는 설치까지만 한다. 파인별 활성화는 start_claude_in_pane이 --settings에
@@ -767,7 +773,7 @@ fi
 #
 # 멱등성: `claude plugin install`은 이미 설치돼 있으면 그 사실만 알리고 성공으로
 # 끝나므로 재실행에 안전하다.
-echo -e "\n${YELLOW}[3/7] Claude — 필수 플러그인 설치...${NC}"
+echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Claude — 필수 플러그인 설치...${NC}"
 
 # 설치할 플러그인 → 그 플러그인을 켤 역할 (plugin@marketplace 형식으로 소스를
 # 못 박는다 — 같은 이름이 여러 마켓플레이스에 있을 때 엉뚱한 쪽이 깔리는 것을 막는다).
@@ -780,9 +786,9 @@ echo -e "\n${YELLOW}[3/7] Claude — 필수 플러그인 설치...${NC}"
 #
 # 역할별 플러그인 배분은 토큰 고정비와 해당 역할의 사용 빈도를 고려해
 # team/config.claude.sh에서 정한다. 상세 근거는 설계 문서를 참조한다.
-# superpowers는 빈 값이다(frontend-design은 designer에 켠다). [4/7]이 플러그인 캐시에서 스킬
+# superpowers는 빈 값이다(frontend-design은 designer에 켠다). [3/7]이 플러그인 캐시에서 스킬
 # 디렉터리를 직접 심볼릭 링크하므로 enabledPlugins 없이도 역할별로 이미 걸린다.
-# 여기서 또 켜면 superpowers 스킬 14개가 통째로 들어와 [4/7]의 선별이 무의미해진다
+# 여기서 또 켜면 superpowers 스킬 14개가 통째로 들어와 [3/7]의 선별이 무의미해진다
 # (frontend-design은 스킬이 1개뿐이라 차이가 없지만, 링크로 거는 방식을 맞춘다).
 
 for mp in "${!CLAUDE_PLUGIN_MARKETPLACES[@]}"; do
@@ -809,7 +815,7 @@ for plugin in "${!CLAUDE_PLUGIN_ROLES[@]}"; do
     fi
 done
 
-# ── [4/7] Claude — 역할별 스킬 제한 ────────────────────────
+# ── [3/7] Claude — 역할별 스킬 제한 ────────────────────────
 # gstack setup은 스킬 56개를 ~/.claude/skills/ 아래 전부 깔고, 그 frontmatter
 # (약 22.8KB ≈ 5.7K 토큰)는 파인이 뜰 때마다 시스템 프롬프트로 들어간다.
 # 파인 6개 × 매 턴이므로 고정비가 크다. 실제로는 researcher가 /ios-qa를,
@@ -836,7 +842,7 @@ done
 # cwd가 홈 디렉터리 아래이면 그대로 로드된다(실측). 파인 cwd는 항상
 # $PROJECT_DIR/.team/{역할} 이므로 전역 규칙은 계속 들어온다.
 # 즉 여기서 줄어드는 것은 gstack 스킬 frontmatter와 플러그인·에이전트 정의다.
-echo -e "\n${YELLOW}[4/7] Claude — 공통 지침 병합·역할별 스킬 제한...${NC}"
+echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Claude — 런타임 준비 (공통 지침 병합·역할별 스킬 제한)...${NC}"
 
 # 역할 → 허용 스킬 목록. 값이 비면 gstack 스킬을 하나도 주지 않는다는 뜻이고,
 # 키 자체가 없으면 제한하지 않는다(전역 스킬 전체 유지).
@@ -905,7 +911,7 @@ merge_team_claude_md() {
         # 블록이 없으면 파일 끝에 추가(파일 자체가 없으면 새로 생성).
         { [ -f "$dst" ] && printf '\n'; printf '%s\n' "$begin"; cat "$src"; printf '%s\n' "$end"; } >> "$dst"
     fi
-    echo -e "${GREEN}✅ 팀 공통 지침을 $dst 에 병합${NC}"
+    echo -e "${GREEN}  ✅ 팀 공통 지침을 $dst 에 병합${NC}"
 }
 merge_team_claude_md
 
@@ -949,10 +955,10 @@ for role in "${!CLAUDE_GSTACK_SKILL_SETS[@]}"; do
         ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill"
         granted+=("$skill")
     done
-    echo "  $role: ${granted[*]:-(스킬 없음)}"
+    echo -e "${GREEN}  ✅ $role: ${granted[*]:-(스킬 없음)}${NC}"
 done
 
-echo -e "  ${GREEN}✅ 역할별 스킬 제한 완료${NC}"
+echo -e "${GREEN}  ✅ 역할별 스킬 제한 완료${NC}"
 
 fi
 
@@ -960,10 +966,10 @@ fi
 # 위 Claude 블록에 이어 이 블록도 실행된다(일부 역할만 codex인 경우 등).
 if [ -n "${USED_AGENTS[codex]:-}" ]; then
 
-# ── [5/7] Codex — 런타임 준비 ────────────────────────────
+# ── [4/7] Codex — 필수 플러그인 설치 ────────────────────────────
 # Codex에는 Claude 플러그인을 재사용하지 않는다. standalone 스킬과 Codex 공식
 # 플러그인의 허용된 기능만 역할별 .agents/skills 또는 격리된 CODEX_HOME에 넣는다.
-echo -e "\n${YELLOW}[5/7] Codex — 런타임 준비...${NC}"
+echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Codex — 필수 플러그인 설치...${NC}"
 
 merge_team_agents_md() {
     local src="$SCRIPT_DIR/AGENTS.md"
@@ -982,10 +988,9 @@ merge_team_agents_md() {
     else
         { [ -f "$dst" ] && printf '\n'; printf '%s\n' "$begin"; cat "$src"; printf '%s\n' "$end"; } >> "$dst"
     fi
-    echo -e "${GREEN}✅ Codex 팀 공통 지침을 $dst 에 병합${NC}"
+    echo -e "${GREEN}  ✅ Codex 팀 공통 지침을 $dst 에 병합${NC}"
 }
 
-merge_team_agents_md
 
 # TEAM_SKILLS_ROOT·RUNTIME_DIR·rm -rf는 위에서 공급자 공통으로 이미 처리했다.
 
@@ -1006,6 +1011,7 @@ write_codex_role_plugins() {
 }
 
 prepare_codex_role_home() {
+    # 역할별 인증·플러그인을 준비하고 로컬 설치 여부를 표시한다.
     local role="$1" role_home="$2" plugin
     mkdir -p "$role_home/skills"
     write_codex_role_plugins "$role" "$role_home"
@@ -1018,7 +1024,7 @@ prepare_codex_role_home() {
         ln -sfn "$(realpath "$base_codex_home/skills/.system")" "$role_home/skills/.system"
     fi
     if ! CODEX_HOME="$role_home" codex login status >/dev/null 2>&1; then
-        echo -e "${RED}❌ $role: 격리된 CODEX_HOME에서 기존 Codex 인증을 사용할 수 없습니다.${NC}" >&2
+        echo -e "${RED}  ❌ $role: 격리된 CODEX_HOME에서 기존 Codex 인증을 사용할 수 없습니다.${NC}" >&2
         return 1
     fi
 
@@ -1040,9 +1046,18 @@ prepare_codex_role_home() {
         ln -sfn "$(realpath "$base_codex_home/.tmp/plugins.sha")" "$role_home/.tmp/plugins.sha"
     fi
 
+    local install_status install_icon
     for plugin in "${role_plugins[@]}"; do
+        install_status="새로 설치됨"
+        install_icon="✅"
+        # 빈 캐시 디렉터리는 설치로 보지 않고 버전별 플러그인 명세를 확인한다.
+        if compgen -G "$base_codex_home/plugins/cache/${plugin##*@}/${plugin%@*}/*/.codex-plugin/plugin.json" >/dev/null; then
+            install_status="로컬에 이미 설치됨"
+            install_icon="ℹ️"
+        fi
+        # 역할 홈은 매번 초기화되므로 로컬 설치 여부와 관계없이 별도로 설치한다.
         if CODEX_HOME="$role_home" codex plugin add "$plugin" >/dev/null; then
-            echo "  $role: 전체 플러그인 $plugin"
+            echo "  $install_icon  $plugin $install_status → $role"
         else
             echo -e "${YELLOW}  ⚠️  $role: Codex 플러그인 설치 실패: $plugin${NC}" >&2
         fi
@@ -1067,9 +1082,18 @@ find_codex_skill_source() {
 for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
     [ "${MEMBER_AGENTS[$role_index]}" = "codex" ] || continue
     role="${MEMBER_NAMES[$role_index]}"
+    prepare_codex_role_home "$role" "$TEAM_SKILLS_ROOT/$role/.codex-home"
+done
+
+# ── [5/7] Codex — 런타임 준비 ────────────────────────────
+echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Codex — 런타임 준비 (공통 지침 병합·역할별 스킬 제한)...${NC}"
+merge_team_agents_md
+
+for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
+    [ "${MEMBER_AGENTS[$role_index]}" = "codex" ] || continue
+    role="${MEMBER_NAMES[$role_index]}"
     role_skills_dir="$TEAM_SKILLS_ROOT/$role/.agents/skills"
     mkdir -p "$role_skills_dir"
-    prepare_codex_role_home "$role" "$TEAM_SKILLS_ROOT/$role/.codex-home"
     granted=()
     for skill in ${CODEX_SKILL_SETS[$role]:-}; do
         case "$skill" in
@@ -1106,12 +1130,12 @@ for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
     done
     echo "  $role: ${granted[*]:-(Codex 역할별 스킬 없음)}"
 done
-echo -e "  ${GREEN}✅ Codex 역할별 런타임 디렉터리 준비 완료${NC}"
+echo -e "${GREEN}  ✅ Codex 역할별 런타임 디렉터리 준비 완료${NC}"
 
 fi
 
 # ── [6/7] 공통 (Claude·Codex) — TMUX 세션 & 레이아웃 구성 ─
-echo -e "\n${YELLOW}[6/7] 공통 (Claude·Codex) — TMUX 세션 & 레이아웃 구성...${NC}"
+echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] 공통 (Claude·Codex) — TMUX 세션 & 레이아웃 구성...${NC}"
 
 # -x 220 -y 50: main-vertical 레이아웃에서 파인 6개가 각각 읽을 만한 너비를
 # 확보하기 위한 최소 터미널 크기. tmux는 접속 클라이언트 크기로 윈도우를 다시
@@ -1165,7 +1189,7 @@ tmux set-option -t "$SESSION" mouse on
 echo "  ✅ 레이아웃 구성 완료 (${PANE_COUNT} panes)"
 
 # ── [7/7] 공통 (Claude·Codex) — 에이전트 자동 실행 ────────
-echo -e "\n${YELLOW}[7/7] 공통 (Claude·Codex) — 파인별 에이전트 실행 중 (${used_agents_list})... (파인당 최대 1분)${NC}"
+echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] 공통 (Claude·Codex) — 파인별 에이전트 실행 중 (${used_agents_list})... (파인당 최대 1분)${NC}"
 
 # codex의 --add-dir는 존재하는 경로만 받는다. say의 lazy mkdir은
 # codex sandbox(workspace-write) 안에서 막히므로 파인 기동 전에 미리 만든다.
