@@ -8,6 +8,8 @@
 
 # plugin@marketplace → 설치할 역할. "*"는 모든 역할, 빈 값은 설치하지 않는다.
 # 키는 `codex plugin list --json --available`의 pluginId다. 역할마다 격리된 CODEX_HOME에 설치된다.
+# 역할 홈의 plugins._default.enabled=false로 기본 차단하고 배정된 항목만 명시적으로 켠다.
+# plugin list의 원격 enabled 값은 역할별 실행 설정을 반영하지 않는다.
 # superpowers는 빈 값이다 — 원본이 snapshot(~/.codex/.tmp/plugins)에 이미 있고,
 # `codex plugin add`는 설치와 활성화를 분리하지 못해 선별이 무의미해진다.
 declare -A CODEX_PLUGIN_ROLES=(

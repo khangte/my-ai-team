@@ -991,9 +991,24 @@ merge_team_agents_md
 
 base_codex_home="${CODEX_HOME:-$HOME/.codex}"
 
+write_codex_role_plugins() {
+    # 새 역할 홈에서 플러그인은 기본 차단하고 배정된 항목만 활성화한다.
+    local role="$1" role_home="$2" plugin roles
+    mkdir -p "$role_home"
+    {
+        printf '[plugins._default]\nenabled = false\n'
+        for plugin in "${!CODEX_PLUGIN_ROLES[@]}"; do
+            roles="${CODEX_PLUGIN_ROLES[$plugin]}"
+            [ "$roles" = "*" ] || [[ " $roles " == *" $role "* ]] || continue
+            printf '\n[plugins."%s"]\nenabled = true\n' "$plugin"
+        done
+    } > "$role_home/config.toml"
+}
+
 prepare_codex_role_home() {
     local role="$1" role_home="$2" plugin
     mkdir -p "$role_home/skills"
+    write_codex_role_plugins "$role" "$role_home"
 
     # 인증만 공유하고 config·plugin cache는 역할별로 분리한다.
     if [ -f "$base_codex_home/auth.json" ]; then
