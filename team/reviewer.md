@@ -106,3 +106,12 @@ say architect "[reviewer] {feature} design deviation found. {where it diverges}.
 ```
 
 - **두 경우 모두 lead에는 보내지 않는다** — architect가 판정을 내리면 architect가 lead에 보고한다. 같은 사안을 둘이 각자 보고하면 lead 턴이 두 번 든다
+
+### 같은 지적 2회 반려 후에도 미해소 → 교착으로 lead에 보고
+
+- 같은 지적으로 같은 작성자에게 수정요청을 2회 냈는데 세 번째 리뷰에서도 해소되지 않으면 더 반려하지 않는다
+- 작성자의 반박 근거와 내 지적 근거를 함께 묶어 lead에 보낸다 — lead가 코드를 읽지 않고 판정할 수 있어야 한다
+
+```bash
+say lead "[reviewer] {feature} deadlock: {finding} rejected 2x. Mine: {rationale}. Author: {rationale}. Need ruling"
+```
