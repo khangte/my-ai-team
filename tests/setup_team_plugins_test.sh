@@ -509,6 +509,7 @@ log_has "CALL=codex" || fail 'Codex가 실행되지 않음'
 log_has "PWD=$TEAM_SKILLS_ROOT/dev" && log_has "CODEX_HOME=$TEAM_SKILLS_ROOT/dev/.codex-home" || fail 'Codex cwd/CODEX_HOME 불일치'
 log_has "ARG=$PROJECT_DIR" && log_has "ARG=--add-dir" && log_has 'ARG=model_reasoning_effort="high"' && log_has "ARG=gpt-x" || fail 'Codex 인자 전달 불일치'
 log_has "ARG=--dangerously-bypass-approvals-and-sandbox" || fail '권한 모드 유지 실패'
+log_has 'ARG=check_for_update_on_startup=false' || fail '업데이트 확인 비활성 인자 누락(업데이트 메뉴가 기동을 막음)'
 [ ! -e "$test_dir/pwned" ] || fail 'Codex 경로의 백틱이 명령으로 평가됨'
 python3 -I -c 'import json,sys; json.load(open(sys.argv[1]))' "$TEAM_SKILLS_ROOT/dev/.codex/hooks.json" || fail 'hooks.json 오류'
 : > "$FAKE_LOG"

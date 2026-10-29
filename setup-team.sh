@@ -595,7 +595,7 @@ start_codex_in_pane() {
     # 파일 쓰기 경계는 --add-dir로 별도 유지한다.
     local tmux_tmpdir="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)"
     tmux send-keys -t "$pane" \
-        "cd $(shell_quote "$work_dir") && export CODEX_HOME=$(shell_quote "$role_codex_home") && export PATH=$(shell_quote "$BIN_DIR${NVM_BIN:+:$NVM_BIN}"):\$PATH && $(shell_quote "$codex_bin") $permission_args $hook_trust_args --add-dir $(shell_quote "$PROJECT_DIR") --add-dir $(shell_quote "$tmux_tmpdir") --add-dir /tmp/team-busy --add-dir /tmp/team-say --add-dir /tmp/team-say-queue -c 'sandbox_workspace_write.network_access=true' $model_arg $reasoning_arg" Enter
+        "cd $(shell_quote "$work_dir") && export CODEX_HOME=$(shell_quote "$role_codex_home") && export PATH=$(shell_quote "$BIN_DIR${NVM_BIN:+:$NVM_BIN}"):\$PATH && $(shell_quote "$codex_bin") $permission_args $hook_trust_args --add-dir $(shell_quote "$PROJECT_DIR") --add-dir $(shell_quote "$tmux_tmpdir") --add-dir /tmp/team-busy --add-dir /tmp/team-say --add-dir /tmp/team-say-queue -c 'sandbox_workspace_write.network_access=true' -c check_for_update_on_startup=false $model_arg $reasoning_arg" Enter
 
     # 프로젝트 신뢰 대화상자 또는 입력 화면을 기다린다. 둘 다 없으면 실패한다.
     wait_for_pane "$pane" "Do you trust the contents\|Ask Codex to do anything" 30 || {
