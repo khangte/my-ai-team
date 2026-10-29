@@ -258,6 +258,30 @@ pane_state_key() {
     printf '%s' "${state//[^0-9A-Za-z]/_}"
 }
 
+# ── 유틸: 플러그인 스킬을 역할 스킬 디렉터리에 링크 ──────────
+# 호출 측의 role·role_skills_dir·granted를 그대로 쓴다. 스킬 디렉터리를 통째로
+# 링크한다(references/ 등 하위 파일을 런타임에 읽으므로 SKILL.md만 링크하면 깨진다).
+link_plugin_skills() {
+    # 사용법: link_plugin_skills <플러그인> <스킬 루트> <스킬>...
+    local plugin="$1" root="$2" skill src
+    shift 2
+    for skill in "$@"; do
+        case "$skill" in
+            ""|.|..|*/*)
+                echo -e "${YELLOW}  ⚠️  $role: $plugin 스킬 이름 오류: $skill${NC}" >&2
+                continue
+                ;;
+        esac
+        src="$root/$skill"
+        if [ -z "$root" ] || [ ! -f "$src/SKILL.md" ]; then
+            echo -e "${YELLOW}  ⚠️  $role: $plugin에 스킬 '$skill'이 없습니다.${NC}" >&2
+            continue
+        fi
+        ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill"
+        granted+=("$plugin:$skill")
+    done
+}
+
 # ── 유틸: JSON 문자열 값으로 안전하게 넣을 수 있게 이스케이프 ──
 # 백슬래시 → 큰따옴표 순서로 처리해야 이중 이스케이프를 피한다.
 json_escape() {
@@ -861,25 +885,16 @@ echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Claude — 런타임 준비 (공�
 # 실측 근거는 docs/architect-review/8_ecc-skill-overlap-review.md §5 참조.
 # 실제 역할별 배분 선언은 team/config.claude.sh에 둔다.
 
-# superpowers 스킬은 플러그인이라 소스 경로가 gstack과 다르다
+# 플러그인 스킬(superpowers 등)은 소스 경로가 gstack과 다르다
 # (~/.claude/plugins/cache/.../skills/). --setting-sources project가 플러그인
-# 스킬을 통째로 차단하므로, 역할별로 필요한 것만 위 gstack 스킬과 같은 방식으로
-# .team/{역할}/.claude/skills 에 링크해서 되살린다.
+# 스킬을 통째로 차단하므로, 역할별로 필요한 것만 .team/{역할}/.claude/skills 에
+# 링크해서 되살린다. CLAUDE_PLUGIN_ROLES의 플러그인마다 CLAUDE_{플러그인}_SKILL_SETS
+# (대문자, '-'는 '_')를 찾아 같은 로직으로 처리한다.
 # 어떤 역할이 무엇을 왜 받는지는 team/{역할}.md의 "## 스킬" 절에 적혀 있다.
-
-# frontend-design도 플러그인이라 superpowers와 같은 방식으로 링크한다.
-# 스킬이 frontend-design 하나뿐이지만 배열로 둬서 배분 규칙을 나머지와 맞춘다.
-
+#
 # 플러그인은 버전 디렉터리 아래 설치되므로 경로를 고정할 수 없다. 가장 최근
-# 버전 하나를 고른다(설치본이 없으면 빈 값 → 아래 링크 루프가 통째로 건너뛴다).
-# frontend-design은 버전 디렉터리가 semver가 아니라 'unknown'이지만, 어차피
-# 설치본이 하나뿐이라 같은 glob + tail -1로 잡힌다.
-SUPERPOWERS_ROOT=$(
-    ls -d "$HOME"/.claude/plugins/cache/*/superpowers/*/skills 2>/dev/null | sort -V | tail -1
-)
-FRONTEND_DESIGN_ROOT=$(
-    ls -d "$HOME"/.claude/plugins/cache/*/frontend-design/*/skills 2>/dev/null | sort -V | tail -1
-)
+# 버전 하나를 고른다. frontend-design처럼 버전 디렉터리가 semver가 아니어도
+# 설치본이 하나뿐이면 같은 glob + tail -1로 잡힌다.
 
 # 전역 규칙(~/.claude/rules/, ~/.claude/CLAUDE.md)은 따로 주입하지 않는다.
 # --setting-sources project는 cwd가 $HOME 아래이면 이것들을 끄지 못하므로(실측)
@@ -941,31 +956,19 @@ for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
     #     fi
     #     granted+=("$skill")
     # done
-    # superpowers 스킬은 래퍼 없이 플러그인 캐시의 스킬 디렉터리를 통째로 링크한다
-    # (references/ 등 하위 파일을 런타임에 읽으므로 SKILL.md만 링크하면 깨진다).
-    for skill in ${CLAUDE_SUPERPOWERS_SKILL_SETS[$role]:-}; do
-        src="$SUPERPOWERS_ROOT/$skill"
-        [ -n "$SUPERPOWERS_ROOT" ] && [ -d "$src" ] || {
-            echo -e "${YELLOW}  ⚠️  $role: superpowers '$skill' 없음 (플러그인 설치 확인)${NC}" >&2
-            continue
-        }
-        ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill"
-        granted+=("$skill")
+    for plugin_key in "${!CLAUDE_PLUGIN_ROLES[@]}"; do
+        plugin="${plugin_key%@*}"
+        sets_var="${plugin^^}"
+        sets_ref="CLAUDE_${sets_var//-/_}_SKILL_SETS[$role]"
+        [ -n "${!sets_ref:-}" ] || continue
+        plugin_root=$(
+            ls -d "$HOME"/.claude/plugins/cache/*/"$plugin"/*/skills 2>/dev/null | sort -V | tail -1
+        )
+        link_plugin_skills "$plugin" "$plugin_root" ${!sets_ref}
     done
-    # frontend-design도 플러그인이라 superpowers와 같은 방식(디렉터리 통째 링크)이다.
-    for skill in ${CLAUDE_FRONTEND_DESIGN_SKILL_SETS[$role]:-}; do
-        src="$FRONTEND_DESIGN_ROOT/$skill"
-        [ -n "$FRONTEND_DESIGN_ROOT" ] && [ -d "$src" ] || {
-            echo -e "${YELLOW}  ⚠️  $role: frontend-design '$skill' 없음 (플러그인 설치 확인)${NC}" >&2
-            continue
-        }
-        ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill"
-        granted+=("$skill")
-    done
-    echo -e "${GREEN}  ✅ $role: ${granted[*]:-(스킬 없음)}${NC}"
+    echo "  $role: ${granted[*]:-(Claude 역할별 스킬 없음)}"
 done
-
-echo -e "${GREEN}  ✅ 역할별 스킬 제한 완료${NC}"
+echo -e "${GREEN}  ✅ Claude 역할별 런타임 디렉터리 준비 완료${NC}"
 
 fi
 
@@ -1117,23 +1120,15 @@ for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
         granted+=("$skill")
     done
 
-    # superpowers는 원격 플러그인이라 source 경로가 없다. 공식 marketplace
-    # snapshot(~/.codex/.tmp/plugins)의 스킬 디렉터리를 쓴다.
-    superpowers_dir="$base_codex_home/.tmp/plugins/plugins/superpowers"
-    for skill in ${CODEX_SUPERPOWERS_SKILL_SETS[$role]:-}; do
-        case "$skill" in
-            ""|.|..|*/*)
-                echo -e "${YELLOW}  ⚠️  $role: superpowers 스킬 이름 오류: $skill${NC}" >&2
-                continue
-                ;;
-        esac
-        src="$superpowers_dir/skills/$skill"
-        if [ ! -f "$src/SKILL.md" ]; then
-            echo -e "${YELLOW}  ⚠️  $role: superpowers에 스킬 '$skill'이 없습니다.${NC}" >&2
-            continue
-        fi
-        ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill"
-        granted+=("superpowers:$skill")
+    # 플러그인(superpowers 등)은 원격이라 source 경로가 없다. 공식 marketplace
+    # snapshot(~/.codex/.tmp/plugins)의 스킬 디렉터리를 쓴다. CODEX_PLUGIN_ROLES의
+    # 플러그인마다 CODEX_{플러그인}_SKILL_SETS(대문자, '-'는 '_')를 찾는다.
+    for plugin_key in "${!CODEX_PLUGIN_ROLES[@]}"; do
+        plugin="${plugin_key%@*}"
+        sets_var="${plugin^^}"
+        sets_ref="CODEX_${sets_var//-/_}_SKILL_SETS[$role]"
+        [ -n "${!sets_ref:-}" ] || continue
+        link_plugin_skills "$plugin" "$base_codex_home/.tmp/plugins/plugins/$plugin/skills" ${!sets_ref}
     done
     echo "  $role: ${granted[*]:-(Codex 역할별 스킬 없음)}"
 done
