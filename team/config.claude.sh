@@ -12,8 +12,9 @@ declare -A CLAUDE_PLUGIN_MARKETPLACES=(
 )
 
 # plugin@marketplace → 활성화할 역할. "*"는 모든 역할, 빈 값은 설치만 한다.
-# superpowers는 빈 값이다 — 설치해야 플러그인 캐시(~/.claude/plugins/cache)에 스킬 원본이
-# 생기고, 전체를 켜면 선별이 무의미해진다. Codex는 원본이 snapshot에 있어 설치가 필요 없다.
+# superpowers는 빈 값이다 — 선택 스킬의 원본이라 설치만 하고(아래 SKILL_SETS가 있는 역할이
+# 있을 때), 전체를 켜면 선별이 무의미해진다. 해당 Claude 역할에 필요 없고 설치도 안 된
+# 플러그인은 설치하지 않으며, 이미 설치된 것은 설치 명령 없이 표시만 한다.
 declare -A CLAUDE_PLUGIN_ROLES=(
     ["superpowers@claude-plugins-official"]=""
     # ["frontend-design@claude-plugins-official"]="designer"
@@ -21,17 +22,6 @@ declare -A CLAUDE_PLUGIN_ROLES=(
     ["ponytail@ponytail"]="developer"
     ["caveman@caveman"]="lead"
 )
-
-# 역할 → gstack 스킬. gstack 제거로 비활성화. 역할별 스킬 디렉터리는 MEMBERS의
-# Claude 역할마다 만들어지므로 이 배열이 없어도 된다. 되살리려면 주석을 푼다.
-# declare -A CLAUDE_GSTACK_SKILL_SETS=(
-#     [lead]="spec plan-eng-review"
-#     [architect]="diagram"
-#     [researcher]="scrape browse"
-#     [designer]="design-review design-html"
-#     [developer]="health"
-#     [reviewer]="review"
-# )
 
 # 역할 → superpowers 스킬. 플러그인 캐시의 원본에서 필요한 것만 링크한다.
 declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=(

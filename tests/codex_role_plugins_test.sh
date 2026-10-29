@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$repo_dir/team/config.codex.sh"
-eval "$(sed -n '/^write_codex_role_plugins() {$/,/^}$/p' "$repo_dir/setup-team.sh")"
+eval "$(sed -n '/^codex_default_model_config() {$/,/^}$/p; /^write_codex_role_plugins() {$/,/^}$/p' "$repo_dir/setup-team.sh")"
 test_dir="$(mktemp -d)"
 trap 'rm -rf "$test_dir"' EXIT
 
@@ -22,10 +22,10 @@ import tomllib
 
 root = pathlib.Path(sys.argv[1])
 expected = {
-    'developer': {'engineering-suite-ponytail@openai-curated-remote'},
-    'reviewer': set(),
-    'shared': {'test@local', 'shared@local'},
-    'disabled': {'test@local'},
+    'developer': {'engineering-suite-ponytail@openai-curated-remote', 'caveman@openai-curated-remote'},
+    'reviewer': {'caveman@openai-curated-remote'},
+    'shared': {'caveman@openai-curated-remote', 'test@local', 'shared@local'},
+    'disabled': {'caveman@openai-curated-remote', 'test@local'},
 }
 for role, allowed in expected.items():
     config = tomllib.loads((root / role / 'config.toml').read_text())['plugins']

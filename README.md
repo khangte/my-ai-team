@@ -100,12 +100,11 @@ git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
    - 실제로 팀에 쓰이는 공급자마다 필요한 도구·인증을 확인 (혼합 팀이면 둘 다)
      - Claude: claude/rtk 설치, `claude auth status` 로그인 확인 (미로그인 시 `/login` 안내 후 대기)
      - Codex: codex 설치, `codex login status` 로그인 확인 (미로그인 시 `codex login` 안내 후 대기)
-   - 확인 직후 기존 tmux 세션을 정리 (`.team/` 삭제와의 경합 방지)
+   - 확인 직후 기존 tmux 세션을 정리 (`.team/` 생성 파일 갱신과의 경합 방지). 기존 `.team/`은 재사용하고 이전 실행의 생성 파일(`_runtime`, 스킬 링크, 생성된 `AGENTS.md`·`hooks.json`)만 지운다
 1. 공급자별 준비 — 팀에 쓰이는 공급자만 실행, 혼합 팀이면 Claude 블록 뒤에 Codex 블록
    - Claude 파인이 있을 때 `[1/7]`~`[4/7]`
      - rtk 훅 초기화
-     <!-- gstack 제거로 비활성화: gstack 스킬(`/office-hours`, `/review` 등) 설치 -->
-     - 필수 마켓플레이스 플러그인(superpowers/frontend-design/serena/ponytail/caveman) 설치 — 역할별 활성화는 파인 실행 단계가 담당
+     - Claude 파인에 필요한 마켓플레이스 플러그인만 설치 — 이미 설치된 것은 설치 명령 없이 표시하고, 필요 없는 미설치 플러그인은 건너뜀. 역할별 활성화는 파인 실행 단계가 담당
      - 팀 공통 지침을 `CLAUDE.md`에 병합 + 역할별 스킬 제한 — `.team/{역할}/.claude/skills`에 그 역할이 쓸 스킬만 링크
    - Codex 파인이 있을 때 `[5/7]`
      - `AGENTS.md` 병합, 역할별 스킬·플러그인·lifecycle 훅 준비
@@ -145,9 +144,6 @@ tmux kill-session -t team1                    # 세션 종료
 | 스킬·플러그인 배분 | `team/config.claude.sh`                                  | `team/config.codex.sh` (역할별 `CODEX_HOME`으로 격리)       |
 | 신뢰·훅 승인      | 해당 없음                                                | 프로젝트 신뢰 대화상자·`.codex/hooks.json` 훅 승인 자동 처리 |
 | rtk 토큰 절감 훅  | 적용                                                     | 미적용                                                      |
-<!-- gstack 제거로 비활성화
-| gstack 스킬       | 적용                                                     | 미적용                                                      |
--->
 
 - `say` 통신과 역할 지침은 두 공급자에서 동일하게 동작한다.
 
@@ -308,7 +304,7 @@ $PROJECT_DIR/.team-logs/
 ### 설계상의 선택
 
 - **역할별 파일** — 여러 파인이 병렬로 도는 구조라 한 파일에 쓰면 경합·귀속 불명이 생긴다.
-- **`.team/` 바깥** — `.team/`은 매 실행 `rm -rf` 대상이라 거기 두면 재시작 시 소실된다.
+- **`.team/` 바깥** — `.team/`의 생성 파일은 매 실행 갱신·삭제되므로 거기 두면 재시작 시 소실된다.
 - **대상 리포 `.gitignore` 불변** — 로그 디렉터리 안에 `.gitignore`(`*`)를 둬서 스스로를 제외한다.
 - **본문은 길이만 기록** — Write/Edit 전문은 로그를 비대하게 하고 시크릿 노출 표면을 키운다.
 - **시크릿 마스킹** — 알려진 패턴(`sk-`, `ghp_`, `AKIA`, `xox*-`, `API_KEY=` 등)과 `.env` 명령은 가리고 Read는 경로만 남긴다.
@@ -328,17 +324,6 @@ $PROJECT_DIR/.team-logs/
 
 `~/.claude/skills`·플러그인은 유저 전역이라 파인마다 고정비가 쌓인다. `setup-team.sh`가 역할마다 필요한 것만 링크·활성화한다
 (`--setting-sources project`로 전역 스킬 차단). 배분은 `team/config.claude.sh`·`team/config.codex.sh`가 정한다.
-
-<!-- gstack 제거로 비활성화 (gstack 열)
-| 역할       | gstack 스킬                   | superpowers 스킬                               | 플러그인 (Claude)                      |
-| ---------- | ----------------------------- | ---------------------------------------------- | -------------------------------------- |
-| lead       | `spec` `plan-eng-review`      | `finishing-a-development-branch`               | caveman, serena                        |
-| architect  | `diagram`                     | `writing-plans`                                | caveman, serena                        |
-| researcher | `scrape` `browse`             | -                                              | caveman, serena                        |
-| designer   | `design-review` `design-html` | -                                              | caveman, serena, frontend-design       |
-| developer  | `health`                      | `systematic-debugging` `receiving-code-review` | caveman, serena, ponytail              |
-| reviewer   | `review`                      | -                                              | caveman, serena                        |
--->
 
 | 역할       | superpowers 스킬                               | 플러그인 (Claude)                      |
 | ---------- | ---------------------------------------------- | -------------------------------------- |
