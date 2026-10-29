@@ -17,7 +17,7 @@ load_functions codex_default_model_config plugin_skill_set provider_plugin_neede
     install_claude_plugins link_plugin_skills reset_generated_team_files \
     link_codex_base_assets prepare_codex_role_home codex_plugin_skills_root \
     prepare_codex_skill_sources codex_shared_plugin_cache link_codex_standalone_skills find_codex_skill_source write_codex_role_plugins answer_claude_dialog \
-    wait_claude_ready wait_for_pane start_codex_in_pane team_owned_record team_owned_clean \
+    wait_claude_ready wait_for_pane start_codex_in_pane team_owned_record team_owned_adopt_identical team_owned_clean \
     link_owned_skill json_escape stop_hook_cmd_for_role write_codex_role_agents shell_quote \
     start_claude_in_pane
 
@@ -204,6 +204,7 @@ rm "$TEAM_SKILLS_ROOT/dev/.codex/hooks.json"
 printf '{"hooks":"mine"}' > "$TEAM_SKILLS_ROOT/dev/.codex/hooks.json"
 output="$(write_codex_role_agents dev "$TEAM_SKILLS_ROOT/dev" 0.1 key 2>&1)"
 expect_in "기존 .codex/hooks.json이 있어" "$output"
+expect_not_in "훅이 빠짐" "$output"
 [ "$(cat "$TEAM_SKILLS_ROOT/dev/.codex/hooks.json")" = '{"hooks":"mine"}' ] || fail '생성 단계가 사용자 hooks.json 덮어씀'
 ! grep -q 'hooks.json' "$TEAM_SKILLS_ROOT/dev/.ai-setup-owned" 2>/dev/null || fail '사용자 hooks.json이 소유 기록에 들어감'
 rm "$TEAM_SKILLS_ROOT/dev/.codex/hooks.json"
@@ -240,6 +241,16 @@ write_codex_role_agents dev "$TEAM_SKILLS_ROOT/dev" 0.1 key 2>/dev/null
 reset_generated_team_files
 [ -L "$TEAM_SKILLS_ROOT/dev/AGENTS.md" ] && [ "$(cat "$test_dir/src/agents-target.md")" = linked ] || fail '사용자 AGENTS.md 링크 변경/삭제됨'
 rm "$TEAM_SKILLS_ROOT/dev/AGENTS.md"
+
+# 소유 기록만 사라진 동일 생성본은 경고 없이 재등록하고, 다음 실행에서 갱신한다.
+write_codex_role_agents dev "$TEAM_SKILLS_ROOT/dev" 0.1 key 2>/dev/null
+rm "$TEAM_SKILLS_ROOT/dev/.ai-setup-owned"
+output="$(write_codex_role_agents dev "$TEAM_SKILLS_ROOT/dev" 0.1 key 2>&1)"
+[ -z "$output" ] || fail "동일 생성본 재등록에 경고: $output"
+grep -qP '^F\tAGENTS.md\t' "$TEAM_SKILLS_ROOT/dev/.ai-setup-owned" || fail '동일 AGENTS.md 소유 기록 복구 누락'
+grep -qP '^F\t\.codex/hooks.json\t' "$TEAM_SKILLS_ROOT/dev/.ai-setup-owned" || fail '동일 hooks.json 소유 기록 복구 누락'
+reset_generated_team_files
+[ ! -e "$TEAM_SKILLS_ROOT/dev/AGENTS.md" ] && [ ! -e "$TEAM_SKILLS_ROOT/dev/.codex/hooks.json" ] || fail '재등록한 생성본이 다음 실행에 정리되지 않음'
 
 # ── Codex: 역할 홈 재사용·기본 홈 설치본 연결·신규 설치 ───────────
 base_codex_home="$test_dir/base"
@@ -393,6 +404,7 @@ keys_file="$test_dir/keys"
 tmux() {
     case "$1" in
         capture-pane) cat "$screen_file" ;;
+        clear-history) echo "$*" >> "$keys_file" ;;
         send-keys)
             echo "$*" >> "$keys_file"
             [[ "${4:-}" != "cd "* ]] || printf '%s' "$4" > "$test_dir/sent_cmd"
@@ -534,7 +546,62 @@ after_enter='Ask Codex to do anything'
 start_codex_in_pane s:0.1 model developer high || fail 'Codex 신뢰 대화상자 처리 실패'
 unset after_enter
 
+# 기동 전 이전 화면을 비운다(남은 준비 화면 텍스트를 성공으로 오인하지 않게).
+grep -n -m1 -- 'C-l' "$keys_file" >/dev/null && grep -q 'clear-history' "$keys_file" || fail '기동 전 화면 정리 누락'
+[ "$(grep -c -- 'C-c' "$keys_file")" -ge 2 ] || fail '떠 있는 Codex 종료용 C-c 두 번 누락'
+
 printf 'starting\n' > "$screen_file"
 ! start_codex_in_pane s:0.1 model developer high 2>/dev/null || fail 'Codex 시간 초과가 성공 처리됨'
+
+# ── 상태 기반 모의 tmux: 남은 준비 화면, 지연된 기동·/hooks 입력·메뉴 ─────
+st="$test_dir/st"
+tmux() {
+    # 기동 단계(남은 화면·지연 부팅·/hooks 입력·메뉴)를 파일 상태로 흉내 내는 모의 tmux.
+    local n; n=$(( $(cat "$st.n" 2>/dev/null || echo 0) + 1 ))
+    case "$1" in
+        capture-pane)
+            echo "$n" > "$st.n"
+            case "$(cat "$st.phase")" in
+                flash) [ "$n" -lt 2 ] || printf '  Folder access\n  Trust this folder? Codex can read,\n› 1. Trust and continue\n  2. Quit\n' > "$screen_file"; [ "$n" -lt 2 ] || echo trust > "$st.phase" ;;
+                booting) [ "$n" -lt 3 ] || { printf 'Ask Codex to do anything\n' > "$screen_file"; echo ready > "$st.phase"; echo 0 > "$st.n"; [ -z "${trust_dialog:-}" ] || echo flash > "$st.phase"; }
+                         [ "$n" -ge 3 ] || ! grep -q 'Ask Codex' "$screen_file" || touch "$st.stale_ready" ;;
+                typed) [ "$n" -lt 2 ] || { printf 'Ask Codex to do anything\n› /hooks\n' > "$screen_file"; echo shown > "$st.phase"; echo 0 > "$st.n"; } ;;
+                entered) [ "$n" -lt 2 ] || { [ -n "${menu_never:-}" ] || printf 'Hooks\nLifecycle hooks from config\n' > "$screen_file"; echo menu > "$st.phase"; echo 0 > "$st.n"; } ;;
+            esac
+            cat "$screen_file" ;;
+        clear-history) : ;;
+        send-keys)
+            case "$*" in
+                *" C-l"*) : > "$screen_file" ;;
+                *" cd "*) echo booting > "$st.phase"; echo 0 > "$st.n" ;;
+                *"-l /hooks"*) [ "$(cat "$st.phase")" != trust ] || echo "hooks_in_trust_dialog" >> "$st.bad"; echo typed > "$st.phase"; echo 0 > "$st.n" ;;
+                *" Enter") if [ "$(cat "$st.phase")" = trust ]; then printf 'Ask Codex to do anything\n' > "$screen_file"; echo ready > "$st.phase"; touch "$st.trust_accepted"; elif [ "$(cat "$st.phase")" = shown ]; then echo entered > "$st.phase"; echo 0 > "$st.n"; else echo "enter_early:$(cat "$st.phase")" >> "$st.bad"; fi ;;
+                *"-l t") [ "$(cat "$st.phase")" = menu ] && touch "$st.trusted" || echo "t_early:$(cat "$st.phase")" >> "$st.bad" ;;
+                *" C-u") touch "$st.cleared_input" ;;
+            esac ;;
+    esac
+}
+run_stateful() {
+    # 상태를 초기화하고 남은 준비 화면에서 start_codex_in_pane을 실행한다.
+    rm -f "$st".*; echo idle > "$st.phase"; printf 'Ask Codex to do anything\n' > "$screen_file"
+    start_codex_in_pane s:0.1 model developer high 2>"$st.err"
+}
+
+run_stateful || fail '상태 기반 기동 실패'
+[ ! -e "$st.stale_ready" ] || fail '이전 화면의 준비 문구를 성공으로 오인'
+[ ! -e "$st.bad" ] || fail "키 순서 오류: $(cat "$st.bad")"
+[ -e "$st.trusted" ] || fail '지연된 /hooks 메뉴에서 t가 전송되지 않음'
+[ ! -s "$st.err" ] || fail "정상 경로에 경고 출력: $(cat "$st.err")"
+
+# 입력 화면을 잠깐 그린 뒤 새 문구의 신뢰 대화상자로 바뀌어도 /hooks를 대화상자에 보내지 않는다.
+trust_dialog=1 run_stateful || fail '신뢰 대화상자 기동 실패'
+[ -e "$st.trust_accepted" ] || fail '새 문구 신뢰 대화상자 미처리'
+[ ! -e "$st.bad" ] || fail "신뢰 대화상자 처리 중 키 오류: $(cat "$st.bad")"
+[ -e "$st.trusted" ] || fail '신뢰 대화상자 이후 훅 신뢰 누락'
+
+menu_never=1 run_stateful || fail '메뉴 미개방 시 기동 자체가 실패'
+[ ! -e "$st.trusted" ] || fail '메뉴가 안 열렸는데 t 전송'
+[ -e "$st.cleared_input" ] || fail '메뉴 미개방 시 입력줄 정리 누락'
+grep -q '훅 신뢰를 건너뜁니다' "$st.err" || fail '훅 신뢰 실패 경고 누락'
 
 printf 'setup-team 플러그인·재사용·기동 대기 테스트 통과\n'
