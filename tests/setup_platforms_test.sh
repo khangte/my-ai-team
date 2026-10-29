@@ -71,6 +71,28 @@ mkdir "$test_dir/fakeuname"; printf '#!/bin/bash\necho Darwin\n' > "$test_dir/fa
 err="$(PATH="$test_dir/fakeuname:$PATH" "$repo_dir/setup-wsl.sh" "$proj" 2>&1)" && fail 'Darwin에서 setup-wsl.sh가 통과함'
 grep -q 'setup-mac.sh' <<< "$err" || fail 'Darwin 거부 시 setup-mac.sh 안내 누락'
 
+# WSL PATH: Windows(/mnt/*) 도구를 배제하고 기존 NVM 도구를 쓰며, 이미 있으면 설치하지 않는다.
+(
+    source "$repo_dir/lib/setup-common.sh"
+    HOME="$test_dir/nvmhome"; mkdir -p "$HOME/.nvm/versions/node/v18.0.0/bin" "$HOME/.nvm/versions/node/v20.1.0/bin"
+    PATH="/mnt/c/Program Files/nodejs:/usr/bin::/mnt/c/WINDOWS:/bin"
+    setup_prepare_linux_path
+    case ":$PATH:" in *:/mnt/*) exit 1 ;; esac
+    [ "${PATH%%:*}" = "$HOME/.nvm/versions/node/v20.1.0/bin" ] && [[ "$PATH" == *":/usr/bin:/bin" ]]
+) || fail 'setup_prepare_linux_path: /mnt 제거 또는 NVM 우선 실패'
+nvmhome="$test_dir/nvmhome"; nvmbin="$nvmhome/.nvm/versions/node/v20.1.0/bin"; mkdir -p "$nvmbin"
+for c in node npm claude rtk bun codex; do
+    printf '#!/bin/bash\n[ "$1" = install ] && echo "NPM-INSTALL $*" >> "%s/npm.log"\necho "nvm-%s 1.0"\n' "$test_dir" "$c" > "$nvmbin/$c"
+done
+chmod +x "$nvmbin"/*
+lean="$test_dir/lean"; mkdir -p "$lean"
+for c in tmux git curl unzip python3 sudo; do printf '#!/bin/bash\nexit 0\n' > "$lean/$c"; done
+printf '#!/bin/bash\necho ko_KR.utf8\n' > "$lean/locale"; chmod +x "$lean"/*
+rm -f "$test_dir/npm.log"
+out="$(HOME="$nvmhome" PATH="/mnt/c/Program Files/nodejs:$lean:/usr/bin:/bin" "$repo_dir/setup-wsl.sh" "$proj")"
+grep -q 'nvm-codex' <<< "$out" && grep -q 'nvm-claude' <<< "$out" && grep -q 'nvm-node' <<< "$out" || fail 'NVM의 node/claude/codex를 쓰지 않음'
+[ ! -e "$test_dir/npm.log" ] || fail '이미 NVM에 있는 CLI를 재설치함'
+
 # ── 3. macOS ────────────────────────────────────────────────────
 [ "$(uname -s)" = Darwin ] || {
     "$repo_dir/setup-mac.sh" "$proj" >/dev/null 2>&1 && fail 'macOS가 아닌데 통과함'

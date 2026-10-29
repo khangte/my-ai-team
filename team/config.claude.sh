@@ -11,9 +11,10 @@ declare -A CLAUDE_PLUGIN_MARKETPLACES=(
 )
 
 # plugin@marketplace → 활성화할 역할. "*"는 모든 역할, 빈 값은 설치만 한다.
+# superpowers는 Claude Code 내장 마켓플레이스(anthropic-plugin-directory)에서 받는다 — 등록 불필요.
 # 선택 스킬의 원본이 필요할 때만 설치한다. 설치된 플러그인은 상태만 출력한다.
 declare -A CLAUDE_PLUGIN_ROLES=(
-    ["superpowers@claude-plugins-official"]=""
+    ["superpowers@anthropic-plugin-directory"]=""
     ["serena@claude-plugins-official"]="*"
     ["ponytail@ponytail"]="developer"
     ["caveman@caveman"]="lead"

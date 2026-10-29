@@ -15,6 +15,7 @@ if [ "$(uname -s)" != Linux ] || ! command -v apt-get &>/dev/null; then
     echo "apt 기반 Linux/WSL 전용 스크립트입니다. macOS는 setup-mac.sh, Windows는 setup-windows.ps1을 쓰세요." >&2
     exit 1
 fi
+setup_prepare_linux_path
 setup_load_team
 setup_plan 2
 
@@ -37,7 +38,7 @@ else
 fi
 
 step "Node.js 확인..."
-command -v node &>/dev/null || {
+command -v node &>/dev/null && command -v npm &>/dev/null || {
     curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
     sudo apt-get install -y nodejs
 }

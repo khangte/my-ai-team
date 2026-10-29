@@ -103,3 +103,18 @@ setup_install_agent_clis() {
         echo "  ✅ codex $(codex --version 2>/dev/null | head -1)"
     fi
 }
+
+setup_prepare_linux_path() {
+    # WSL 비로그인 셸용 PATH 정리: Windows 상호운용 경로(/mnt/*)를 빼 Windows용 node·npm·CLI를 고르지 않게 하고,
+    # 기존 NVM·~/.local·bun 도구를 앞에 둔다. 로그인 셸(bash -l)에 기대지 않는다.
+    local nvm_bin entry rest="$PATH" kept=""
+    nvm_bin="$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)"
+    while [ -n "$rest" ]; do
+        entry="${rest%%:*}"
+        case "$rest" in *:*) rest="${rest#*:}" ;; *) rest="" ;; esac
+        case "$entry" in ""|/mnt/*) continue ;; esac
+        kept="${kept:+$kept:}$entry"
+    done
+    PATH="${nvm_bin:+$nvm_bin:}$HOME/.local/bin:$HOME/.bun/bin:$kept"
+    export PATH
+}
