@@ -1,20 +1,7 @@
 #!/bin/bash
-#
-# setup-docker.sh — Docker 기반 Claude/Codex 멀티에이전트 팀 환경 구성 (호스트에서 실행)
-#
-# 동작:
-#   1. Dockerfile로 이미지(claude-team)를 빌드
-#   2. 기존 컨테이너(claude-env)가 있으면 제거 후 재생성
-#   3. 입력받은 프로젝트 루트를 컨테이너 내부 /workspace로 마운트
-#      setup-team.sh는 /workspace를 실제 작업 프로젝트 루트로 사용
-#      named volume claude-home을 /home/user로 마운트하여 컨테이너 기동
-#      (claude-home은 로그인 세션·rtk·gstack 스킬 등을 컨테이너 재생성 후에도 보존하기 위한 영속 볼륨)
-#   4. 컨테이너 내부에서 setup-team.sh를 실행해 tmux 기반 팀 세션을 구성
-#
-# 사용:
-#   ./setup-docker.sh [--agent claude|codex] /path/to/project
-#
-# 사전 요구사항: Docker
+# Docker 이미지를 빌드하고 프로젝트를 /workspace에 마운트해 팀을 구성한다.
+# 사용자 홈은 claude-home 볼륨으로 보존한다.
+# 사용: ./setup-docker.sh [--agent claude|codex] /path/to/project
 
 set -e
 
@@ -66,9 +53,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── 이미지 빌드 ─────────────────────────────────────────────
 echo -e "${YELLOW}이미지 빌드 중...${NC}"
-# 빌드 컨텍스트는 호출한 현재 디렉터리가 아니라 이 스크립트가 있는 ai-setup
-# 저장소다. 대상 프로젝트 디렉터리에서 절대·상대 경로로 호출해도 Dockerfile과
-# setup-team.sh 등 이미지에 복사할 파일을 항상 같은 곳에서 찾는다.
+# 호출 위치와 무관하게 이 저장소를 빌드 컨텍스트로 사용한다.
 docker build -t "$IMAGE" "$SCRIPT_DIR"
 
 echo -e "${GREEN}✅ 이미지 준비 완료 ($IMAGE)${NC}"
@@ -86,22 +71,18 @@ mkdir -p "$PROJECT_DIR"
 docker volume inspect claude-home >/dev/null 2>&1 || \
 docker volume create claude-home >/dev/null
 
-# sleep infinity로 컨테이너를 계속 살려두고, 실제 작업은 아래 docker exec로 진행한다
-# (컨테이너 자체의 CMD를 대화형 셸로 만들지 않는 이유).
+# 컨테이너는 유지하고 팀 구성은 아래 docker exec에서 실행한다.
 docker run -d --name "$CONTAINER" \
     -v "$PROJECT_DIR":/workspace \
     -v claude-home:/home/user \
     "$IMAGE" \
     sleep infinity
-#   -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
 
 echo -e "${GREEN}✅ 컨테이너 기동 완료 ($CONTAINER)${NC}"
 
 # ── 컨테이너 내에서 팀 셋업 스크립트 실행 ────────────────────
 echo -e "\n${YELLOW}팀 환경 구성 중 (컨테이너 내부)...${NC}"
 
-# -it: setup-team.sh 내부의 claude 최초 로그인(/login) 프롬프트에 응답하려면
-# 대화형 TTY가 필요하다.
-# docker exec -it "$CONTAINER" bash /workspace/setup-team.sh
+# 최초 로그인에 응답할 대화형 TTY가 필요하다.
 docker exec -it "$CONTAINER" \
 bash /opt/ai-setup/setup-team.sh --agent "$TEAM_AGENT" /workspace

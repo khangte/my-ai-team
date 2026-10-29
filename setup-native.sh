@@ -1,18 +1,7 @@
 #!/bin/bash
-#
-# setup-native.sh — WSL 호스트에 Claude/Codex 팀 환경 직접 구성
-#
-# Dockerfile + setup-docker.sh가 컨테이너 안에서 하던 의존성 설치를
-# WSL에 그대로 설치한다(격리 없이). volume 덮어쓰기 문제가 없으므로
-# /opt 우회 경로 없이 기본 경로(~/.local, ~/.bun 등)에 설치한다.
-# 설치 후 setup-team.sh를 실행할 수 있도록 tmux 팀 세션의 의존성을 준비한다.
-#
-# 사용:
-#   ./setup-native.sh [--agent claude|codex] [프로젝트_경로]
-#
-# 설치 대상 공급자는 setup-team.sh와 같은 규칙으로 정한다 — 이 저장소의
-# team/config.sh, 이어서 프로젝트의 team/config.sh를 읽고 MEMBER_AGENTS에
-# 실제로 배정된 공급자(빈 값은 --agent 기본값)를 모두 설치한다.
+# WSL에 팀 의존성을 사용자 기본 경로로 설치한다.
+# 사용: ./setup-native.sh [--agent claude|codex] [프로젝트_경로]
+# 저장소·프로젝트의 team/config.sh를 읽고 실제 배정된 공급자를 설치한다.
 
 set -e
 
@@ -106,8 +95,7 @@ command -v node &>/dev/null || {
 }
 echo "  ✅ node $(node --version 2>/dev/null)"
 
-# NodeSource Node는 npm 전역 prefix가 /usr라 sudo 없이 npm install -g가 EACCES로
-# 막힌다. 쓸 수 없으면 사용자 prefix(~/.local, claude·rtk와 같은 bin)로 옮긴다.
+# 전역 npm 경로에 쓰기 권한이 없으면 사용자 prefix로 전환한다.
 npm_prefix="$(npm config get prefix)"
 if [ -d "$npm_prefix/lib/node_modules" ] && [ ! -w "$npm_prefix/lib/node_modules" ]; then
     npm config set prefix "$HOME/.local"

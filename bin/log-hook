@@ -16,15 +16,11 @@ import re
 import sys
 import time
 
-# tool_input에서 그대로 남길 키. content/new_string/old_string 같은 본문은
-# 제외한다 — 파일 하나 쓸 때마다 내용 전문이 복사되면 로그가 수백 MB로 불어나고,
-# 시크릿이 흘러들 표면도 그만큼 넓어진다. 재현에 필요한 건 "무엇을 건드렸나"지
-# 내용 전문이 아니므로 본문은 길이만 남긴다.
+# 본문 유출과 로그 비대화를 막도록 재현에 필요한 키만 남기고 본문은 길이로 기록한다.
 KEEP_KEYS = ("command", "file_path", "path", "pattern", "url", "description")
 SIZE_KEYS = ("content", "new_string", "old_string")
 
-# 알려진 시크릿 패턴만 가린다. 완전한 차단은 불가능하므로(사용자가 임의 형식의
-# 키를 붙여넣을 수 있다) 로그 파일 권한 600과 함께 쓰는 것을 전제로 한다.
+# 임의 형식의 시크릿까지 가릴 수 없으므로 로그 파일 권한 600을 함께 적용한다.
 SECRET_PATTERNS = (
     re.compile(r"\b(sk-[A-Za-z0-9_-]{16,})"),                 # OpenAI/Anthropic
     re.compile(r"\b(gh[pousr]_[A-Za-z0-9]{16,})"),            # GitHub 토큰
@@ -35,9 +31,7 @@ SECRET_PATTERNS = (
     re.compile(r"((?:bearer|basic)\s+)([A-Za-z0-9._~+/=-]{8,})", re.IGNORECASE),
     # URL에 박힌 자격증명 — https://user:pass@host
     re.compile(r"(://[^/\s:@]+:)([^/\s@]+)(?=@)"),
-    # KEY=값 / "token": "값" 형태의 대입. 값 부분만 가린다.
-    # 공백 구분(`--token abc`, `aws_secret_access_key abc`)도 함께 잡는다 —
-    # CLI 인자로 넘기는 형태가 흔한데 =나 : 만 보면 통째로 새어나간다.
+    # 대입과 CLI 인자의 시크릿 값을 함께 가린다.
     re.compile(
         r"((?:api[_-]?key|secret[_a-z]*|access[_-]?key[_a-z]*|token|password|passwd|credential)"
         r"[\"']?\s*(?:[=:]|\s)\s*[\"']?)([^\s\"',]{6,})",
@@ -76,8 +70,7 @@ def summarize_input(tool_input, tool_name=None):
     if not isinstance(tool_input, dict):
         return {}
     out = {}
-    # Codex apply_patch는 패치 전문이 command에 담겨 온다. 본문은 길이만 남기고
-    # 건드린 파일 경로만 기록한다.
+    # Codex apply_patch의 command에는 패치 전문이 담기므로 경로와 길이만 남긴다.
     patch = tool_input.get("command")
     if tool_name == "apply_patch" and isinstance(patch, str):
         return {"files": [mask(f) for f in PATCH_FILE_RE.findall(patch)], "patch_len": len(patch)}
@@ -124,9 +117,7 @@ def main():
     log_dir = os.path.join(project_dir, ".team-logs")
     os.makedirs(log_dir, exist_ok=True)
 
-    # 로그 디렉터리가 스스로를 커밋 대상에서 제외한다. 작업 대상 리포의
-    # .gitignore를 건드리지 않고 목적을 달성하기 위한 것 — 남의 리포에
-    # 흔적을 남기지 않는다.
+    # 대상 리포의 .gitignore 대신 로그 디렉터리 안에서 자체 제외한다.
     ignore = os.path.join(log_dir, ".gitignore")
     if not os.path.exists(ignore):
         with open(ignore, "w") as f:

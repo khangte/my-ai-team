@@ -1,19 +1,5 @@
-# Dockerfile — Claude/Codex 멀티에이전트 팀 환경용 베이스 이미지
-#
-# 목적:
-#   setup-docker.sh가 빌드하는 이미지. Ubuntu 22.04 위에 Node.js, Claude, Codex,
-#   rtk, bun, tmux 등 setup-team.sh 실행에 필요한 도구를 설치한다.
-#   python3는 bin/log-hook(프롬프트·툴 로깅)이 쓴다. ubuntu:22.04에 기본
-#   포함되어 있지만, 베이스 이미지가 바뀌면 조용히 깨지므로 명시해 둔다.
-#
-# 주의:
-#   /home/user는 컨테이너 기동 시 named volume(claude-home)으로 덮어씌워지므로,
-#   여기서 /home/user 하위에 설치한 파일(npm/rtk/bun 등)은 사라진다.
-#   그래서 NPM_CONFIG_PREFIX, RTK_INSTALL_DIR, BUN_INSTALL을 모두
-#   /opt 이하 별도 경로로 지정한다.
-#
-# 사용:
-#   docker build -t claude-team .  (setup-docker.sh가 자동 실행)
+# setup-docker.sh가 사용하는 팀 환경 이미지.
+# /home/user는 볼륨에 가려지므로 도구는 /opt 아래에 설치한다.
 
 FROM ubuntu:22.04
 
@@ -40,16 +26,12 @@ ENV LANG=ko_KR.UTF-8
 ENV LANGUAGE=ko_KR:ko
 ENV LC_ALL=ko_KR.UTF-8
 
-# npm 전역 설치 경로를 /home/user가 아닌 별도 경로로 지정
-# (/home/user는 volume으로 덮어씌워지므로 여기 설치하면 안 됨)
 ENV NPM_CONFIG_PREFIX=/opt/npm-global
 ENV PATH=/opt/npm-global/bin:$PATH
 
-# rtk도 동일한 이유로 volume 밖 경로에 설치
 ENV RTK_INSTALL_DIR=/opt/rtk-bin
 ENV PATH=/opt/rtk-bin:$PATH
 
-# bun도 동일한 이유로 volume 밖 경로에 설치 (gstack 스킬 설치에 필요)
 ENV BUN_INSTALL=/opt/bun
 ENV PATH=/opt/bun/bin:$PATH
 
@@ -71,11 +53,10 @@ WORKDIR /workspace
 
 RUN npm install -g @anthropic-ai/claude-code @openai/codex
 
-# 빌드 재현성을 위해 rtk 버전 고정 (업데이트 시 이 값만 올리면 됨)
+# 빌드 재현성을 위해 버전을 고정한다.
 ENV RTK_VERSION=v0.43.0
 RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
 
-# gstack 스킬 설치(런타임, setup-team.sh)에 필요
 RUN curl -fsSL https://bun.sh/install | bash
 
 CMD ["bash"]

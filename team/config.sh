@@ -1,14 +1,7 @@
 # team/config.sh — 프로젝트 전용 팀 구성 (setup-team.sh가 있으면 자동 로드)
 
-# 인원 추가·삭제·모델·추론강도 변경은 이 파일 하나만 고치면 된다. 역할마다
-# 한 줄로 "role|표시이름|agent|model|effort"를 선언하면 setup-team.sh가
-# MEMBER_NAMES, MEMBER_DISPLAY_NAMES, MEMBER_AGENTS, MEMBER_MODELS,
-# MEMBER_REASONING_EFFORTS로 풀어 쓴다. team/config.claude.sh·config.codex.sh는
-# 플러그인·스킬 배분표만 담당하며 모델은 선언하지 않는다 — 인원 증감 시 그
-# 두 파일은 건드릴 필요가 없다(단, 새 역할 이름을 만들 때는 그 배분표에도
-# 역할 키를 추가해야 플러그인·스킬이 배정된다).
-#
-# 예: 인원을 4명으로 줄이려면 MEMBERS에서 두 줄만 지우면 된다.
+# 인원·공급자·모델은 MEMBERS에서 설정한다.
+# 새 역할의 스킬·플러그인 배분은 config.claude.sh·config.codex.sh에 추가한다.
 
 SESSION="team1"   # tmux 세션 이름 (프로젝트별로 변경 가능)
 
@@ -29,8 +22,7 @@ declare -a MEMBERS=(
     "reviewer|리뷰어|claude|claude-sonnet-5-5|medium"
 )
 
-# ── 아래는 위 선언을 setup-team.sh/setup-native.sh가 쓰는 배열로 풀어내는
-#    어댑터다. 프로젝트에서 보통 건드릴 필요 없다.
+# 선언을 런처가 사용할 배열로 변환한다.
 declare -a MEMBER_NAMES=()
 declare -a MEMBER_DISPLAY_NAMES=()
 declare -a MEMBER_AGENTS=()
