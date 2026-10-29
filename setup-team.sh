@@ -119,8 +119,8 @@ BIN_DIR="$SCRIPT_DIR/bin"   # say·log-hook — 오버라이드 대상이 아닌
 # ── 팀 멤버 정보 ───────────────────────────────────────────
 # 설정은 두 단계로 독립 해석한다.
 #   1) 공통 구성: 이 저장소/team/config.sh → 대상 프로젝트/team/config.sh
-#   2) 공급자 구성: 이 저장소/team/config.claude.sh, config.codex.sh
-#      → 대상 프로젝트의 같은 파일
+#   2) 공급자 구성: 대상 프로젝트의 team/config.claude.sh, config.codex.sh가
+#      있으면 그것만, 없으면 이 저장소의 같은 파일 (병합하지 않음)
 #
 # MEMBER_AGENTS는 파인별로 다른 에이전트를 지정한다(혼합 팀). 빈 문자열은
 # $TEAM_AGENT(전역 기본값)를 따른다. 미선언 프로젝트는 전부 빈 값과 동일하게
@@ -196,13 +196,15 @@ done
 
 # 모델·추론강도는 이미 MEMBERS에서 role별로 확정됐으므로, 파인 인덱스
 # 그대로 참조한다(SPEC_MEMBER_MODELS/EFFORTS). 아래에서는 플러그인·스킬 배분표
-# (CLAUDE_PLUGIN_ROLES, CLAUDE_GSTACK_SKILL_SETS 등)만 공급자별로 로딩한다.
+# (CLAUDE_PLUGIN_ROLES, CLAUDE_SUPERPOWERS_SKILL_SETS 등)만 공급자별로 로딩한다.
 for agent in "${!USED_AGENTS[@]}"; do
-    provider_config="$TEAM_DIR/config.${agent}.sh"
-    [ -f "$provider_config" ] && source "$provider_config"
-
+    # 프로젝트 구성이 있으면 그것만 쓴다 — 기본값과 섞이면 프로젝트에 없는 배열이
+    # 기본값의 역할 구성으로 남는다.
     project_provider_config="$PROJECT_DIR/team/config.${agent}.sh"
-    if [ -f "$project_provider_config" ]; then
+    if [ ! -f "$project_provider_config" ]; then
+        provider_config="$TEAM_DIR/config.${agent}.sh"
+        [ -f "$provider_config" ] && source "$provider_config"
+    else
         echo -e "${YELLOW}team/config.${agent}.sh 발견 → 공급자별 구성 사용: $project_provider_config${NC}"
         source "$project_provider_config"
         # 옛 배열 이름은 더 이상 읽지 않는다 — 조용히 기본값으로 떨어지지 않게 알린다.
@@ -917,23 +919,28 @@ merge_team_claude_md
 
 # TEAM_SKILLS_ROOT·RUNTIME_DIR·rm -rf는 위에서 공급자 공통으로 이미 처리했다.
 
-for role in "${!CLAUDE_GSTACK_SKILL_SETS[@]}"; do
+# 팀의 Claude 역할마다 디렉터리를 만든다 — 배정 스킬이 없어도 --setting-sources
+# project 격리는 적용된다.
+for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
+    [ "${MEMBER_AGENTS[$role_index]}" = "claude" ] || continue
+    role="${MEMBER_NAMES[$role_index]}"
     role_skills_dir="$TEAM_SKILLS_ROOT/$role/.claude/skills"
     mkdir -p "$role_skills_dir"
     granted=()
-    for skill in ${CLAUDE_GSTACK_SKILL_SETS[$role]}; do
-        # gstack setup이 만든 래퍼(~/.claude/skills/{skill}/SKILL.md)를 그대로 링크한다.
-        # 래퍼의 SKILL.md 자체가 이미 gstack 리포를 가리키는 심볼릭 링크다.
-        src="$HOME/.claude/skills/$skill/SKILL.md"
-        [ -e "$src" ] || { echo -e "${YELLOW}  ⚠️  $role: '$skill' 없음 (스킬명 확인)${NC}" >&2; continue; }
-        mkdir -p "$role_skills_dir/$skill"
-        ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill/SKILL.md"
-        # 일부 스킬은 런타임에 sections/ 를 읽으므로 함께 링크한다.
-        if [ -d "$HOME/.claude/skills/$skill/sections" ]; then
-            ln -sfn "$(realpath "$HOME/.claude/skills/$skill/sections")" "$role_skills_dir/$skill/sections"
-        fi
-        granted+=("$skill")
-    done
+    # gstack 제거로 비활성화(재활성화하려면 주석을 풀고 config.claude.sh에 CLAUDE_GSTACK_SKILL_SETS 복원)
+    # for skill in ${CLAUDE_GSTACK_SKILL_SETS[$role]:-}; do
+    #     # gstack setup이 만든 래퍼(~/.claude/skills/{skill}/SKILL.md)를 그대로 링크한다.
+    #     # 래퍼의 SKILL.md 자체가 이미 gstack 리포를 가리키는 심볼릭 링크다.
+    #     src="$HOME/.claude/skills/$skill/SKILL.md"
+    #     [ -e "$src" ] || { echo -e "${YELLOW}  ⚠️  $role: '$skill' 없음 (스킬명 확인)${NC}" >&2; continue; }
+    #     mkdir -p "$role_skills_dir/$skill"
+    #     ln -sfn "$(realpath "$src")" "$role_skills_dir/$skill/SKILL.md"
+    #     # 일부 스킬은 런타임에 sections/ 를 읽으므로 함께 링크한다.
+    #     if [ -d "$HOME/.claude/skills/$skill/sections" ]; then
+    #         ln -sfn "$(realpath "$HOME/.claude/skills/$skill/sections")" "$role_skills_dir/$skill/sections"
+    #     fi
+    #     granted+=("$skill")
+    # done
     # superpowers 스킬은 래퍼 없이 플러그인 캐시의 스킬 디렉터리를 통째로 링크한다
     # (references/ 등 하위 파일을 런타임에 읽으므로 SKILL.md만 링크하면 깨진다).
     for skill in ${CLAUDE_SUPERPOWERS_SKILL_SETS[$role]:-}; do

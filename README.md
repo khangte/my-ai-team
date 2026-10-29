@@ -203,7 +203,8 @@ declare -a MEMBERS=(
 - 기본 팀 구성은 이 저장소의 `team/config.sh`에 있다 — 현재 lead/architect/researcher/designer/developer/reviewer 6인
 - 인원 수·세션 이름·역할별 공급자·모델·추론 수준을 바꾸려면 **대상 프로젝트 루트**에 `team/config.sh` 배치
 - `config.claude.sh`와 `config.codex.sh`에는 공급자별 플러그인·스킬 배분만 둔다
-- 공통 구성과 선택한 공급자 전용 구성은 차례로 자동 로드되어 기본값을 덮어쓴다
+- 공통 구성(`config.sh`)은 차례로 자동 로드되어 기본값을 덮어쓴다
+- 공급자 전용 구성은 대상 프로젝트에 파일이 있으면 그것만 쓰고 기본값과 병합하지 않는다 — 필요한 배열을 모두 선언해야 한다
 - 항목 형식은 `role|표시이름|agent|model|effort`이고 배열 순서가 tmux 파인 배치 순서다. 인원은 `MEMBERS` 항목 증감으로 조절한다(예시는 위 "혼합 팀").
 - `agent`를 비우면 `--agent`/`TEAM_AGENT`(기본 claude) 값을 따른다. `model`·`effort`를 비우면 각 CLI 기본값(Claude는 `settings.json`, Codex는 사용자 기본값)을 따른다.
 - `effort`에는 `low`/`medium`/`high`/`xhigh`/`max`를 쓴다.

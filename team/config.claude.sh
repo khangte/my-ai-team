@@ -1,6 +1,6 @@
 # team/config.claude.sh — Claude 역할별 플러그인·스킬 배분
 
-# 대상 프로젝트에 같은 파일을 두면 이 배분을 덮어쓴다.
+# 대상 프로젝트에 같은 파일을 두면 이 파일 대신 그것만 쓴다(병합하지 않음).
 # 모델·추론강도는 team/config.sh의 MEMBERS가 유일한 출처다. 새 역할 이름을 만들면
 # 아래 배분표에 그 역할 키를 추가해야 플러그인·스킬이 배정된다.
 
@@ -22,16 +22,16 @@ declare -A CLAUDE_PLUGIN_ROLES=(
     ["caveman@caveman"]="lead"
 )
 
-# 역할 → gstack 스킬. gstack은 제거해 값만 비웠다. 키는 남긴다 — setup-team.sh의 역할별
-# 스킬 디렉터리 루프가 이 키를 순회한다. 되살리려면 주석 값을 복원한다.
-declare -A CLAUDE_GSTACK_SKILL_SETS=(
-    [lead]=""            # [lead]="spec plan-eng-review"
-    [architect]=""       # [architect]="diagram"
-    [researcher]=""      # [researcher]="scrape browse"
-    [designer]=""        # [designer]="design-review design-html"
-    [developer]=""       # [developer]="health"
-    [reviewer]=""        # [reviewer]="review"
-)
+# 역할 → gstack 스킬. gstack 제거로 비활성화. 역할별 스킬 디렉터리는 MEMBERS의
+# Claude 역할마다 만들어지므로 이 배열이 없어도 된다. 되살리려면 주석을 푼다.
+# declare -A CLAUDE_GSTACK_SKILL_SETS=(
+#     [lead]="spec plan-eng-review"
+#     [architect]="diagram"
+#     [researcher]="scrape browse"
+#     [designer]="design-review design-html"
+#     [developer]="health"
+#     [reviewer]="review"
+# )
 
 # 역할 → superpowers 스킬. 플러그인 캐시의 원본에서 필요한 것만 링크한다.
 declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=(
