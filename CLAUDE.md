@@ -21,7 +21,6 @@
 - 상대가 작업 중이면 큐에 쌓였다가 유휴가 되면 자동 전송된다 (발신 pane은 대기하지 않음)
   - 진행 중인 작업을 중단시켜야 하면 `SAY_NOWAIT=1`로 즉시 전송
 - 프롬프트·툴 로그는 `$PROJECT_DIR/.team-logs/{역할}.jsonl`. 원인 추적이 필요할 때 읽어라.
-- `docs/`에 커밋하는 건 `docs/architect-review/`의 architect 판정 문서뿐이다.
 
 ### 파일 읽기 규칙
 
