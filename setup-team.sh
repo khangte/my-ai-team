@@ -1,14 +1,28 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # tmux 기반 Claude/Codex 팀 구성. 역할·모델은 team/config.sh의 MEMBERS에서 설정한다.
 # 사용: ./setup-team.sh [--agent claude|codex] [프로젝트_경로]
 # 경로 생략 시 $PROJECT_DIR, 그것도 없으면 현재 디렉터리를 사용한다.
 
 set -e
 
+# 연관 배열·mapfile·${var^^}는 bash 4+가 필요하다. macOS 기본 bash 3.2는 여기서 막는다.
+[ "${BASH_VERSINFO[0]}" -ge 4 ] || { echo "bash 4+ 필요 (현재 $BASH_VERSION). macOS는 setup-mac.sh 안내대로 Homebrew bash로 실행하세요." >&2; exit 1; }
+
 # ── PATH 보강 ─────────────────────────────────────────────
 # 비대화형 셸에서도 파인과 훅이 node·python3를 찾도록 PATH를 보강한다.
+# macOS 전용(Linux/WSL의 우선순위는 그대로): Homebrew bash(bin/say의 env bash)와 GNU coreutils(timeout·realpath·sort -V)를 시스템 디렉터리보다 앞에 둔다.
+# Homebrew 접두사는 HOMEBREW_PREFIX(없으면 Apple Silicon 기본값)를 따른다.
+BREW_FIRST=""
+if [ "$(uname -s)" = Darwin ]; then
+    for p in "${HOMEBREW_PREFIX:-/opt/homebrew}" /usr/local; do
+        for d in "$p/opt/coreutils/libexec/gnubin" "$p/bin"; do
+            if [ -d "$d" ]; then BREW_FIRST="$BREW_FIRST$d:"; fi
+        done
+    done
+fi
+PATH="$BREW_FIRST$PATH"   # 아래 sort -V가 GNU 판을 쓰도록 먼저 반영
 NVM_BIN=$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)
-export PATH="$HOME/.local/bin:/opt/rtk-bin:/opt/npm-global/bin:/opt/bun/bin:$HOME/.bun/bin:${NVM_BIN:+$NVM_BIN:}/usr/local/bin:/usr/bin:/bin:$PATH"
+export PATH="$BREW_FIRST$HOME/.local/bin:/opt/rtk-bin:/opt/npm-global/bin:/opt/bun/bin:$HOME/.bun/bin:${NVM_BIN:+$NVM_BIN:}/usr/local/bin:/usr/bin:/bin:$PATH"
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -84,6 +98,8 @@ PROJECT_DIR="$(realpath "$PROJECT_DIR")"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEAM_DIR="$SCRIPT_DIR/team"
 BIN_DIR="$SCRIPT_DIR/bin"   # say·log-hook — 오버라이드 대상이 아닌 고정 스크립트
+# 파인·run-shell·세션 환경에 그대로 넘길 PATH. 기존 tmux 서버의 최소 PATH에 의존하지 않게 한다.
+TEAM_PATH="$BIN_DIR:${NVM_BIN:+$NVM_BIN:}$PATH"
 
 # ── 팀 멤버 정보 ───────────────────────────────────────────
 # 공통 구성은 저장소 기본값 위에 프로젝트 설정을 적용한다.
@@ -275,7 +291,7 @@ stop_hook_cmd_for_role() {
     local role="$1" pane_id="$2" state_key="$3"
     # watcher가 종료돼도 입력창 준비 후 tmux 서버가 큐를 다시 가동한다.
     local drain_inner
-    drain_inner="sleep 1; $(shell_quote "$BIN_DIR/say") --drain-one $(shell_quote "${SESSION}:0.${pane_id#*.}")"
+    drain_inner="export PATH=$(shell_quote "${TEAM_PATH:-$PATH}"); sleep 1; $(shell_quote "$BIN_DIR/say") --drain-one $(shell_quote "${SESSION}:0.${pane_id#*.}")"
     local drain_cmd="tmux run-shell -b $(shell_quote "$drain_inner")"
     if [ "$role" = "lead" ]; then
         STOP_HOOK_CMD="rm -f /tmp/team-busy/${state_key}; ${drain_cmd}"
@@ -496,7 +512,7 @@ start_claude_in_pane() {
 
     # 부모 Claude 세션 감지를 해제하고 say 실행 경로를 추가한다.
     tmux send-keys -t "$pane" \
-        "cd $(shell_quote "$work_dir") && unset CLAUDECODE && export PATH=$(shell_quote "$BIN_DIR${NVM_BIN:+:$NVM_BIN}"):\$PATH && export CAVEMAN_DEFAULT_MODE=full && $(shell_quote "$claude_bin") $model_arg $effort_arg --dangerously-skip-permissions $skills_arg $system_prompt_arg $settings_arg" Enter
+        "cd $(shell_quote "$work_dir") && unset CLAUDECODE && export PATH=$(shell_quote "${TEAM_PATH:-$PATH}") && export CAVEMAN_DEFAULT_MODE=full && $(shell_quote "$claude_bin") $model_arg $effort_arg --dangerously-skip-permissions $skills_arg $system_prompt_arg $settings_arg" Enter
 
     wait_claude_ready "$pane" 60 || {
         echo -e "${RED}⚠️  Claude 준비 화면을 확인하지 못했습니다 (60초 초과)${NC}" >&2
@@ -611,7 +627,7 @@ start_codex_in_pane() {
     # 파일 쓰기 경계는 --add-dir로 별도 유지한다.
     local tmux_tmpdir="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)"
     tmux send-keys -t "$pane" \
-        "cd $(shell_quote "$work_dir") && export CODEX_HOME=$(shell_quote "$role_codex_home") && export PATH=$(shell_quote "$BIN_DIR${NVM_BIN:+:$NVM_BIN}"):\$PATH && $(shell_quote "$codex_bin") $permission_args $hook_trust_args --add-dir $(shell_quote "$PROJECT_DIR") --add-dir $(shell_quote "$tmux_tmpdir") --add-dir /tmp/team-busy --add-dir /tmp/team-say --add-dir /tmp/team-say-queue -c 'sandbox_workspace_write.network_access=true' -c check_for_update_on_startup=false $model_arg $reasoning_arg" Enter
+        "cd $(shell_quote "$work_dir") && export CODEX_HOME=$(shell_quote "$role_codex_home") && export PATH=$(shell_quote "${TEAM_PATH:-$PATH}") && $(shell_quote "$codex_bin") $permission_args $hook_trust_args --add-dir $(shell_quote "$PROJECT_DIR") --add-dir $(shell_quote "$tmux_tmpdir") --add-dir /tmp/team-busy --add-dir /tmp/team-say --add-dir /tmp/team-say-queue -c 'sandbox_workspace_write.network_access=true' -c check_for_update_on_startup=false $model_arg $reasoning_arg" Enter
 
     # 프로젝트 신뢰 대화상자 또는 입력 화면을 기다린다. 둘 다 없으면 실패한다.
     local trust_pattern="Do you trust the contents\|Trust this folder?"
@@ -1145,6 +1161,7 @@ create_team_session() {
     # 팀 창·파인 번호만 0부터 맞추고 사용자 전역 설정은 유지한다.
     local first_window
     tmux new-session -d -s "$SESSION" -x 220 -y 50
+    tmux set-environment -t "$SESSION" PATH "${TEAM_PATH:-$PATH}"   # 세션 범위만 — 전역 환경은 건드리지 않는다
     first_window="$(tmux list-windows -t "$SESSION" -F '#{window_index}' | head -1)"
     tmux set-window-option -t "$SESSION:$first_window" pane-base-index 0
     if [ "$first_window" != 0 ]; then

@@ -329,7 +329,7 @@ busy 마커를 `say`가 대신 켜므로 보고 마커 초기화만 같은 훅�
 
 ### WSL 네이티브
 
-`setup-native.sh`에서 선택된 백엔드 또는 두 CLI를 설치할 수 있게 한다. 기존 사용자가
+`setup-wsl.sh`에서 선택된 백엔드 또는 두 CLI를 설치할 수 있게 한다. 기존 사용자가
 Claude만 쓸 때 불필요한 Codex 설치를 강제하지 않도록 `--agent` 값을 전달받는 방식이
 우선이다.
 
@@ -430,7 +430,7 @@ Codex 훅 payload는 Claude와 필드가 같다(`session_id`, `hook_event_name`,
 ### 4단계 — 문서와 배포 정리
 
 - [x] README 구조도와 실행 예시를 이중 백엔드 기준으로 수정
-- [x] WSL/Docker 설치 절차 수정 (`setup-native.sh --agent`, 혼합 팀 의존성 일괄 설치)
+- [x] WSL/Docker 설치 절차 수정 (`setup-wsl.sh --agent`, 혼합 팀 의존성 일괄 설치)
 - [x] 모델 설정과 프로젝트별 오버라이드 예시 추가 ("프로젝트별 팀 구성 커스터마이징")
 - [x] 권한 모드별 위험 설명 추가 (`--dangerously-skip-permissions`,
       `CODEX_FULL_ACCESS=0`)
@@ -443,7 +443,7 @@ Codex 훅 payload는 Claude와 필드가 같다(`session_id`, `hook_event_name`,
 
 ```bash
 bash -n setup-team.sh
-bash -n setup-native.sh
+bash -n setup-wsl.sh
 bash -n setup-docker.sh
 ```
 

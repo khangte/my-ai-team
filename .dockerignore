@@ -6,7 +6,9 @@
 README.md
 docs
 setup-docker.sh
-setup-native.sh
+setup-mac.sh
+setup-windows.ps1
+setup-wsl.sh
 
 # 런타임 생성물. .team-logs는 시크릿 마스킹이 완전하지 않아
 # 파일 권한 600으로 한 겹 더 막아두는데, 빌드 컨텍스트로 보내면 그게 무의미해진다.

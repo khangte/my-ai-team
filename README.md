@@ -36,17 +36,20 @@ docs/                   설계 배경·실측 분석 문서
   └ architect-review/   architect의 리뷰 판정 문서 ({순번}_{주제}.md)
 Dockerfile              팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
 setup-docker.sh         Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
-setup-native.sh         WSL 등 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
+setup-wsl.sh            WSL/Linux(apt) 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
+setup-mac.sh            macOS(Homebrew) 호스트에 직접 의존성 설치 — Homebrew bash 4+ 필요
+setup-windows.ps1       Windows 진입점 — WSL2 안의 setup-wsl.sh를 호출 (네이티브 tmux 없음)
+lib/setup-common.sh     setup-wsl.sh·setup-mac.sh 공용 인자 파싱·팀 구성 판독
 setup-team.sh           tmux 세션 구성 + 선택한 에이전트 CLI 실행 (핵심 스크립트)
 ```
 
 ## 실행 방식 및 사용법
 
-|               | WSL 네이티브                        | Docker                                            |
-| ------------- | ----------------------------------- | ------------------------------------------------- |
-| 격리          | 없음 (호스트에 직접 설치)           | 컨테이너로 격리                                   |
-| 적합한 경우   | 혼자 개발, 빠른 반복                | 팀 배포, 환경 재현성 필요                         |
-| 진입 스크립트 | `setup-native.sh` → `setup-team.sh` | `setup-docker.sh` (내부에서 `setup-team.sh` 실행) |
+|               | WSL 네이티브                     | macOS                                  | Windows                            | Docker                                            |
+| ------------- | -------------------------------- | -------------------------------------- | ---------------------------------- | ------------------------------------------------- |
+| 격리          | 없음 (호스트에 직접 설치)        | 없음 (호스트에 직접 설치)              | 없음 (WSL2 안에 설치)              | 컨테이너로 격리                                   |
+| 적합한 경우   | 혼자 개발, 빠른 반복             | 혼자 개발 (Homebrew 필요)              | Windows 사용자 (WSL2 필수)         | 팀 배포, 환경 재현성 필요                         |
+| 진입 스크립트 | `setup-wsl.sh` → `setup-team.sh` | `setup-mac.sh` → Homebrew bash로 `setup-team.sh` | `setup-windows.ps1` → WSL 안의 `setup-wsl.sh` | `setup-docker.sh` (내부에서 `setup-team.sh` 실행) |
 
 ### 진입
 
@@ -60,21 +63,46 @@ git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
 
 ```bash
 # ai-setup/ 안에서 실행
-./setup-native.sh /path/to/project     # 최초 1회: 팀에 쓰이는 공급자 의존성을 모두 설치
+./setup-wsl.sh /path/to/project     # 최초 1회: 팀에 쓰이는 공급자 의존성을 모두 설치
 ./setup-team.sh /path/to/project        # 지정한 프로젝트로 팀 세션 실행
 
 # Codex 팀
-./setup-native.sh --agent codex          # 최초 1회: tmux/codex 의존성 설치
+./setup-wsl.sh --agent codex          # 최초 1회: tmux/codex 의존성 설치
 ./setup-team.sh --agent codex /path/to/project
 
 # 작업 디렉터리(프로젝트 루트)에서 실행
-~/ai-setup/setup-native.sh              # 최초 1회
+~/ai-setup/setup-wsl.sh              # 최초 1회
 ~/ai-setup/setup-team.sh .              # 현재 디렉터리를 프로젝트로 지정
 
 # Codex 팀
-~/ai-setup/setup-native.sh --agent codex
+~/ai-setup/setup-wsl.sh --agent codex
 ~/ai-setup/setup-team.sh --agent codex .
 ```
+
+#### macOS
+
+```bash
+./setup-mac.sh /path/to/project         # 최초 1회: Homebrew로 tmux·node 등 + bash 4+ 설치
+"$(brew --prefix)/bin/bash" ./setup-team.sh /path/to/project
+```
+
+- `setup-team.sh`·`bin/say`는 연관 배열·`mapfile`·`${var^^}`(bash 4+)와 GNU `timeout`·`realpath`를 쓴다. macOS 기본 `/bin/bash`(3.2)로는 실행되지 않으므로 Homebrew bash로 호출한다(3.2면 `bash 4+ 필요`로 즉시 종료)
+- `setup-mac.sh`가 `brew install bash coreutils`를 보장하고, `setup-team.sh`가 Homebrew bin·coreutils `gnubin`을 PATH 앞에 둬서 파인·훅(`bin/say`는 `env bash`)도 같은 도구를 쓴다
+- Homebrew가 없으면 `setup-mac.sh`가 안내만 하고 종료한다(자동 설치하지 않음)
+- Linux CI 등에서 스텁 검증할 때만 `SETUP_ALLOW_NON_DARWIN=1`로 OS 검사를 우회한다
+
+#### Windows
+
+```powershell
+# PowerShell에서 (WSL2 배포판이 먼저 있어야 함: wsl --install -d Ubuntu)
+.\setup-windows.ps1 -Project C:\path\to\project    # -Agent codex 선택 가능
+```
+
+- `-Project`를 생략하면 PowerShell의 현재 폴더가 프로젝트로 전달된다
+- **CLI 설치**: claude/codex/rtk/bun/tmux는 WSL 배포판(Linux) 안에만 설치된다. Windows용 네이티브 CLI는 설치도 사용도 하지 않는다
+- **팀 실행**: tmux는 네이티브 Windows(PowerShell/cmd)에서 동작하지 않는다. Git Bash·MSYS2·Cygwin도 지원·검증하지 않는다 — **WSL2가 필수**이고 `setup-team.sh`·`tmux attach`는 WSL 터미널에서 실행한다
+- `setup-windows.ps1`은 직접 설치하지 않고 `wsl.exe --cd <저장소> -e bash ./setup-wsl.sh`로 호출한다(`wsl.exe`/배포판이 없으면 안내 후 종료). 경로는 인자 배열로 넘겨 공백이 있어도 안전하다
+- 프로젝트는 WSL 홈(`~/`) 아래 두는 편이 `/mnt/c`보다 빠르다
 
 #### Docker
 
@@ -123,7 +151,7 @@ git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
 
 ```bash
 # team1: 세션명 예시
-tmux attach -t team1                          # 접속 (WSL 네이티브)
+tmux attach -t team1                          # 접속 (WSL·macOS)
 docker exec -it claude-env bash -lc "tmux attach -t team1"   # 접속 (Docker — 컨테이너 재진입 후 attach)
 tmux capture-pane -t team1:0.N -p | tail -5   # N번 파인 진행 상황만 확인
 tmux kill-session -t team1                    # 세션 종료

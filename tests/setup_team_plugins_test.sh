@@ -503,7 +503,7 @@ log_has "CALL=log-hook" && log_has "ARG=dev" && log_has "ARG=$PROJECT_DIR" || fa
 log_has "CALL=say" && log_has "ARG=s:0.0" || fail 'Stop 훅의 say 호출 불일치'
 log_has "CALL=tmux" && log_has "ARG=run-shell" || fail 'drain tmux 호출 없음'
 # tmux run-shell 인자로 넘어간 drain 명령도 BIN_DIR 경로를 올바르게 실행한다.
-inner="$(awk '/^CALL=tmux/{f=1} f&&/^ARG=sleep 1;/{sub(/^ARG=/,""); print; exit}' "$FAKE_LOG")"
+inner="$(awk '/^CALL=tmux/{f=1} f&&/^ARG=export PATH=.*sleep 1;/{sub(/^ARG=/,""); print; exit}' "$FAKE_LOG")"
 : > "$FAKE_LOG"
 ( cd /; PATH="$fakebin:$PATH" bash -c "$inner" )
 log_has "CALL=say" && log_has "ARG=--drain-one" && log_has "ARG=s:0.1" || fail 'drain-one 명령이 특수문자 BIN_DIR에서 실패'
