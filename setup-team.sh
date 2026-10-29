@@ -594,11 +594,13 @@ start_codex_in_pane() {
 
     # 최초 실행 시 git 프로젝트 신뢰 확인 대화상자가 뜬다("Do you trust the
     # contents of this directory?"). "1. Yes, continue"가 기본 선택이므로 Enter만
-    # 보내면 된다.
-    wait_for_pane "$pane" "Do you trust the contents" 20 && {
+    # 보내면 된다. 대화상자가 안 뜨는 경우 20초를 헛기다리지 않도록 입력 프롬프트와
+    # 함께 기다렸다가, 먼저 뜬 쪽이 대화상자일 때만 Enter를 보낸다.
+    if wait_for_pane "$pane" "Do you trust the contents\|Ask Codex to do anything" 30 &&
+        tmux capture-pane -t "$pane" -p 2>/dev/null | grep -q "Do you trust the contents"; then
         tmux send-keys -t "$pane" Enter
         sleep 1
-    }
+    fi
 
     # 훅 신뢰 승인 자동화: /hooks를 열고 't'로 전부 신뢰한 뒤 esc로 닫는다.
     # 프롬프트 자체가 뜰 때까지 기다렸다가 보내야 한다 — codex TUI가 아직
@@ -1191,16 +1193,16 @@ tmux set-option -t "$SESSION" mouse on
 echo "  ✅ 레이아웃 구성 완료 (${PANE_COUNT} panes)"
 
 # ── [7/7] 공통 (Claude·Codex) — 에이전트 자동 실행 ────────
-echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] 공통 (Claude·Codex) — 파인별 에이전트 실행 중 (${used_agents_list})... (파인당 최대 1분)${NC}"
+echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] 공통 (Claude·Codex) — 파인별 에이전트 실행 중 (${used_agents_list})... (병렬, 최대 1분)${NC}"
 
 # codex의 --add-dir는 존재하는 경로만 받는다. say의 lazy mkdir은
 # codex sandbox(workspace-write) 안에서 막히므로 파인 기동 전에 미리 만든다.
 mkdir -p /tmp/team-busy /tmp/team-say /tmp/team-say-queue
 
-for ((pane = 0; pane < PANE_COUNT; pane++)); do
-    pane_agent="${MEMBER_AGENTS[$pane]}"
-    echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}, ${pane_agent} · ${SPEC_MEMBER_MODELS[$pane]:-기본} · ${SPEC_MEMBER_REASONING_EFFORTS[$pane]:-기본}): "
-    if [ "$pane_agent" = "claude" ]; then
+start_agent_in_pane() {
+    # 파인 하나에 에이전트를 띄우고 보존된 say 큐를 다시 가동한다.
+    local pane="$1"
+    if [ "${MEMBER_AGENTS[$pane]}" = "claude" ]; then
         start_claude_in_pane "$SESSION:0.$pane" "${SPEC_MEMBER_MODELS[$pane]}" "${MEMBER_NAMES[$pane]}" "${SPEC_MEMBER_REASONING_EFFORTS[$pane]}"
     else
         start_codex_in_pane "$SESSION:0.$pane" "${SPEC_MEMBER_MODELS[$pane]}" "${MEMBER_NAMES[$pane]}" "${SPEC_MEMBER_REASONING_EFFORTS[$pane]}"
@@ -1209,8 +1211,31 @@ for ((pane = 0; pane < PANE_COUNT; pane++)); do
     # 이전 watcher가 비정상 종료돼 큐와 lock만 남았더라도 새 파인이 준비된
     # 시점에 lock 소유자를 검증하고 보존된 큐를 자동으로 다시 가동한다.
     "$BIN_DIR/say" --drain "$SESSION:0.$pane"
+}
 
-    echo -e "${GREEN}✅ 실행 완료${NC}"
+# 파인마다 tmux 대상·설정 파일이 따로라 동시에 띄워도 서로 간섭하지 않는다.
+# 전체 대기가 파인 수의 합이 아니라 가장 느린 파인 하나로 줄어든다.
+# 출력이 섞이지 않도록 파인별 로그에 모았다가 아래에서 순서대로 보여 준다.
+# 최초 로그인 직후에는 trust·약관 대화상자를 하나씩 처리하도록 순차로 둔다.
+start_pids=() start_rcs=()
+for ((pane = 0; pane < PANE_COUNT; pane++)); do
+    start_agent_in_pane "$pane" > "$RUNTIME_DIR/pane-start-$pane.log" 2>&1 &
+    start_pids[$pane]=$!
+    if [ "$NEED_FIRST_LOGIN" = true ]; then
+        wait "${start_pids[$pane]}" && start_rcs[$pane]=0 || start_rcs[$pane]=$?
+    fi
+done
+
+for ((pane = 0; pane < PANE_COUNT; pane++)); do
+    [ -n "${start_rcs[$pane]:-}" ] ||
+        { wait "${start_pids[$pane]}" && start_rcs[$pane]=0 || start_rcs[$pane]=$?; }
+    echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}, ${MEMBER_AGENTS[$pane]} · ${SPEC_MEMBER_MODELS[$pane]:-기본} · ${SPEC_MEMBER_REASONING_EFFORTS[$pane]:-기본}): "
+    if [ "${start_rcs[$pane]}" -eq 0 ]; then
+        echo -e "${GREEN}✅ 실행 완료${NC}"
+    else
+        echo -e "${RED}❌ 실행 실패 (종료 코드 ${start_rcs[$pane]})${NC}"
+    fi
+    sed 's/^/    /' "$RUNTIME_DIR/pane-start-$pane.log"
 done
 
 # ── 파인 타이틀 워처 ──────────────────────────────────────────
