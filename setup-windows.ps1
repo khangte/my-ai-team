@@ -5,7 +5,7 @@
 #   - CLI 설치: claude/codex/rtk/bun/tmux는 WSL 배포판(Linux) 안에만 설치한다. Windows용
 #     claude.exe·codex.exe 등 네이티브 CLI는 설치하지도 사용하지도 않는다.
 #   - 팀 실행: tmux와 Bash 4+에 의존하는데 tmux는 네이티브 Windows(PowerShell/cmd)에서
-#     동작하지 않는다. Git Bash·MSYS2·Cygwin도 지원·검증하지 않는다. setup-team.sh와
+#     동작하지 않는다. Git Bash는 setup-windows.sh로 설치를 시작한다. setup-team.sh와
 #     tmux attach는 WSL 터미널에서 실행한다.
 param(
     [ValidateSet('claude', 'codex')][string]$Agent,

@@ -12,7 +12,7 @@ source "$SCRIPT_DIR/lib/setup-common.sh"
 setup_parse_args "$@"
 # apt 기반 Linux/WSL 전용이다. macOS는 setup-mac.sh, Windows 네이티브는 setup-windows.ps1을 쓴다.
 if [ "$(uname -s)" != Linux ] || ! command -v apt-get &>/dev/null; then
-    echo "apt 기반 Linux/WSL 전용 스크립트입니다. macOS는 setup-mac.sh, Windows는 setup-windows.ps1을 쓰세요." >&2
+    echo "apt 기반 Linux/WSL 전용 스크립트입니다. macOS는 setup-mac.sh, PowerShell은 setup-windows.ps1, Git Bash는 setup-windows.sh를 쓰세요." >&2
     exit 1
 fi
 setup_prepare_linux_path

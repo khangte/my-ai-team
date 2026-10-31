@@ -39,6 +39,7 @@ setup-docker.sh         Docker로 이미지 빌드 + 컨테이너 기동 + setup
 setup-wsl.sh            WSL/Linux(apt) 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
 setup-mac.sh            macOS(Homebrew) 호스트에 직접 의존성 설치 — Homebrew bash 4+ 필요
 setup-windows.ps1       Windows 진입점 — WSL2 안의 setup-wsl.sh를 호출 (네이티브 tmux 없음)
+setup-windows.sh        Git Bash 진입점 — setup-windows.ps1을 통해 WSL2 셋업 호출
 lib/setup-common.sh     setup-wsl.sh·setup-mac.sh 공용 인자 파싱·팀 구성 판독
 setup-team.sh           tmux 세션 구성 + 선택한 에이전트 CLI 실행 (핵심 스크립트)
 ```
@@ -49,7 +50,7 @@ setup-team.sh           tmux 세션 구성 + 선택한 에이전트 CLI 실행 (
 | ------------- | -------------------------------- | -------------------------------------- | ---------------------------------- | ------------------------------------------------- |
 | 격리          | 없음 (호스트에 직접 설치)        | 없음 (호스트에 직접 설치)              | 없음 (WSL2 안에 설치)              | 컨테이너로 격리                                   |
 | 적합한 경우   | 혼자 개발, 빠른 반복             | 혼자 개발 (Homebrew 필요)              | Windows 사용자 (WSL2 필수)         | 팀 배포, 환경 재현성 필요                         |
-| 진입 스크립트 | `setup-wsl.sh` → `setup-team.sh` | `setup-mac.sh` → Homebrew bash로 `setup-team.sh` | `setup-windows.ps1` → WSL 안의 `setup-wsl.sh` | `setup-docker.sh` (내부에서 `setup-team.sh` 실행) |
+| 진입 스크립트 | `setup-wsl.sh` → `setup-team.sh` | `setup-mac.sh` → Homebrew bash로 `setup-team.sh` | PowerShell: `setup-windows.ps1`, Git Bash: `setup-windows.sh` → WSL 안의 `setup-wsl.sh` | `setup-docker.sh` (내부에서 `setup-team.sh` 실행) |
 
 ### 진입
 
@@ -99,8 +100,18 @@ git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
 ```
 
 - `-Project`를 생략하면 PowerShell의 현재 폴더가 프로젝트로 전달된다
+
+Git Bash에서는 같은 저장소에서 다음과 같이 실행한다(WSL2와 Ubuntu 배포판이 먼저 설치되어 있어야 함).
+
+```bash
+bash ./setup-windows.sh /c/path/to/project
+bash ./setup-windows.sh --agent codex "/c/path/to/프로젝트 폴더"
+bash ./setup-windows.sh                  # 현재 폴더를 프로젝트로 사용
+```
+
+- Git Bash 진입점은 Windows PowerShell(`powershell.exe`)을 호출한다. 프로젝트 경로는 Git Bash 형식(`/c/...`, 상대 경로 등)으로 넘기며, 공백이 있으면 따옴표로 감싼다
 - **CLI 설치**: claude/codex/rtk/bun/tmux는 WSL 배포판(Linux) 안에만 설치된다. Windows용 네이티브 CLI는 설치도 사용도 하지 않는다
-- **팀 실행**: tmux는 네이티브 Windows(PowerShell/cmd)에서 동작하지 않는다. Git Bash·MSYS2·Cygwin도 지원·검증하지 않는다 — **WSL2가 필수**이고 `setup-team.sh`·`tmux attach`는 WSL 터미널에서 실행한다
+- **팀 실행**: **WSL2가 필수**이고 `setup-team.sh`·`tmux attach`는 WSL 터미널에서 실행한다. Git Bash 지원 범위는 WSL 셋업 호출이며, Git Bash 안에서 tmux를 직접 실행하는 방식과 별도 MSYS2·Cygwin은 지원하지 않는다
 - `setup-windows.ps1`은 직접 설치하지 않고 `wsl.exe --cd <저장소> -e bash ./setup-wsl.sh`로 호출한다(`wsl.exe`/배포판이 없으면 안내 후 종료). 경로는 인자 배열로 넘겨 공백이 있어도 안전하다
 - 프로젝트는 WSL 홈(`~/`) 아래 두는 편이 `/mnt/c`보다 빠르다
 

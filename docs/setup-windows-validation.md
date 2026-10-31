@@ -6,7 +6,15 @@
 ## 범위 구분
 
 - **CLI 설치**: claude·codex·rtk·bun·tmux는 WSL 배포판(Linux) 안에만 설치한다. Windows용 네이티브 CLI는 설치도 사용도 하지 않는다.
-- **팀 실행**: tmux와 Bash 4+가 필요하므로 `setup-team.sh`와 `tmux attach`는 WSL에서 실행한다. 네이티브 PowerShell/cmd, Git Bash, MSYS2, Cygwin은 지원하지 않는다.
+- **팀 실행**: tmux와 Bash 4+가 필요하므로 `setup-team.sh`와 `tmux attach`는 WSL에서 실행한다. Git Bash에서는 `setup-windows.sh` → `setup-windows.ps1`로 설치를 시작할 수 있다. 네이티브 PowerShell/cmd·Git Bash에서의 tmux 실행과 별도 MSYS2·Cygwin은 지원하지 않는다.
+
+## Git Bash 진입점 추가 검증
+
+`tests/setup_git_bash_test.sh`는 Linux에서 명령 스텁으로 경로 변환, 공백·한글·작은따옴표 보존, 현재 폴더 기본값, 에이전트 선택, MSYS 자동 경로 변환 비활성화, 종료 코드 전달, 잘못된 입력·환경 거부를 확인한다. 기존 `tests/setup_platforms_test.sh`도 임시 HOME으로 실행해 통과했다.
+
+실제 Windows Git Bash(`MINGW64_NT-10.0-26300`) → Windows PowerShell → WSL(Ubuntu) 호출도 확인했다. 한글·공백·작은따옴표·대괄호가 있는 임시 저장소와 프로젝트의 UNC 경로에서 `--agent codex`와 프로젝트 경로, 설치 스텁의 종료 코드 37이 보존됐다. 검증 스크립트는 `/tmp/ai-setup-git-bash-real-q34qvdy7/run.sh`에 있다(임시 위치라 보존되지 않을 수 있음). 실제 패키지 설치는 실행하지 않았다.
+
+기본 PowerShell 실행 정책에서 최초 호출이 차단되어, Git Bash 진입점에 `-ExecutionPolicy Bypass`를 추가했다. 이 옵션은 해당 PowerShell 프로세스에만 적용된다. 조직 정책으로 스크립트 실행이 금지된 환경은 확인하지 않았다. 아래의 기존 실기 검증은 PowerShell 진입점에 대한 기록이다.
 
 ## 발견하고 고친 문제
 
