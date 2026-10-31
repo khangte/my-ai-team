@@ -1,383 +1,155 @@
 # My AI team
 
-- Claude Code와 Codex를 역할별로 골라 tmux 파인에 띄우는 멀티에이전트 오케스트레이션 셋업
-- 구성: `team/config.sh`의 `MEMBERS`에 선언한 역할 × 에이전트(Claude/Codex)로 만드는 팀
-  (기본값은 lead·architect·researcher·designer·developer·reviewer 6인, 불필요한 역할은 `MEMBERS`에서 뺀다)
-- 한 팀에 두 공급자를 섞을 수 있다 — 공급자별 차이는 아래 "에이전트 공급자별 차이" 참고
+Claude Code와 Codex를 역할별로 선택해 tmux 패널에서 함께 실행하는 멀티에이전트 팀 환경입니다.
+프로젝트마다 팀 구성·모델·역할 지침을 바꿀 수 있습니다.
 
-## 구조
-
-![팀 구조: lead가 배분하고 architect·researcher·designer·developer·reviewer 5개 역할이 병렬로 붙는다](docs/images/team-architecture.svg)
-
-| 역할       | 담당                                                      |
-| ---------- | --------------------------------------------------------- |
-| lead       | 배분·수합·git 커밋 (직접 작업하지 않음)                   |
-| architect  | 설계·기술 판단, 설계 이탈 승인                            |
-| researcher | 웹 조사                                                   |
-| designer   | UI/UX 설계 + **프론트엔드 구현** (마크업·스타일·컴포넌트) |
-| developer  | **백엔드 구현** (API·DB·테스트·빌드)                      |
-| reviewer   | 코드 리뷰·QA·커버리지 판정                                |
-
-designer와 developer는 프론트/백엔드로 갈린다 — designer가 화면을 설계하고 그대로 구현하며,
-필요한 API는 `say developer`로 요청한다. 상세는 각 `team/{역할}.md` 참조.
-
-```
-CLAUDE.md               Claude 파인 공통 규칙
-AGENTS.md               Codex 파인 공통 규칙
-team/                   프로젝트별 오버라이드 대상만 (역할 지침·공급자별 설정)
-  ├ config.sh           팀 공통 구성 템플릿 (역할·표시명·공급자·모델·추론 수준)
-  ├ config.claude.sh    Claude 역할별 플러그인·스킬 배분표
-  ├ config.codex.sh     Codex 역할별 플러그인·스킬 배분표
-  └ {역할}.md             역할별 지침 (lead/architect/researcher/designer/developer/reviewer)
-bin/                    항상 이 저장소 기준으로 고정 실행되는 스크립트 (오버라이드 대상 아님)
-  ├ say                 파인 간 메시지 전송 래퍼 (setup-team.sh가 각 파인 PATH에 등록)
-  └ log-hook            프롬프트·툴 사용을 .team-logs/{역할}.jsonl에 기록하는 훅
-docs/                   설계 배경·실측 분석 문서
-  ├ guides/             현행 참조 문서 (파인 메시징·토큰 비용·스킬 배분)
-  ├ plans/              기능별 설계·구현 계획
-  ├ architect-review/   architect의 리뷰 판정 문서 ({순번}_{주제}.md)
-  ├ archive/            끝난 위임·사건·검증 기록
-  └ images/             README 그림
-install/                OS별 의존성 설치기 (최초 1회)
-  ├ docker.sh           Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
-  ├ wsl.sh              WSL/Linux(apt) 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
-  ├ mac.sh              macOS(Homebrew) 호스트에 직접 의존성 설치 — Homebrew bash 4+ 필요
-  ├ windows.ps1         Windows 진입점 — WSL2 안의 install/wsl.sh를 호출 (네이티브 tmux 없음)
-  └ windows.sh          Git Bash 진입점 — install/windows.ps1을 통해 WSL2 셋업 호출
-lib/setup-common.sh     install/ 스크립트 공용 인자 파싱·팀 구성 판독
-Dockerfile              팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
-setup-team.sh           tmux 세션 구성 + 선택한 에이전트 CLI 실행 (핵심 스크립트)
-```
-
-## 실행 방식 및 사용법
-
-|               | WSL 네이티브                     | macOS                                  | Windows                            | Docker                                            |
-| ------------- | -------------------------------- | -------------------------------------- | ---------------------------------- | ------------------------------------------------- |
-| 격리          | 없음 (호스트에 직접 설치)        | 없음 (호스트에 직접 설치)              | 없음 (WSL2 안에 설치)              | 컨테이너로 격리                                   |
-| 적합한 경우   | 혼자 개발, 빠른 반복             | 혼자 개발 (Homebrew 필요)              | Windows 사용자 (WSL2 필수)         | 팀 배포, 환경 재현성 필요                         |
-| 진입 스크립트 | `install/wsl.sh` → `setup-team.sh` | `install/mac.sh` → Homebrew bash로 `setup-team.sh` | PowerShell: `install/windows.ps1`, Git Bash: `install/windows.sh` → WSL 안의 `install/wsl.sh` | `install/docker.sh` (내부에서 `setup-team.sh` 실행) |
-
-### 진입
-
-먼저 이 저장소를 clone(아래 예시는 `~/ai-setup` 기준).
+## 빠른 시작
 
 ```bash
 git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
+cd ~/ai-setup
+
+# WSL / apt 기반 Linux
+./install/wsl.sh /path/to/project    # 최초 1회 의존성 설치
+./setup-team.sh /path/to/project    # 팀 실행
+
+tmux attach -t team1               # 팀 세션 접속
 ```
 
-#### WSL 네이티브
+팀에서 사용하는 공급자의 로그인이 필요합니다. 실행 시 인증 상태를 확인하며,
+미로그인 상태라면 Claude는 `/login`, Codex는 `codex login`을 안내합니다.
+프로젝트 경로를 생략하면 `$PROJECT_DIR`, 없으면 현재 디렉터리를 사용합니다.
+
+### 다른 환경에서 실행
+
+**macOS** — Homebrew를 먼저 설치하고, 기본 bash 3.2 대신 Homebrew bash로 실행합니다.
 
 ```bash
-# ai-setup/ 안에서 실행
-./install/wsl.sh /path/to/project     # 최초 1회: 팀에 쓰이는 공급자 의존성을 모두 설치
-./setup-team.sh /path/to/project        # 지정한 프로젝트로 팀 세션 실행
-
-# Codex 팀
-./install/wsl.sh --agent codex          # 최초 1회: tmux/codex 의존성 설치
-./setup-team.sh --agent codex /path/to/project
-
-# 작업 디렉터리(프로젝트 루트)에서 실행
-~/ai-setup/install/wsl.sh              # 최초 1회
-~/ai-setup/setup-team.sh .              # 현재 디렉터리를 프로젝트로 지정
-
-# Codex 팀
-~/ai-setup/install/wsl.sh --agent codex
-~/ai-setup/setup-team.sh --agent codex .
-```
-
-#### macOS
-
-```bash
-./install/mac.sh /path/to/project         # 최초 1회: Homebrew로 tmux·node 등 + bash 4+ 설치
+./install/mac.sh /path/to/project
 "$(brew --prefix)/bin/bash" ./setup-team.sh /path/to/project
 ```
 
-- `setup-team.sh`·`bin/say`는 연관 배열·`mapfile`·`${var^^}`(bash 4+)와 GNU `timeout`·`realpath`를 쓴다. macOS 기본 `/bin/bash`(3.2)로는 실행되지 않으므로 Homebrew bash로 호출한다(3.2면 `bash 4+ 필요`로 즉시 종료)
-- `install/mac.sh`가 `brew install bash coreutils`를 보장하고, `setup-team.sh`가 Homebrew bin·coreutils `gnubin`을 PATH 앞에 둬서 파인·훅(`bin/say`는 `env bash`)도 같은 도구를 쓴다
-- Homebrew가 없으면 `install/mac.sh`가 안내만 하고 종료한다(자동 설치하지 않음)
-- Linux CI 등에서 스텁 검증할 때만 `SETUP_ALLOW_NON_DARWIN=1`로 OS 검사를 우회한다
-
-#### Windows
+**Windows** — WSL2 배포판이 필요합니다. PowerShell에서 의존성을 설치합니다.
 
 ```powershell
-# PowerShell에서 (WSL2 배포판이 먼저 있어야 함: wsl --install -d Ubuntu)
-.\install\windows.ps1 -Project C:\path\to\project    # -Agent codex 선택 가능
+.\install\windows.ps1 -Project C:\path\to\project
 ```
 
-- `-Project`를 생략하면 PowerShell의 현재 폴더가 프로젝트로 전달된다
+Git Bash에서는 `bash ./install/windows.sh /c/path/to/project`로 설치할 수 있습니다.
+설치 후 팀 실행과 `tmux attach`는 WSL 터미널에서 합니다.
+프로젝트는 WSL 홈(`~/`) 아래 두는 편이 `/mnt/c`보다 빠릅니다.
 
-Git Bash에서는 같은 저장소에서 다음과 같이 실행한다(WSL2와 Ubuntu 배포판이 먼저 설치되어 있어야 함).
+**Docker** — Docker가 설치된 환경에서 이미지 빌드부터 팀 실행까지 진행합니다.
 
 ```bash
-bash ./install/windows.sh /c/path/to/project
-bash ./install/windows.sh --agent codex "/c/path/to/프로젝트 폴더"
-bash ./install/windows.sh                  # 현재 폴더를 프로젝트로 사용
+./install/docker.sh /path/to/project
+docker exec -it claude-env bash -lc "tmux attach -t team1"
 ```
 
-- Git Bash 진입점은 Windows PowerShell(`powershell.exe`)을 호출한다. 프로젝트 경로는 Git Bash 형식(`/c/...`, 상대 경로 등)으로 넘기며, 공백이 있으면 따옴표로 감싼다
-- **CLI 설치**: claude/codex/rtk/tmux는 WSL 배포판(Linux) 안에만 설치된다. Windows용 네이티브 CLI는 설치도 사용도 하지 않는다
-- **팀 실행**: **WSL2가 필수**이고 `setup-team.sh`·`tmux attach`는 WSL 터미널에서 실행한다. Git Bash 지원 범위는 WSL 셋업 호출이며, Git Bash 안에서 tmux를 직접 실행하는 방식과 별도 MSYS2·Cygwin은 지원하지 않는다
-- `install/windows.ps1`은 직접 설치하지 않고 `wsl.exe --cd <저장소> -e bash ./install/wsl.sh`로 호출한다(`wsl.exe`/배포판이 없으면 안내 후 종료). 경로는 인자 배열로 넘겨 공백이 있어도 안전하다
-- 프로젝트는 WSL 홈(`~/`) 아래 두는 편이 `/mnt/c`보다 빠르다
+기본 실행은 Claude의 `--dangerously-skip-permissions`와 Codex의
+`--dangerously-bypass-approvals-and-sandbox`를 사용합니다.
+파일 수정·삭제에 별도 승인을 받지 않으므로 git으로 관리하는 프로젝트나 격리 환경에서 사용하세요.
+Codex를 `workspace-write`로 제한하려면 `CODEX_FULL_ACCESS=0`으로 실행합니다.
+이 경우 `.git` 쓰기가 제한되어 `git add`·`git commit`을 할 수 없습니다.
 
-#### Docker
+## 팀 구성
 
-```bash
-# ai-setup/ 안에서 실행
-./install/docker.sh /path/to/project      # 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
+현재 기본 팀은 **lead·architect·developer·reviewer 4인**이며, developer는 Codex,
+나머지는 Claude를 사용합니다. researcher와 designer는 필요할 때 활성화할 수 있습니다.
 
-# 작업 디렉터리(프로젝트 루트)에서 실행
-~/ai-setup/install/docker.sh .            # 현재 디렉터리를 프로젝트로 지정
-```
+| 역할 | 담당 |
+| --- | --- |
+| lead | 작업 배분·결과 수합·git 커밋 |
+| architect | 기획·설계 — 스펙·설계·구현 계획, 완료조건 판정·설계 이탈 승인 |
+| researcher | 웹 조사 |
+| designer | UI/UX 설계·프론트엔드 구현 |
+| developer | 백엔드 구현·API·DB·테스트·빌드 |
+| reviewer | 코드 리뷰·QA·커버리지 판정 |
 
-> `setup-team.sh` 인자 규칙
->
-> - 인자 생략 시 환경변수 `$PROJECT_DIR`, 그것도 없으면 **현재 디렉터리** 사용
-> - 상대·절대 경로 모두 허용
-> - 세션 이름 기본값은 `team1`, `team/config.sh`의 `SESSION=` 값으로 변경 가능
->   (아래 "프로젝트별 팀 구성 커스터마이징" 참고)
+### 프로젝트별 설정
 
-### setup-team.sh 실행되면
-
-0. 의존성·인증 확인 `[0/7]` (공통)
-   - tmux 설치 여부는 항상 확인
-   - 실제로 팀에 쓰이는 공급자마다 필요한 도구·인증을 확인 (혼합 팀이면 둘 다)
-     - Claude: claude/rtk 설치, `claude auth status` 로그인 확인 (미로그인 시 `/login` 안내 후 대기)
-     - Codex: codex 설치, `codex login status` 로그인 확인 (미로그인 시 `codex login` 안내 후 대기)
-   - 확인 직후 기존 tmux 세션을 정리 (`.team/` 생성 파일 갱신과의 경합 방지). 기존 `.team/`은 재사용하고 이전 실행의 생성 파일(`_runtime`, 스킬 링크, 생성된 `AGENTS.md`·`hooks.json`)만 지운다
-1. 공급자별 준비 — 팀에 쓰이는 공급자만 실행, 혼합 팀이면 Claude 블록 뒤에 Codex 블록
-   - Claude 파인이 있을 때 `[1/7]`~`[4/7]`
-     - rtk 훅 초기화
-     - Claude 파인에 필요한 마켓플레이스 플러그인만 설치 — 이미 설치된 것은 설치 명령 없이 표시하고, 필요 없는 미설치 플러그인은 건너뜀. 역할별 활성화는 파인 실행 단계가 담당
-     - 팀 공통 지침을 `CLAUDE.md`에 병합 + 역할별 스킬 제한 — `.team/{역할}/.claude/skills`에 그 역할이 쓸 스킬만 링크
-   - Codex 파인이 있을 때 `[5/7]`
-     - `AGENTS.md` 병합, 역할별 스킬·플러그인·lifecycle 훅 준비
-2. tmux 세션 구성 `[6/7]` (공통)
-   - 팀 인원 수만큼 파인 분할
-   - 파인 타이틀은 대문자로 표시 (예: `LEAD`, `ARCHITECT`)
-3. 각 파인에서 `MEMBERS`가 지정한 CLI 실행 `[7/7]` (공통) — 실행 로그에 파인별 model·effort 표시
-   - Claude: 지정 모델, 역할 지침·훅 설정·플러그인 활성화를 주입한 `claude --dangerously-skip-permissions`
-   - Codex: 역할별 `AGENTS.md`를 읽고 Git 메타데이터까지 쓸 수 있는
-     `codex --dangerously-bypass-approvals-and-sandbox`
-     - 읽기·코드 수정만 허용하려면 `CODEX_FULL_ACCESS=0`으로 실행
-       (`workspace-write`는 `.git`을 항상 read-only로 보호하므로 `git add/commit`은 불가)
-4. 완료 후 `tmux attach -t [세션명]` 접속 안내
-
-### 세션 확인 및 종료
+대상 프로젝트의 `team/config.sh`로 기본 구성을 덮어씁니다.
+저장소의 [team/config.sh](team/config.sh)를 복사해 수정할 수 있습니다.
 
 ```bash
-# team1: 세션명 예시
-tmux attach -t team1                          # 접속 (WSL·macOS)
-docker exec -it claude-env bash -lc "tmux attach -t team1"   # 접속 (Docker — 컨테이너 재진입 후 attach)
-tmux capture-pane -t team1:0.N -p | tail -5   # N번 파인 진행 상황만 확인
-tmux kill-session -t team1                    # 세션 종료
-```
-
-### 권한 우회 플래그를 쓰는 이유
-
-- 두 공급자 모두 권한 우회 플래그로 실행됨(Claude `--dangerously-skip-permissions`, Codex `--dangerously-bypass-approvals-and-sandbox`) — 툴 사용마다 사람 승인이 필요하면 멀티에이전트 자동 진행이 불가능해서
-- 대가: 파인이 확인 없이 파일을 수정·삭제 → **git으로 관리되는 프로젝트**에서 쓰거나 Docker로 격리 권장
-
-### 에이전트 공급자별 차이
-
-`MEMBERS`의 `agent` 열(`claude`/`codex`)로 역할마다 공급자를 고른다. 규칙은 "프로젝트별 팀 구성 커스터마이징" 참고.
-
-| 항목              | Claude Code                                              | Codex                                                       |
-| ----------------- | -------------------------------------------------------- | ----------------------------------------------------------- |
-| 지침 로딩         | 공통 규칙은 `CLAUDE.md`에 병합, 역할 지침은 `--append-system-prompt` | 공통 규칙은 `AGENTS.md`에 병합, 역할 지침은 `.team/{역할}/AGENTS.md` |
-| 스킬·플러그인 배분 | `team/config.claude.sh`                                  | `team/config.codex.sh` (역할별 `CODEX_HOME`으로 격리)       |
-| 신뢰·훅 승인      | 해당 없음                                                | 프로젝트 신뢰 대화상자·`.codex/hooks.json` 훅 승인 자동 처리 |
-| rtk 토큰 절감 훅  | 적용                                                     | 미적용                                                      |
-
-- `say` 통신과 역할 지침은 두 공급자에서 동일하게 동작한다.
-
-### 혼합 팀 — 역할별로 다른 에이전트 지정
-
-역할별로 다른 공급자를 쓰려면 `team/config.sh`의 각 `MEMBERS` 항목에 공급자를 지정한다.
-저장소 기본값은 designer·developer만 Codex이고, 나머지(lead·architect·researcher·reviewer)는 Claude다.
-
-```bash
-# <프로젝트_경로>/team/config.sh
+# /path/to/project/team/config.sh
 SESSION="team1"
 declare -a MEMBERS=(
-    "lead|리드|claude|claude-opus-5-5|medium"
-    "architect|아키텍트|codex|gpt-6.1-sol|high"
-    "developer|개발자|codex|gpt-6.1-sol|medium"
-    "reviewer|리뷰어|claude|claude-opus-5-5|medium"
+    "lead|팀장|claude||medium"
+    "architect|기획·설계|claude||high"
+    "developer|백엔드|codex||medium"
+    "reviewer|리뷰어|claude||medium"
 )
 ```
 
-어느 역할을 Codex로 돌릴지는 프로젝트마다 다르다. 핵심은 **코드를 쓰는 모델과 판단하는
-모델을 분리**하는 것 — 같은 모델끼리는 맹점도 공유하기 때문이다.
+항목 형식은 `role|표시이름|agent|model|effort`이며, 배열 순서대로 패널이 배치됩니다.
+역할을 추가하거나 제거해 인원을 조절합니다.
 
-- 일부 역할만 Codex를 써도 `[0/7]`이 Codex 로그인까지 함께 확인한다.
-- 프롬프트·툴 로그는 두 공급자가 같은 `.team-logs/{역할}.jsonl`에 남기므로 혼합 팀도 한 곳에서 추적한다.
+- `agent`: `claude` 또는 `codex`. 비우면 `--agent` 또는 `TEAM_AGENT` 값을 따릅니다(기본 `claude`).
+- `model`·`effort`: 비우면 해당 CLI의 사용자 기본값을 사용합니다.
+- `effort`: `low`·`medium`·`high`·`xhigh`·`max` 중 모델이 지원하는 값을 지정합니다.
 
-## 지침과 team/ — 지침이 파인에 로딩되는 방식
+`--agent codex`는 공급자가 비어 있는 역할에만 적용됩니다.
+팀 전체를 Codex로 실행하려면 각 역할의 `agent`를 `codex`로 지정하거나 비운 뒤 실행하세요.
+설치 스크립트도 같은 팀 구성을 읽어 필요한 공급자의 CLI를 설치합니다.
 
-파인 지침은 두 층으로 구성된다.
+### 지침과 스킬
 
-1. **공통 규칙 — 대상 프로젝트의 `CLAUDE.md`(Claude)·`AGENTS.md`(Codex)**
-   - `setup-team.sh`가 연 프로젝트 폴더(`$PROJECT_DIR`)의 해당 파일
-   - 각 CLI가 세션 시작 시 자동으로 읽고, 같은 공급자의 모든 파인에 동일 적용
-   - **파인이 읽는 것은 `$PROJECT_DIR`의 파일이지 이 저장소의 것이 아니다.**
-     그래서 `setup-team.sh`가 실행할 때마다 이 저장소의 `CLAUDE.md`·`AGENTS.md` 내용을
-     대상 프로젝트의 같은 이름 파일에 마커 블록으로 병합한다
-   - 따라서 팀 공통 규칙은 이 저장소의 `CLAUDE.md`·`AGENTS.md`만 고치면 다음 실행부터 전 프로젝트에 반영됨
-     - 단 **README 등 이 저장소 파일을 참조하는 문장은 쓰지 않는다** — 대상 프로젝트에는 그 파일이 없다
-   - 역할별 지시(팀원 배분, "하지 말 것" 등)는 여기에 넣지 않음
-     — architect·developer 등 다른 파인도 같은 내용을 받아버리기 때문
+| 설정 파일 | 적용 방식 |
+| --- | --- |
+| `CLAUDE.md`·`AGENTS.md` | 저장소의 공통 규칙을 대상 프로젝트의 같은 이름 파일에 마커 블록으로 병합 |
+| `team/{역할}.md` | 프로젝트 파일을 우선 사용하고, 없으면 저장소 기본 지침 사용 |
+| `team/config.claude.sh`·`team/config.codex.sh` | 역할별 스킬·플러그인 배분. 프로젝트 파일이 있으면 기본 배분표를 통째로 대체 |
 
-2. **역할별 지침 — `team/{역할}.md`**
-   - `MEMBER_NAMES`의 이름에 대응하는 `team/{이름}.md`를 읽어 파인에 주입
-     - Claude: `--append-system-prompt`
-     - Codex: `.team/{역할}/AGENTS.md`로 생성
-     - 예: lead 파인 → `team/lead.md`, architect 파인 → `team/architect.md`
-   - 대응 파일이 없으면 시스템 프롬프트 추가 없이 그냥 실행
-   - 오버라이드 규칙은 `team/config.sh`와 동일
-     - **대상 프로젝트 루트**(`$PROJECT_DIR/team/{이름}.md`)에 파일이 있으면 우선 사용
-     - 없으면 **이 저장소**(`team/{이름}.md`)의 기본값으로 폴백
+역할 지침은 Claude에 `--append-system-prompt`로 전달하고, Codex에는
+`.team/{역할}/AGENTS.md`로 생성합니다. 새 역할을 만들 때는 대응하는 지침 파일도 추가하세요.
+공급자별 배분표를 재정의할 때는 필요한 배열을 모두 선언해야 합니다.
+상세 배분은 [스킬·플러그인 가이드](docs/guides/skill-allocation.md)를 참고하세요.
 
-## 프로젝트별 팀 구성 커스터마이징
+## 운영
 
-- 기본 팀 구성은 이 저장소의 `team/config.sh`에 있다 — 현재 lead/architect/researcher/designer/developer/reviewer 6인
-- 인원 수·세션 이름·역할별 공급자·모델·추론 수준을 바꾸려면 **대상 프로젝트 루트**에 `team/config.sh` 배치
-- `config.claude.sh`와 `config.codex.sh`에는 공급자별 플러그인·스킬 배분만 둔다
-- 공통 구성(`config.sh`)은 차례로 자동 로드되어 기본값을 덮어쓴다
-- 공급자 전용 구성은 대상 프로젝트에 파일이 있으면 그것만 쓰고 기본값과 병합하지 않는다 — 필요한 배열을 모두 선언해야 한다
-- 항목 형식은 `role|표시이름|agent|model|effort`이고 배열 순서가 tmux 파인 배치 순서다. 인원은 `MEMBERS` 항목 증감으로 조절한다(예시는 위 "혼합 팀").
-- `agent`를 비우면 `--agent`/`TEAM_AGENT`(기본 claude) 값을 따른다. `model`·`effort`를 비우면 각 CLI 기본값(Claude는 `settings.json`, Codex는 사용자 기본값)을 따른다.
-- `effort`에는 `low`/`medium`/`high`/`xhigh`/`max`를 쓴다.
-- 이 저장소의 `team/config.sh`는 복사해서 수정할 템플릿이다.
-- 이름을 바꾸면 대응하는 `team/{이름}.md`도 필요(없으면 역할 지침 없이 실행 — 위 "지침과 team/" 참고)
-
-## 파인 간 통신 — `bin/say`
-
-- 파인끼리는 `say`로만 메시지를 주고받음
-- `setup-team.sh`가 `bin/`을 각 파인 PATH에 등록 → 경로 없이 바로 호출
+### 세션 관리
 
 ```bash
-say :0.0 "[developer] 로그인 기능 구현 완료"   # 파인 번호로 지정
-say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역할 이름)로도 가능
+tmux attach -t team1                          # 접속
+tmux capture-pane -t team1:0.2 -p | tail -5    # 특정 패널 진행 확인
+tmux kill-session -t team1                    # 종료
 ```
 
-`tmux send-keys`를 직접 쓰지 않는 이유: `Enter`가 별개 인자라 누락되기 쉽고, 누락 시 메시지가
-상대 입력창에 텍스트로만 남고 전송되지 않음. `say`는 Enter를 항상 부착해 이를 방지.
+세션 이름은 `SESSION`으로 바꿉니다. `setup-team.sh`를 다시 실행하면
+같은 이름의 기존 세션을 종료하고 팀을 새로 구성합니다.
 
-유휴 판정은 화면 문구가 아니라 훅 기반 busy 마커(`/tmp/team-busy/`)로 한다. 상세는 [docs/guides/pane-messaging.md](docs/guides/pane-messaging.md) "유휴 판정" 참조.
+### 패널 간 메시지
 
-파인 밖(호스트 셸)에서 호출:
+각 패널에서는 PATH에 등록된 `say`로 역할이나 패널 번호를 지정해 메시지를 보냅니다.
+메시지 본문은 영어로 간결하게 작성합니다.
 
-- PATH에 없으므로 경로와 세션명을 함께 지정 — `./bin/say team1:0.4 "..."`
-
-### 팀 밖 세션에서 파인 호출 — `SendMessage`
-
-Claude Code v2.1.224부터 세션끼리 `SendMessage`로 대화할 수 있다(`ListAgents`로 상대 탐색, `crossSessionInbound` 설정 추가).
-이 프로젝트는 파인 간 통신에 사용하지 않고 `say`만 쓴다.
-
-- `SendMessage`는 Stop 훅(셸 스크립트)에서 호출할 수 없고, `SAY_NOWAIT` 같은 의도적 인터럽트 구분이 없다.
-- 유휴 파인에는 `say`와 똑같이 새 턴이 생겨 토큰 이득이 없다(실측).
-- Codex 파인은 지원하지 않는다.
-- 비교와 실측은 [docs/guides/token-cost.md](docs/guides/token-cost.md) 참조.
-- 팀 밖 Claude 세션이 파인 하나를 직접 지시하는 용도로만 켜 둔다(`crossSessionInbound: accept`).
-
-### 보고 경로
-
-- 평상시 1홉 — 각 파인 → lead
-- 설계 판단이 필요한 건만 architect 경유
-
-| 상황                           | 경로                                                          |
-| ------------------------------ | ------------------------------------------------------------- |
-| 일반 완료 보고                 | 각 파인 → lead                                                |
-| 설계 이탈 (developer/designer) | 파인 → architect → lead                                       |
-| 리뷰 승인                      | reviewer → lead                                               |
-| 리뷰 — 코드 품질 수정요청      | reviewer → 작성자 (직행, lead 사본 없음)                      |
-| 리뷰 — 설계 판단 필요          | reviewer → architect (lead 사본 없음) → architect 판정만 lead |
-| 화면에 필요한 API 요청         | designer → developer                                          |
-
-코드 품질 수정요청의 "작성자"는 백엔드면 developer, 프론트엔드면 designer다.
-
-**중간 경유는 lead에 보고하지 않는다.** 다음 담당자에게 넘긴 사실("developer에
-전달했다", "architect 경유함")은 lead가 할 일이 없는 턴을 만든다. lead는 그 사안이
-**종결될 때** 최종 결과 하나만 받는다. architect처럼 지시를 내리는 역할도 지시 시점이
-아니라 그 결과를 검수한 뒤에 보고한다.
-
-실측 근거는 [docs/guides/pane-messaging.md](docs/guides/pane-messaging.md) 10단계 참조.
-
-### Stop 훅 — 보고 누락 방지
-
-- 파인이 `say` 실행을 잊어도 lead가 완료를 알 수 있도록, `setup-team.sh`가 lead를 뺀 각 파인에 Stop 훅을 주입해 응답 종료 시 완료 신호를 자동 전달 (폴링 불필요)
-- 예외: 방금 `say`로 보고했으면 생략 / lead 자신은 대상 제외 (무한루프 방지)
-- Claude·Codex 양쪽에서 동일하게 동작 — Codex는 `.codex/hooks.json`의 `Stop` 이벤트로 이식했다.
-
-"방금 보고했는가"는 `/tmp/team-say/` 마커로 판정하며, 턴 경계마다 비운다. 이유와 오탐 실측은
-[docs/guides/pane-messaging.md](docs/guides/pane-messaging.md) 10단계 참조.
-
-## 프롬프트·툴 로깅 — 재현성과 추적
-
-> Claude·Codex 파인 공통이다. 로그 위치와 형식이 같다.
-
-배경:
-
-- 입력한 질문 / 실행한 명령 / 참조한 파일이 남아 있어야 결과 재현과 원인 추적이 가능
-
-구현:
-
-- `setup-team.sh`가 모든 파인에 `UserPromptSubmit`·`PreToolUse` 훅(`bin/log-hook`)을 주입해 자동 기록
-  - Claude는 `--settings`, Codex는 `.codex/hooks.json`으로 주입 (Codex는 `--quiet`로 stdout 통과를 끈다)
-  - Codex `apply_patch`는 패치 전문 대신 건드린 파일 경로(`files`)와 `patch_len`만 남긴다
-
-```
-$PROJECT_DIR/.team-logs/
-├── .gitignore        내용은 "*" — 디렉터리가 스스로를 커밋에서 제외
-├── lead.jsonl
-├── developer.jsonl
-└── ...               역할당 하나씩 (그 파인이 처음 동작할 때 생성)
+```bash
+say lead "[developer] Implementation complete."
+say :0.0 "[developer] Tests passed."
 ```
 
-형식:
+상대가 작업 중이면 메시지는 큐에 쌓였다가 유휴 시 전달됩니다.
+작업 중단이 필요할 때는 `SAY_NOWAIT=1 say developer "Stop the current task."`를 사용합니다.
+팀 밖 셸에서는 저장소의 `./bin/say team1:0.0 "..."`처럼 세션명까지 지정합니다.
 
-- 한 줄이 JSON 하나인 JSONL
-- 프롬프트·툴 두 종류가 시간순으로 섞여 기록
+- 일반 작업은 lead에 완료 보고합니다.
+- phase 계획에 따른 구현은 architect가 완료조건을 대조한 뒤 lead에 보고합니다.
+- 코드 품질 수정요청은 작성자에게, 설계 판단은 architect에게 직접 전달합니다.
+- 다음 담당자에게 넘긴 중간 상태는 lead에 중복 보고하지 않고, 사안이 종결되면 최종 결과만 보고합니다.
 
-```json
-{"ts":"...","role":"developer","event":"UserPromptSubmit","session":"s1","prompt":"로그인 기능 구현해줘"}
-{"ts":"...","role":"developer","event":"PreToolUse","session":"s1","tool":"Write","input":{"file_path":"/a/b.py","content_len":500}}
-```
+메시징과 보고 누락 방지 훅의 동작은 [패널 메시징 가이드](docs/guides/pane-messaging.md)에 정리되어 있습니다.
 
-### 설계상의 선택
+### 로그 확인
 
-- **역할별 파일** — 여러 파인이 병렬로 도는 구조라 한 파일에 쓰면 경합·귀속 불명이 생긴다.
-- **`.team/` 바깥** — `.team/`의 생성 파일은 매 실행 갱신·삭제되므로 거기 두면 재시작 시 소실된다.
-- **대상 리포 `.gitignore` 불변** — 로그 디렉터리 안에 `.gitignore`(`*`)를 둬서 스스로를 제외한다.
-- **본문은 길이만 기록** — Write/Edit 전문은 로그를 비대하게 하고 시크릿 노출 표면을 키운다.
-- **시크릿 마스킹** — 알려진 패턴(`sk-`, `ghp_`, `AKIA`, `xox*-`, `API_KEY=` 등)과 `.env` 명령은 가리고 Read는 경로만 남긴다.
-  임의 형식의 키는 못 걸러내므로 로그 파일을 `600`으로 만든다. 훅이 실패해도 파인 작업은 막지 않는다.
+프롬프트와 툴 사용 기록은 대상 프로젝트의 `.team-logs/{역할}.jsonl`에 자동 저장됩니다.
+Claude·Codex 모두 같은 위치와 형식을 사용하며, 로그 디렉터리는 자체 `.gitignore`로 커밋에서 제외됩니다.
+런타임 지침·스킬 링크 등 실행 중 생성되는 파일은 `.team/`에 있습니다.
 
-### 단독 실행에서는 쌓이지 않는다
+## 참고 문서
 
-- 로깅 훅은 `setup-team.sh`가 `--settings`로 주입하는데, `--settings`는 전역 `~/.claude/settings.json`을
-  병합이 아니라 **대체**함 → 그 스크립트를 거치지 않고 `claude`를 단독 실행하면 **로그가 남지 않음**
-
-단독 실행에도 로그를 남기려면:
-
-- `~/.claude/settings.json`에 같은 훅 추가 — `bin/log-hook <역할> "$CLAUDE_PROJECT_DIR"`
-- 단, 어떤 프로젝트에서 claude를 띄우든 전부 로그가 쌓인다는 점 감안
-
-## 역할별 스킬·플러그인
-
-`~/.claude/skills`·플러그인은 유저 전역이라 파인마다 고정비가 쌓인다. `setup-team.sh`가 역할마다 필요한 것만 링크·활성화한다
-(`--setting-sources project`로 전역 스킬 차단). 배분은 `team/config.claude.sh`·`team/config.codex.sh`가 정한다.
-
-| 역할       | superpowers 스킬                               | 플러그인 (Claude)                      |
-| ---------- | ---------------------------------------------- | -------------------------------------- |
-| lead       | `finishing-a-development-branch`               | caveman, serena                        |
-| architect  | `writing-plans`                                | serena                                 |
-| researcher | -                                              | serena                                 |
-| designer   | -                                              | serena, frontend-design                |
-| developer  | `systematic-debugging` `receiving-code-review` | serena, ponytail                       |
-| reviewer   | -                                              | serena                                 |
-
-- Codex 파인은 위 스킬을 읽지 못한다. `team/config.codex.sh`가 따로 배분(기본: superpowers 스킬은 위 표와 같고, 플러그인은 developer에 `engineering-suite-ponytail@openai-curated-remote`, designer에 `product-design@openai-curated-remote`)하고, 역할마다 `CODEX_HOME`을 격리한다.
-- 고정비: ponytail ~2.2K / caveman ~3.9K / serena ~6K 토큰 (파인당, 매 턴). 절감량은 [docs/guides/token-cost.md](docs/guides/token-cost.md) 참조.
-- 배분·제외 근거, Codex 대체재, 플러그인 이유는 [docs/guides/skill-allocation.md](docs/guides/skill-allocation.md) 참조.
+- [패널 메시징과 장애 대응](docs/guides/pane-messaging.md)
+- [토큰 비용과 절감 근거](docs/guides/token-cost.md)
+- [역할별 스킬·플러그인 배분](docs/guides/skill-allocation.md)
+- [기능별 설계·구현 계획](docs/plans/)
+- [설계 리뷰 판정](docs/architect-review/)
