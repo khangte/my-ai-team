@@ -42,7 +42,15 @@
 
 ## 작업 완료 후
 
-### 아키텍처 스펙대로 구현한 경우 → 팀장에게 직접 보고
+### 아키텍처 스펙대로 구현한 경우
+
+- phase 계획 작업(지시에 `docs/superpowers/plans/` 계획서 경로가 붙은 작업)은 architect에게 보고한다 — architect가 완료조건을 대조해 lead에 보고한다
+
+```bash
+say architect "[designer] {screen} phase {N} UI done. Changed files: {N}. {plan path}"
+```
+
+- 그 외 작업은 팀장에게 직접 보고한다
 
 ```bash
 say lead "[designer] {screen} UI done. Changed files: {N}"

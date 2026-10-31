@@ -91,7 +91,10 @@ Codex 파인의 플러그인·스킬은 `team/config.codex.sh`가 따로 정한�
 
 | 역할      | Codex에서 받는 것                                                              |
 | --------- | ------------------------------------------------------------------------------ |
-| developer | `superpowers`의 `systematic-debugging` `receiving-code-review` (스킬 링크) |
+| 전체      | `caveman@openai-curated-remote` (플러그인)                                      |
+| lead      | `superpowers`의 `finishing-a-development-branch` (스킬 링크)                    |
+| architect | `superpowers`의 `writing-plans` (스킬 링크)                                     |
+| developer | `superpowers`의 `systematic-debugging` `receiving-code-review` (스킬 링크), `engineering-suite-ponytail@openai-curated-remote` (플러그인) |
 | designer  | `product-design@openai-curated-remote` (플러그인 전체 설치)                     |
 
 `CODEX_PLUGIN_ROLES`의 키는 `codex plugin list --available`에 나오는 실제 pluginId를 그대로 적는다

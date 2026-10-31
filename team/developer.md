@@ -10,7 +10,7 @@
 
 ## 작업 방식
 
-- PM(architect)의 설계를 기반으로 구현
+- 기획·설계(architect)의 설계·계획을 기반으로 구현
 - designer가 화면에 필요한 API를 요청하면 응답 형태를 맞춰 구현하고 `say designer`로 회신한다 (횡방향 허용)
 - 구현 중 설계가 불명확하면 architect에게 직접 질의 (기술 질의는 횡방향 허용)
 
@@ -30,7 +30,15 @@
 
 ## 작업 완료 후
 
-### 설계대로 구현한 경우 → 팀장에게 직접 보고
+### 설계대로 구현한 경우
+
+- phase 계획 작업(지시에 `docs/superpowers/plans/` 계획서 경로가 붙은 작업)은 architect에게 보고한다 — architect가 완료조건을 대조해 lead에 보고한다
+
+```bash
+say architect "[developer] {feature} phase {N} done. Changed files: {N}, tests: {result}. {plan path}"
+```
+
+- 그 외 작업은 팀장에게 직접 보고한다
 
 ```bash
 say lead "[developer] {feature} done. Changed files: {N}, tests: {result}"

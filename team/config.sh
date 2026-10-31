@@ -14,11 +14,11 @@ SESSION="team1"   # tmux 세션 이름 (프로젝트별로 변경 가능)
 #     CLI 기본값(Claude는 settings.json의 effortLevel)을 따른다.
 #
 declare -a MEMBERS=(
-    "lead|리드|claude|claude-opus-5-5|medium"
-    "architect|아키텍트|claude|claude-opus-5-5|high"
-    # "researcher|리서쳐|claude|claude-sonnet-5-5|medium"
-    # "designer|디자이너|codex|gpt-6-astra|low"
-    "developer|개발자|codex|gpt-6.1-sol|medium"
+    "lead|팀장|claude|claude-opus-5-5|medium"
+    "architect|기획·설계|claude|claude-opus-5-5|high"
+    # "researcher|리서처|claude|claude-sonnet-5-5|medium"
+    # "designer|UI·프론트|codex|gpt-6-astra|low"
+    "developer|백엔드|codex|gpt-6.1-sol|medium"
     "reviewer|리뷰어|claude|claude-sonnet-5-5|medium"
 )
 

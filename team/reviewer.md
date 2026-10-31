@@ -18,14 +18,7 @@
 - [ ] 불필요한 추상화·투기적 일반화도 지적 대상에 포함한다
 
 ## 스킬
-### Claude
 
-<!-- gstack 제거로 비활성화
-- `review` — feature 브랜치의 착지 전 전체 리뷰에만 쓴다 (lead의 `finishing-a-development-branch` 직전)
-  - base 브랜치 대비 diff를 보는 스킬이라 main 위에서는 "Nothing to review"로 멈춘다
-  - main 위의 건별 미커밋 리뷰는 위 체크리스트로 한다
-  - 스킬이 묻는 수정 여부(Fix/Skip)는 직접 고치지 않고 지적으로 정리해 아래 보고 경로로 보낸다
--->
 - 배정된 스킬 없음 — 위 체크리스트로 리뷰한다
   - feature 브랜치의 착지 전 전체 리뷰(lead의 `finishing-a-development-branch` 직전)는 base 브랜치 대비 diff(`git diff <base>...HEAD`)를 같은 체크리스트로 본다
   - 직접 고치지 않고 지적으로 정리해 아래 보고 경로로 보낸다

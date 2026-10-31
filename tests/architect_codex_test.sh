@@ -61,9 +61,8 @@ grep -qF 'local permission_args="--dangerously-bypass-approvals-and-sandbox"' "$
 grep -qF 'if [ "${CODEX_FULL_ACCESS:-1}" = "0" ]; then' "$repo_dir/setup-team.sh"
 grep -qF 'permission_args="--ask-for-approval never --sandbox workspace-write"' "$repo_dir/setup-team.sh"
 
-# README가 현재 Codex 배분과 역할별 CODEX_HOME 격리를 설명한다.
-grep -qF 'engineering-suite-ponytail@openai-curated-remote' "$repo_dir/README.md"
-grep -qF 'product-design@openai-curated-remote' "$repo_dir/README.md"
-grep -qF 'CODEX_HOME' "$repo_dir/README.md"
+# 스킬 배분 가이드가 현재 Codex 플러그인 배분을 설명한다.
+grep -qF 'engineering-suite-ponytail@openai-curated-remote' "$repo_dir/docs/guides/skill-allocation.md"
+grep -qF 'product-design@openai-curated-remote' "$repo_dir/docs/guides/skill-allocation.md"
 
 echo 'architect Codex tests passed'
