@@ -116,7 +116,7 @@ prioritized token-savings recommendations.
 ```
 
 - 5,840 bytes, 외부 의존 없음, SKILL.md 단일 파일
-- **이 리포의 핵심 관심사와 정확히 일치한다.** `docs/token-cost.md`와
+- **이 리포의 핵심 관심사와 정확히 일치한다.** `docs/guides/token-cost.md`와
   `docs/architect-review/2_token-optimization-tasks.md`에서 수작업으로 하던
   고정비 감사를 절차화한 것
 - architect가 적임 — 이 리포에서 토큰 구조 판단은 architect 몫이고,

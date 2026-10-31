@@ -1,18 +1,18 @@
 #!/bin/bash
 # WSL에 팀 의존성을 사용자 기본 경로로 설치한다.
-# 사용: ./setup-wsl.sh [--agent claude|codex] [프로젝트_경로]
+# 사용: ./install/wsl.sh [--agent claude|codex] [프로젝트_경로]
 # 저장소·프로젝트의 team/config.sh를 읽고 실제 배정된 공급자를 설치한다.
 
 set -e
 
-SETUP_NAME="setup-wsl.sh"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SETUP_NAME="install/wsl.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # 저장소 루트
 source "$SCRIPT_DIR/lib/setup-common.sh"
 
 setup_parse_args "$@"
-# apt 기반 Linux/WSL 전용이다. macOS는 setup-mac.sh, Windows 네이티브는 setup-windows.ps1을 쓴다.
+# apt 기반 Linux/WSL 전용이다. macOS는 install/mac.sh, Windows 네이티브는 install/windows.ps1을 쓴다.
 if [ "$(uname -s)" != Linux ] || ! command -v apt-get &>/dev/null; then
-    echo "apt 기반 Linux/WSL 전용 스크립트입니다. macOS는 setup-mac.sh, PowerShell은 setup-windows.ps1, Git Bash는 setup-windows.sh를 쓰세요." >&2
+    echo "apt 기반 Linux/WSL 전용 스크립트입니다. macOS는 install/mac.sh, PowerShell은 install/windows.ps1, Git Bash는 install/windows.sh를 쓰세요." >&2
     exit 1
 fi
 setup_prepare_linux_path

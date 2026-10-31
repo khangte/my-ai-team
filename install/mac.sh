@@ -1,20 +1,20 @@
 #!/bin/bash
 # macOS에 팀 의존성을 Homebrew로 설치한다.
-# 사용: ./setup-mac.sh [--agent claude|codex] [프로젝트_경로]
+# 사용: ./install/mac.sh [--agent claude|codex] [프로젝트_경로]
 # setup-team.sh는 bash 4+(연관 배열·mapfile)가 필요하므로 macOS 기본 bash 3.2로는 실행할 수 없다.
 # 또 timeout·realpath(GNU coreutils)가 필요하다. 이 스크립트는 둘을 설치·확인하고 실행 명령을 안내한다.
 # setup-team.sh는 Homebrew bin과 coreutils gnubin을 PATH 앞에 두어 파인·훅(bin/say)도 Homebrew bash를 쓴다.
 
 set -e
 
-SETUP_NAME="setup-mac.sh"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SETUP_NAME="install/mac.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # 저장소 루트
 source "$SCRIPT_DIR/lib/setup-common.sh"
 
 setup_parse_args "$@"
 # SETUP_ALLOW_NON_DARWIN은 Linux CI의 스텁 검증 전용이다.
 if [ "$(uname -s)" != Darwin ] && [ "${SETUP_ALLOW_NON_DARWIN:-}" != 1 ]; then
-    echo "macOS 전용 스크립트입니다. WSL/Linux는 setup-wsl.sh, Windows는 setup-windows.ps1을 쓰세요." >&2
+    echo "macOS 전용 스크립트입니다. WSL/Linux는 install/wsl.sh, Windows는 install/windows.ps1을 쓰세요." >&2
     exit 1
 fi
 setup_load_team

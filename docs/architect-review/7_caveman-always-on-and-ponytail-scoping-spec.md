@@ -37,7 +37,7 @@ cwd에서 상위로 올라가며 찾은 `.caveman/config.json`·`.caveman.json` 
 
 훅이 없어서 안 켜지는 게 아니라, **훅이 조용히 실패해서 안 켜진다.** 훅 커맨드는 `node`를 이름으로만 부르는데
 node가 nvm 아래 버전 디렉터리(`~/.nvm/versions/node/v20.20.2/bin`)에 있다. PATH에 없으면 훅은
-non-blocking으로 실패하고 파인은 caveman이 안 걸린 채 뜬다 — `docs/token-cost.md` 218-223행에 이미
+non-blocking으로 실패하고 파인은 caveman이 안 걸린 채 뜬다 — `docs/guides/token-cost.md` 218-223행에 이미
 lead 파인에서 재현된 사고로 기록돼 있다.
 
 `setup-team.sh:42`가 `NVM_BIN`을 PATH에 넣지만 그건 **스크립트 자신의 셸**이다. 파인은 tmux 페인 셸에서
@@ -94,7 +94,7 @@ caveman·ponytail의 SessionStart 훅이 조용히 실패하는 경로가 닫힌
 파인별 격리가 필요해지면 그때 파인마다 `CLAUDE_CONFIG_DIR`를 갈라야 하는데, 그건 T4에서 실패로
 결론난 접근이다(`3_t4-claude-config-dir-spike.md`). **지금은 격리하지 말고 이 한계를 문서에만 남긴다.**
 
-### C5. `docs/token-cost.md:205-210` 배분 근거 갱신
+### C5. `docs/guides/token-cost.md:205-210` 배분 근거 갱신
 
 `- **ponytail·caveman → 전 파인.** …` 항목을 두 항목으로 쪼갠다. 내용은 C2 주석과 같게 쓰고,
 "일부 파인만 켜면 lead 압축 효과가 샌다"는 문장은 caveman 항목에만 남긴다(ponytail에는 해당 없음).

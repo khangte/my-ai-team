@@ -1,4 +1,4 @@
-# setup-docker.sh가 사용하는 팀 환경 이미지.
+# install/docker.sh가 사용하는 팀 환경 이미지.
 # /home/user는 볼륨에 가려지므로 도구는 /opt 아래에 설치한다.
 
 FROM ubuntu:22.04

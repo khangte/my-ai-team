@@ -329,7 +329,7 @@ busy 마커를 `say`가 대신 켜므로 보고 마커 초기화만 같은 훅�
 
 ### WSL 네이티브
 
-`setup-wsl.sh`에서 선택된 백엔드 또는 두 CLI를 설치할 수 있게 한다. 기존 사용자가
+`install/wsl.sh`에서 선택된 백엔드 또는 두 CLI를 설치할 수 있게 한다. 기존 사용자가
 Claude만 쓸 때 불필요한 Codex 설치를 강제하지 않도록 `--agent` 값을 전달받는 방식이
 우선이다.
 
@@ -401,7 +401,7 @@ Codex 훅 payload는 Claude와 필드가 같다(`session_id`, `hook_event_name`,
 - [x] 파인이 유휴 상태가 되면 큐 메시지가 자동 전달된다.
 - [x] 본 보고가 있으면 Stop 종료 신호가 중복 전달되지 않는다.
       단 마커가 턴 경계에서 초기화되어야 성립한다 — 초기화 누락으로 보고를 하고도
-      신호가 나가던 오탐을 실측·수정했다([pane-messaging.md](pane-messaging.md) 10단계).
+      신호가 나가던 오탐을 실측·수정했다([pane-messaging.md](../guides/pane-messaging.md) 10단계).
       Codex도 `UserPromptSubmit`에서 비운다(0.161.0 확인).
 - [x] 본 보고 없이 종료하면 lead가 자동 신호를 받는다.
 - [ ] 프롬프트와 툴 로그에 시크릿 본문이 그대로 기록되지 않는다 —
@@ -430,7 +430,7 @@ Codex 훅 payload는 Claude와 필드가 같다(`session_id`, `hook_event_name`,
 ### 4단계 — 문서와 배포 정리
 
 - [x] README 구조도와 실행 예시를 이중 백엔드 기준으로 수정
-- [x] WSL/Docker 설치 절차 수정 (`setup-wsl.sh --agent`, 혼합 팀 의존성 일괄 설치)
+- [x] WSL/Docker 설치 절차 수정 (`install/wsl.sh --agent`, 혼합 팀 의존성 일괄 설치)
 - [x] 모델 설정과 프로젝트별 오버라이드 예시 추가 ("프로젝트별 팀 구성 커스터마이징")
 - [x] 권한 모드별 위험 설명 추가 (`--dangerously-skip-permissions`,
       `CODEX_FULL_ACCESS=0`)
@@ -443,8 +443,8 @@ Codex 훅 payload는 Claude와 필드가 같다(`session_id`, `hook_event_name`,
 
 ```bash
 bash -n setup-team.sh
-bash -n setup-wsl.sh
-bash -n setup-docker.sh
+bash -n install/wsl.sh
+bash -n install/docker.sh
 ```
 
 - 설정 배열 길이가 `MEMBER_NAMES`와 일치하는지 검사한다.

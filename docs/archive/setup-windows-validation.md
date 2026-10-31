@@ -1,12 +1,12 @@
 # Windows 설치·팀 기동 검증 기록
 
-`setup-windows.ps1` → `wsl.exe` → `setup-wsl.sh` → `setup-team.sh` 경로를 실제 Windows(PowerShell 5.1)와 WSL2(Ubuntu)에서 확인한 결과다.
+`install/windows.ps1` → `wsl.exe` → `install/wsl.sh` → `setup-team.sh` 경로를 실제 Windows(PowerShell 5.1)와 WSL2(Ubuntu)에서 확인한 결과다.
 원본 로그는 `/tmp/ai-setup-windows-real-test/`에 있다(임시 위치라 보존되지 않을 수 있음). 신규 설치용 임시 HOME(약 1.1GB)은 검증 후 삭제했고 `fresh-install.log`만 남아 있다. 시험용 tmux 서버는 종료했다.
 
 ## 범위 구분
 
 - **CLI 설치**: claude·codex·rtk·bun·tmux는 WSL 배포판(Linux) 안에만 설치한다. Windows용 네이티브 CLI는 설치도 사용도 하지 않는다.
-- **팀 실행**: tmux와 Bash 4+가 필요하므로 `setup-team.sh`와 `tmux attach`는 WSL에서 실행한다. Git Bash에서는 `setup-windows.sh` → `setup-windows.ps1`로 설치를 시작할 수 있다. 네이티브 PowerShell/cmd·Git Bash에서의 tmux 실행과 별도 MSYS2·Cygwin은 지원하지 않는다.
+- **팀 실행**: tmux와 Bash 4+가 필요하므로 `setup-team.sh`와 `tmux attach`는 WSL에서 실행한다. Git Bash에서는 `install/windows.sh` → `install/windows.ps1`로 설치를 시작할 수 있다. 네이티브 PowerShell/cmd·Git Bash에서의 tmux 실행과 별도 MSYS2·Cygwin은 지원하지 않는다.
 
 ## Git Bash 진입점 추가 검증
 
@@ -23,7 +23,7 @@
 | UNC 경로 변환 실패 (`\\wsl.localhostUbuntu...`) | `wsl.exe wslpath`가 기본 셸을 거쳐 역슬래시가 사라짐 | `wsl.exe -e wslpath -a` |
 | 한글·공백 경로 깨짐 | PS 5.1이 `wsl.exe` 출력을 기본 인코딩으로 해석 | 콘솔·`$OutputEncoding`을 UTF-8로 두고 종료 시 복원 |
 | `-Project` 생략 시 저장소가 프로젝트가 됨 | 현재 폴더를 넘기지 않음 | `(Get-Location).ProviderPath`를 기본값으로 전달 |
-| WSL 실패 종료 코드가 1로 바뀜 | `bash -l`이 읽는 `~/.bash_logout`(`clear_console`)이 종료 코드를 덮어씀 | 로그인 셸을 쓰지 않고 `bash ./setup-wsl.sh` |
+| WSL 실패 종료 코드가 1로 바뀜 | `bash -l`이 읽는 `~/.bash_logout`(`clear_console`)이 종료 코드를 덮어씀 | 로그인 셸을 쓰지 않고 `bash ./install/wsl.sh` |
 | Windows용 npm 선택, NVM의 codex 미발견 | 비로그인 셸 PATH에 `/mnt/c/...`가 있고 NVM 경로는 없음 | `setup_prepare_linux_path`: `/mnt/*` 제거, 최신 NVM·`~/.local/bin`·`~/.bun/bin`을 앞에 둠 |
 
 ## 통과한 검증
@@ -32,7 +32,7 @@
 | --- | --- | --- |
 | 셸 테스트 | `tests/*_test.sh` 7개 | 로컬 실행 |
 | 래퍼 실제 호출 | PS 5.1 → WSL → Bash 7개 시나리오: 명시 프로젝트, 끝 역슬래시, 현재 폴더 기본값, 에이전트 기본값, 잘못된 에이전트, 없는 프로젝트, 실패 코드 전달. 공백·한글·작은따옴표·대괄호 경로 | `/tmp/ai-setup-windows-interop-test.py` |
-| 기존 환경 의존성 확인 | 프로젝트 `실제 프로젝트 [1]`에서 `setup-wsl.sh`가 설치된 도구를 재설치 없이 확인 (claude, rtk, bun, codex, 혼합 팀) | `actual-setup.log` |
+| 기존 환경 의존성 확인 | 프로젝트 `실제 프로젝트 [1]`에서 `install/wsl.sh`가 설치된 도구를 재설치 없이 확인 (claude, rtk, bun, codex, 혼합 팀) | `actual-setup.log` |
 | 임시 HOME 신규 설치 | 빈 HOME에서 claude(npm)·codex(npm)·rtk·bun 설치. 모두 임시 HOME 아래 경로로 선택됨(호스트 도구 아님) | `fresh-install.log` |
 | CLI 모델 응답 | Windows PowerShell → WSL에서 Claude `-p`(모델 `claude-opus-5-5`)가 정확히 `WINDOWS_CLAUDE_OK`, Codex `exec`(모델 `gpt-6.1-sol`)가 정확히 `WINDOWS_CODEX_OK`를 반환, 둘 다 종료 코드 0, 요청하지 않은 도구 사용·파일 변경 없음 | 테스트 루트의 `claude-response.json`, `codex-response.txt` |
 | 키 수정 후 전체 재기동 | 기본 4파인 팀을 Windows에서 다시 기동해 종료 코드 0. 경고 0건이고 `lead: superpowers:finishing-a-development-branch`, `architect: superpowers:writing-plans`가 링크됨(`SKILL.md` 확인). 수정 전 경고 로그는 `team-start-before-skill-fix.log`로 보존 | `team-start.log`, `pane-status.txt` |

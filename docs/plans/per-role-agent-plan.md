@@ -359,7 +359,7 @@ of this directory?")도 이전엔 자동 처리가 없어 같은 자리에서 �
 턴마다 초기화되어야 한다. 그러지 않으면 한 턴에 두 번 보고했을 때(`say architect`
 + `say lead`) Stop 훅이 한 번만 소비하고 나머지 상태가 다음 턴으로 넘어가,
 보고를 하고도 "미보고" 신호가 나간다. 실측으로 확인한 오탐이다
-([pane-messaging.md](pane-messaging.md) 10단계).
+([pane-messaging.md](../guides/pane-messaging.md) 10단계).
 
 초기화 지점이 공급자마다 다르다.
 
@@ -403,5 +403,5 @@ Codex는 `AGENTS.md`를 읽는다. **두 파일을 함께 갱신하지 않으면
 ## 남은 작업 (후속)
 
 - (완료) Codex 파인의 프롬프트·툴 JSONL 로깅은 `.codex/hooks.json`으로 이식했다 ([codex-support-plan.md](codex-support-plan.md) 참조).
-- 보고 프로토콜 변경([pane-messaging.md](pane-messaging.md) 10단계)이 Codex 파인에서도
+- 보고 프로토콜 변경([pane-messaging.md](../guides/pane-messaging.md) 10단계)이 Codex 파인에서도
   동일하게 지켜지는지 확인. Claude 파인에서는 실측했다. Codex 쪽은 로깅 이식 후 같은 방식으로 검증할 수 있다.

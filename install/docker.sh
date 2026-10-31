@@ -1,18 +1,18 @@
 #!/bin/bash
 # Docker 이미지를 빌드하고 프로젝트를 /workspace에 마운트해 팀을 구성한다.
 # 사용자 홈은 claude-home 볼륨으로 보존한다.
-# 사용: ./setup-docker.sh [--agent claude|codex] /path/to/project
+# 사용: ./install/docker.sh [--agent claude|codex] /path/to/project
 
 set -e
 
-SETUP_NAME="setup-docker.sh"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SETUP_NAME="install/docker.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # 저장소 루트
 source "$SCRIPT_DIR/lib/setup-common.sh"
 setup_parse_args "$@"
 
 IMAGE="claude-team"
 CONTAINER="claude-env"
-PROJECT_DIR="${PROJECT_ARG:?사용법: ./setup-docker.sh [--agent claude|codex] <project-path>}"
+PROJECT_DIR="${PROJECT_ARG:?사용법: ./install/docker.sh [--agent claude|codex] <project-path>}"
 PROJECT_DIR="$(realpath "$PROJECT_DIR")"
 
 # ── 이미지 빌드 ─────────────────────────────────────────────

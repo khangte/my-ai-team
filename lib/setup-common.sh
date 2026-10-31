@@ -1,5 +1,5 @@
 #!/bin/bash
-# setup-wsl.sh·setup-mac.sh·setup-windows.sh·setup-docker.sh가 공유하는 인자 파싱과 팀 구성 판독.
+# install/wsl.sh·install/mac.sh·install/windows.sh·install/docker.sh가 공유하는 인자 파싱과 팀 구성 판독.
 # bash 3.2(macOS 기본)에서도 동작해야 하므로 연관 배열·mapfile을 쓰지 않는다.
 
 GREEN='\033[0;32m'

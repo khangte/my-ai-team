@@ -193,7 +193,7 @@ Codex의 플러그인 배분은 위 "Codex 파인 스킬" 절의 `CODEX_PLUGIN_R
 | superpowers     | 없음(`enabledPlugins` 미주입) | 앞의 "superpowers 스킬" 절에 따라 `[4/7]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 14개가 통째로 들어와 선별이 무의미해짐  |
 | frontend-design | designer                      | `[4/7]`이 designer에 직접 링크하고 `enabledPlugins`로도 켬 — 스킬이 1개뿐이라 선별 손실이 없음                                                             |
 
-배분 근거 실측은 [architect-review/6_caveman-ponytail-role-scoping.md](architect-review/6_caveman-ponytail-role-scoping.md) 참조.
+배분 근거 실측은 [architect-review/6_caveman-ponytail-role-scoping.md](../architect-review/6_caveman-ponytail-role-scoping.md) 참조.
 
 
 `claude plugin enable`은 부르지 않는다 — 유저 전역 `settings.json`을 고쳐 팀 밖 세션까지 건드리는데,

@@ -6,7 +6,7 @@
 set -e
 
 # 연관 배열·mapfile·${var^^}는 bash 4+가 필요하다. macOS 기본 bash 3.2는 여기서 막는다.
-[ "${BASH_VERSINFO[0]}" -ge 4 ] || { echo "bash 4+ 필요 (현재 $BASH_VERSION). macOS는 setup-mac.sh 안내대로 Homebrew bash로 실행하세요." >&2; exit 1; }
+[ "${BASH_VERSINFO[0]}" -ge 4 ] || { echo "bash 4+ 필요 (현재 $BASH_VERSION). macOS는 install/mac.sh 안내대로 Homebrew bash로 실행하세요." >&2; exit 1; }
 
 # ── PATH 보강 ─────────────────────────────────────────────
 # 비대화형 셸에서도 파인과 훅이 node·python3를 찾도록 PATH를 보강한다.

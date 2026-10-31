@@ -7,7 +7,7 @@
 
 ## 구조
 
-![팀 구조: lead가 배분하고 architect·researcher·designer·developer·reviewer 5개 역할이 병렬로 붙는다](images/team-architecture.svg)
+![팀 구조: lead가 배분하고 architect·researcher·designer·developer·reviewer 5개 역할이 병렬로 붙는다](docs/images/team-architecture.svg)
 
 | 역할       | 담당                                                      |
 | ---------- | --------------------------------------------------------- |
@@ -33,14 +33,19 @@ bin/                    항상 이 저장소 기준으로 고정 실행되는 �
   ├ say                 파인 간 메시지 전송 래퍼 (setup-team.sh가 각 파인 PATH에 등록)
   └ log-hook            프롬프트·툴 사용을 .team-logs/{역할}.jsonl에 기록하는 훅
 docs/                   설계 배경·실측 분석 문서
-  └ architect-review/   architect의 리뷰 판정 문서 ({순번}_{주제}.md)
+  ├ guides/             현행 참조 문서 (파인 메시징·토큰 비용·스킬 배분)
+  ├ plans/              기능별 설계·구현 계획
+  ├ architect-review/   architect의 리뷰 판정 문서 ({순번}_{주제}.md)
+  ├ archive/            끝난 위임·사건·검증 기록
+  └ images/             README 그림
+install/                OS별 의존성 설치기 (최초 1회)
+  ├ docker.sh           Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
+  ├ wsl.sh              WSL/Linux(apt) 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
+  ├ mac.sh              macOS(Homebrew) 호스트에 직접 의존성 설치 — Homebrew bash 4+ 필요
+  ├ windows.ps1         Windows 진입점 — WSL2 안의 install/wsl.sh를 호출 (네이티브 tmux 없음)
+  └ windows.sh          Git Bash 진입점 — install/windows.ps1을 통해 WSL2 셋업 호출
+lib/setup-common.sh     install/ 스크립트 공용 인자 파싱·팀 구성 판독
 Dockerfile              팀 환경용 컨테이너 이미지 정의 (격리 실행할 때)
-setup-docker.sh         Docker로 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
-setup-wsl.sh            WSL/Linux(apt) 호스트에 직접 의존성 설치 (Docker 없이 실행할 때)
-setup-mac.sh            macOS(Homebrew) 호스트에 직접 의존성 설치 — Homebrew bash 4+ 필요
-setup-windows.ps1       Windows 진입점 — WSL2 안의 setup-wsl.sh를 호출 (네이티브 tmux 없음)
-setup-windows.sh        Git Bash 진입점 — setup-windows.ps1을 통해 WSL2 셋업 호출
-lib/setup-common.sh     setup-wsl.sh·setup-mac.sh 공용 인자 파싱·팀 구성 판독
 setup-team.sh           tmux 세션 구성 + 선택한 에이전트 CLI 실행 (핵심 스크립트)
 ```
 
@@ -50,7 +55,7 @@ setup-team.sh           tmux 세션 구성 + 선택한 에이전트 CLI 실행 (
 | ------------- | -------------------------------- | -------------------------------------- | ---------------------------------- | ------------------------------------------------- |
 | 격리          | 없음 (호스트에 직접 설치)        | 없음 (호스트에 직접 설치)              | 없음 (WSL2 안에 설치)              | 컨테이너로 격리                                   |
 | 적합한 경우   | 혼자 개발, 빠른 반복             | 혼자 개발 (Homebrew 필요)              | Windows 사용자 (WSL2 필수)         | 팀 배포, 환경 재현성 필요                         |
-| 진입 스크립트 | `setup-wsl.sh` → `setup-team.sh` | `setup-mac.sh` → Homebrew bash로 `setup-team.sh` | PowerShell: `setup-windows.ps1`, Git Bash: `setup-windows.sh` → WSL 안의 `setup-wsl.sh` | `setup-docker.sh` (내부에서 `setup-team.sh` 실행) |
+| 진입 스크립트 | `install/wsl.sh` → `setup-team.sh` | `install/mac.sh` → Homebrew bash로 `setup-team.sh` | PowerShell: `install/windows.ps1`, Git Bash: `install/windows.sh` → WSL 안의 `install/wsl.sh` | `install/docker.sh` (내부에서 `setup-team.sh` 실행) |
 
 ### 진입
 
@@ -64,39 +69,39 @@ git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
 
 ```bash
 # ai-setup/ 안에서 실행
-./setup-wsl.sh /path/to/project     # 최초 1회: 팀에 쓰이는 공급자 의존성을 모두 설치
+./install/wsl.sh /path/to/project     # 최초 1회: 팀에 쓰이는 공급자 의존성을 모두 설치
 ./setup-team.sh /path/to/project        # 지정한 프로젝트로 팀 세션 실행
 
 # Codex 팀
-./setup-wsl.sh --agent codex          # 최초 1회: tmux/codex 의존성 설치
+./install/wsl.sh --agent codex          # 최초 1회: tmux/codex 의존성 설치
 ./setup-team.sh --agent codex /path/to/project
 
 # 작업 디렉터리(프로젝트 루트)에서 실행
-~/ai-setup/setup-wsl.sh              # 최초 1회
+~/ai-setup/install/wsl.sh              # 최초 1회
 ~/ai-setup/setup-team.sh .              # 현재 디렉터리를 프로젝트로 지정
 
 # Codex 팀
-~/ai-setup/setup-wsl.sh --agent codex
+~/ai-setup/install/wsl.sh --agent codex
 ~/ai-setup/setup-team.sh --agent codex .
 ```
 
 #### macOS
 
 ```bash
-./setup-mac.sh /path/to/project         # 최초 1회: Homebrew로 tmux·node 등 + bash 4+ 설치
+./install/mac.sh /path/to/project         # 최초 1회: Homebrew로 tmux·node 등 + bash 4+ 설치
 "$(brew --prefix)/bin/bash" ./setup-team.sh /path/to/project
 ```
 
 - `setup-team.sh`·`bin/say`는 연관 배열·`mapfile`·`${var^^}`(bash 4+)와 GNU `timeout`·`realpath`를 쓴다. macOS 기본 `/bin/bash`(3.2)로는 실행되지 않으므로 Homebrew bash로 호출한다(3.2면 `bash 4+ 필요`로 즉시 종료)
-- `setup-mac.sh`가 `brew install bash coreutils`를 보장하고, `setup-team.sh`가 Homebrew bin·coreutils `gnubin`을 PATH 앞에 둬서 파인·훅(`bin/say`는 `env bash`)도 같은 도구를 쓴다
-- Homebrew가 없으면 `setup-mac.sh`가 안내만 하고 종료한다(자동 설치하지 않음)
+- `install/mac.sh`가 `brew install bash coreutils`를 보장하고, `setup-team.sh`가 Homebrew bin·coreutils `gnubin`을 PATH 앞에 둬서 파인·훅(`bin/say`는 `env bash`)도 같은 도구를 쓴다
+- Homebrew가 없으면 `install/mac.sh`가 안내만 하고 종료한다(자동 설치하지 않음)
 - Linux CI 등에서 스텁 검증할 때만 `SETUP_ALLOW_NON_DARWIN=1`로 OS 검사를 우회한다
 
 #### Windows
 
 ```powershell
 # PowerShell에서 (WSL2 배포판이 먼저 있어야 함: wsl --install -d Ubuntu)
-.\setup-windows.ps1 -Project C:\path\to\project    # -Agent codex 선택 가능
+.\install\windows.ps1 -Project C:\path\to\project    # -Agent codex 선택 가능
 ```
 
 - `-Project`를 생략하면 PowerShell의 현재 폴더가 프로젝트로 전달된다
@@ -104,25 +109,25 @@ git clone https://github.com/khangte/my-ai-team.git ~/ai-setup
 Git Bash에서는 같은 저장소에서 다음과 같이 실행한다(WSL2와 Ubuntu 배포판이 먼저 설치되어 있어야 함).
 
 ```bash
-bash ./setup-windows.sh /c/path/to/project
-bash ./setup-windows.sh --agent codex "/c/path/to/프로젝트 폴더"
-bash ./setup-windows.sh                  # 현재 폴더를 프로젝트로 사용
+bash ./install/windows.sh /c/path/to/project
+bash ./install/windows.sh --agent codex "/c/path/to/프로젝트 폴더"
+bash ./install/windows.sh                  # 현재 폴더를 프로젝트로 사용
 ```
 
 - Git Bash 진입점은 Windows PowerShell(`powershell.exe`)을 호출한다. 프로젝트 경로는 Git Bash 형식(`/c/...`, 상대 경로 등)으로 넘기며, 공백이 있으면 따옴표로 감싼다
 - **CLI 설치**: claude/codex/rtk/tmux는 WSL 배포판(Linux) 안에만 설치된다. Windows용 네이티브 CLI는 설치도 사용도 하지 않는다
 - **팀 실행**: **WSL2가 필수**이고 `setup-team.sh`·`tmux attach`는 WSL 터미널에서 실행한다. Git Bash 지원 범위는 WSL 셋업 호출이며, Git Bash 안에서 tmux를 직접 실행하는 방식과 별도 MSYS2·Cygwin은 지원하지 않는다
-- `setup-windows.ps1`은 직접 설치하지 않고 `wsl.exe --cd <저장소> -e bash ./setup-wsl.sh`로 호출한다(`wsl.exe`/배포판이 없으면 안내 후 종료). 경로는 인자 배열로 넘겨 공백이 있어도 안전하다
+- `install/windows.ps1`은 직접 설치하지 않고 `wsl.exe --cd <저장소> -e bash ./install/wsl.sh`로 호출한다(`wsl.exe`/배포판이 없으면 안내 후 종료). 경로는 인자 배열로 넘겨 공백이 있어도 안전하다
 - 프로젝트는 WSL 홈(`~/`) 아래 두는 편이 `/mnt/c`보다 빠르다
 
 #### Docker
 
 ```bash
 # ai-setup/ 안에서 실행
-./setup-docker.sh /path/to/project      # 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
+./install/docker.sh /path/to/project      # 이미지 빌드 + 컨테이너 기동 + setup-team.sh 실행
 
 # 작업 디렉터리(프로젝트 루트)에서 실행
-~/ai-setup/setup-docker.sh .            # 현재 디렉터리를 프로젝트로 지정
+~/ai-setup/install/docker.sh .            # 현재 디렉터리를 프로젝트로 지정
 ```
 
 > `setup-team.sh` 인자 규칙
@@ -259,7 +264,7 @@ say lead  "[developer] 로그인 기능 구현 완료"   # 파인 타이틀(역�
 `tmux send-keys`를 직접 쓰지 않는 이유: `Enter`가 별개 인자라 누락되기 쉽고, 누락 시 메시지가
 상대 입력창에 텍스트로만 남고 전송되지 않음. `say`는 Enter를 항상 부착해 이를 방지.
 
-유휴 판정은 화면 문구가 아니라 훅 기반 busy 마커(`/tmp/team-busy/`)로 한다. 상세는 [docs/pane-messaging.md](docs/pane-messaging.md) "유휴 판정" 참조.
+유휴 판정은 화면 문구가 아니라 훅 기반 busy 마커(`/tmp/team-busy/`)로 한다. 상세는 [docs/guides/pane-messaging.md](docs/guides/pane-messaging.md) "유휴 판정" 참조.
 
 파인 밖(호스트 셸)에서 호출:
 
@@ -273,7 +278,7 @@ Claude Code v2.1.224부터 세션끼리 `SendMessage`로 대화할 수 있다(`L
 - `SendMessage`는 Stop 훅(셸 스크립트)에서 호출할 수 없고, `SAY_NOWAIT` 같은 의도적 인터럽트 구분이 없다.
 - 유휴 파인에는 `say`와 똑같이 새 턴이 생겨 토큰 이득이 없다(실측).
 - Codex 파인은 지원하지 않는다.
-- 비교와 실측은 [docs/token-cost.md](docs/token-cost.md) 참조.
+- 비교와 실측은 [docs/guides/token-cost.md](docs/guides/token-cost.md) 참조.
 - 팀 밖 Claude 세션이 파인 하나를 직접 지시하는 용도로만 켜 둔다(`crossSessionInbound: accept`).
 
 ### 보고 경로
@@ -297,7 +302,7 @@ Claude Code v2.1.224부터 세션끼리 `SendMessage`로 대화할 수 있다(`L
 **종결될 때** 최종 결과 하나만 받는다. architect처럼 지시를 내리는 역할도 지시 시점이
 아니라 그 결과를 검수한 뒤에 보고한다.
 
-실측 근거는 [docs/pane-messaging.md](docs/pane-messaging.md) 10단계 참조.
+실측 근거는 [docs/guides/pane-messaging.md](docs/guides/pane-messaging.md) 10단계 참조.
 
 ### Stop 훅 — 보고 누락 방지
 
@@ -306,7 +311,7 @@ Claude Code v2.1.224부터 세션끼리 `SendMessage`로 대화할 수 있다(`L
 - Claude·Codex 양쪽에서 동일하게 동작 — Codex는 `.codex/hooks.json`의 `Stop` 이벤트로 이식했다.
 
 "방금 보고했는가"는 `/tmp/team-say/` 마커로 판정하며, 턴 경계마다 비운다. 이유와 오탐 실측은
-[docs/pane-messaging.md](docs/pane-messaging.md) 10단계 참조.
+[docs/guides/pane-messaging.md](docs/guides/pane-messaging.md) 10단계 참조.
 
 ## 프롬프트·툴 로깅 — 재현성과 추적
 
@@ -374,5 +379,5 @@ $PROJECT_DIR/.team-logs/
 | reviewer   | -                                              | serena                                 |
 
 - Codex 파인은 위 스킬을 읽지 못한다. `team/config.codex.sh`가 따로 배분(기본: superpowers 스킬은 위 표와 같고, 플러그인은 developer에 `engineering-suite-ponytail@openai-curated-remote`, designer에 `product-design@openai-curated-remote`)하고, 역할마다 `CODEX_HOME`을 격리한다.
-- 고정비: ponytail ~2.2K / caveman ~3.9K / serena ~6K 토큰 (파인당, 매 턴). 절감량은 [docs/token-cost.md](docs/token-cost.md) 참조.
-- 배분·제외 근거, Codex 대체재, 플러그인 이유는 [docs/skill-allocation.md](docs/skill-allocation.md) 참조.
+- 고정비: ponytail ~2.2K / caveman ~3.9K / serena ~6K 토큰 (파인당, 매 턴). 절감량은 [docs/guides/token-cost.md](docs/guides/token-cost.md) 참조.
+- 배분·제외 근거, Codex 대체재, 플러그인 이유는 [docs/guides/skill-allocation.md](docs/guides/skill-allocation.md) 참조.

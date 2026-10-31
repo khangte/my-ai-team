@@ -1,11 +1,11 @@
-﻿# Windows에서 WSL2 안의 setup-wsl.sh를 호출하는 진입 스크립트.
-# 사용: .\setup-windows.ps1 [-Agent claude|codex] [-Project <경로>]
+﻿# Windows에서 WSL2 안의 install/wsl.sh를 호출하는 진입 스크립트.
+# 사용: .\install\windows.ps1 [-Agent claude|codex] [-Project <경로>]
 #
 # 범위 구분:
 #   - CLI 설치: claude/codex/rtk/tmux는 WSL 배포판(Linux) 안에만 설치한다. Windows용
 #     claude.exe·codex.exe 등 네이티브 CLI는 설치하지도 사용하지도 않는다.
 #   - 팀 실행: tmux와 Bash 4+에 의존하는데 tmux는 네이티브 Windows(PowerShell/cmd)에서
-#     동작하지 않는다. Git Bash는 setup-windows.sh로 설치를 시작한다. setup-team.sh와
+#     동작하지 않는다. Git Bash는 install/windows.sh로 설치를 시작한다. setup-team.sh와
 #     tmux attach는 WSL 터미널에서 실행한다.
 param(
     [ValidateSet('claude', 'codex')][string]$Agent,
@@ -46,7 +46,7 @@ try {
         Stop-Setup 'bash가 동작하는 WSL 배포판이 없습니다. "wsl --install -d Ubuntu"로 배포판을 설치한 뒤 다시 실행하세요.'
     }
 
-    $repo = ConvertTo-WslPath $PSScriptRoot
+    $repo = ConvertTo-WslPath (Split-Path -Parent $PSScriptRoot)
     # 로그인 셸(bash -l)은 쓰지 않는다: 일부 배포판의 ~/.bash_logout이 종료 코드를 덮어쓴다.
     # 셸 문자열을 조립하지 않고 인자 배열로 넘겨 공백·따옴표 경로를 그대로 보존한다.
     $setupArgs = @()
@@ -56,8 +56,8 @@ try {
     if (-not (Test-Path -LiteralPath $Project)) { Stop-Setup "프로젝트 경로가 없습니다: $Project" }
     $setupArgs += (ConvertTo-WslPath (Resolve-Path -LiteralPath $Project).ProviderPath)
 
-    Write-Host "WSL에서 실행: cd $repo && ./setup-wsl.sh $($setupArgs -join ' ')"
-    & wsl.exe --cd $repo -e bash ./setup-wsl.sh @setupArgs
+    Write-Host "WSL에서 실행: cd $repo && ./install/wsl.sh $($setupArgs -join ' ')"
+    & wsl.exe --cd $repo -e bash ./install/wsl.sh @setupArgs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     Write-Host '완료. 팀 실행(setup-team.sh, tmux attach)은 WSL 터미널에서 하세요. README의 "Windows" 참고.'
 } finally {
