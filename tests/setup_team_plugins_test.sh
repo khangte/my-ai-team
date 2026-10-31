@@ -19,7 +19,7 @@ load_functions codex_default_model_config plugin_skill_set provider_plugin_neede
     prepare_codex_skill_sources codex_shared_plugin_cache link_codex_standalone_skills find_codex_skill_source write_codex_role_plugins answer_claude_dialog \
     wait_claude_ready wait_for_pane start_codex_in_pane team_owned_record team_owned_adopt_identical team_owned_clean \
     link_owned_skill json_escape stop_hook_cmd_for_role write_codex_role_agents shell_quote \
-    start_claude_in_pane
+    start_claude_in_pane role_in role_prompt_content merge_team_md
 
 test_dir="$(mktemp -d)"
 trap 'rm -rf "$test_dir"' EXIT
@@ -597,5 +597,20 @@ menu_never=1 run_stateful || fail '메뉴 미개방 시 기동 자체가 실패'
 [ ! -e "$st.trusted" ] || fail '메뉴가 안 열렸는데 t 전송'
 [ -e "$st.cleared_input" ] || fail '메뉴 미개방 시 입력줄 정리 누락'
 grep -q '훅 신뢰를 건너뜁니다' "$st.err" || fail '훅 신뢰 실패 경고 누락'
+
+# ── 공통 지침 병합: 사용자 내용 보존, 재실행은 블록만 갱신 ─────────
+(
+    SCRIPT_DIR="$test_dir/mdsrc" PROJECT_DIR="$test_dir/mdproj"
+    mkdir -p "$SCRIPT_DIR" "$PROJECT_DIR"
+    printf 'v1\n' > "$SCRIPT_DIR/AGENTS.md"
+    printf '사용자 내용\n' > "$PROJECT_DIR/AGENTS.md"
+    merge_team_md AGENTS.md codex "Codex 팀 공통 지침" >/dev/null
+    printf 'v2\n' > "$SCRIPT_DIR/AGENTS.md"
+    merge_team_md AGENTS.md codex "Codex 팀 공통 지침" >/dev/null
+    [ "$(cat "$PROJECT_DIR/AGENTS.md")" = "$(printf '사용자 내용\n\n<!-- ai-setup:codex:start -->\nv2\n<!-- ai-setup:codex:end -->')" ] || fail "공통 지침 병합 결과 오류: $(cat "$PROJECT_DIR/AGENTS.md")"
+    # 저장소 자신이 프로젝트면 병합하지 않는다.
+    PROJECT_DIR="$SCRIPT_DIR"; merge_team_md AGENTS.md codex x >/dev/null
+    [ "$(cat "$SCRIPT_DIR/AGENTS.md")" = v2 ] || fail '저장소 원본에 병합함'
+)
 
 printf 'setup-team 플러그인·재사용·기동 대기 테스트 통과\n'

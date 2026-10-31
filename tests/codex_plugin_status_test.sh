@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bash -n "$repo_dir/setup-team.sh" "$repo_dir/team/config.codex.sh"
-eval "$(sed -n '/^codex_default_model_config() {$/,/^}$/p; /^write_codex_role_plugins() {$/,/^}$/p; /^codex_plugin_cache() {$/,/^}$/p; /^codex_shared_plugin_cache() {$/,/^}$/p; /^link_codex_base_assets() {$/,/^}$/p; /^prepare_codex_role_home() {$/,/^}$/p' "$repo_dir/setup-team.sh")"
+eval "$(sed -n '/^role_in() {$/,/^}$/p; /^codex_default_model_config() {$/,/^}$/p; /^write_codex_role_plugins() {$/,/^}$/p; /^codex_plugin_cache() {$/,/^}$/p; /^codex_shared_plugin_cache() {$/,/^}$/p; /^link_codex_base_assets() {$/,/^}$/p; /^prepare_codex_role_home() {$/,/^}$/p' "$repo_dir/setup-team.sh")"
 test_dir="$(mktemp -d)"
 trap 'rm -rf "$test_dir"' EXIT
 base_codex_home="$test_dir/base"; codex_assets_home="$test_dir/assets"; TEAM_SKILLS_ROOT="$test_dir/team"

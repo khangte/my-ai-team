@@ -228,6 +228,12 @@ plugin_skill_set() {
     printf '%s' "${skill_sets[$role]:-}"
 }
 
+role_in() {
+    # 사용법: role_in <역할 목록|*> <역할>
+    # 목록이 *이거나 공백 구분 목록에 역할이 있으면 0을 반환한다.
+    [ "$1" = "*" ] || [[ " $1 " == *" $2 "* ]]
+}
+
 provider_plugin_needed() {
     # 사용법: provider_plugin_needed <claude|codex> <plugin@marketplace>
     # 그 공급자 파인이 플러그인을 활성화하거나 선택 스킬의 원본으로 쓰면 0을 반환한다.
@@ -237,7 +243,7 @@ provider_plugin_needed() {
     for ((i = 0; i < PANE_COUNT; i++)); do
         [ "${MEMBER_AGENTS[$i]}" = "$provider" ] || continue
         role="${MEMBER_NAMES[$i]}"
-        if [ "$roles" = "*" ] || [[ " $roles " == *" $role "* ]]; then
+        if role_in "$roles" "$role"; then
             return 0
         fi
         if [ -n "$(plugin_skill_set "${provider^^}" "${key%@*}" "$role")" ]; then
@@ -391,6 +397,51 @@ json_escape() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
+# ── 유틸: 공통 지침을 대상 프로젝트 파일에 병합 (Claude·Codex 공용) ──
+merge_team_md() {
+    # 사용법: merge_team_md <파일명> <마커 이름> <표시 이름>
+    # 사용자 내용은 보존하고 프로젝트 파일의 <!-- ai-setup:<마커>:start/end --> 블록만 갱신한다.
+    local src="$SCRIPT_DIR/$1" dst="$PROJECT_DIR/$1"
+    [ -f "$src" ] || return 0
+    [ "$(realpath "$src")" != "$(realpath "$dst" 2>/dev/null || echo "$dst")" ] || return 0
+
+    local begin="<!-- ai-setup:$2:start -->"
+    local end="<!-- ai-setup:$2:end -->"
+    if [ -f "$dst" ] && grep -qF "$begin" "$dst"; then
+        awk -v b="$begin" -v e="$end" -v f="$src" '
+            index($0, b) { print; while ((getline line < f) > 0) print line; skip = 1; next }
+            index($0, e) { skip = 0 }
+            !skip
+        ' "$dst" > "$dst.tmp" && mv "$dst.tmp" "$dst"
+    else
+        { [ -f "$dst" ] && printf '\n'; printf '%s\n' "$begin"; cat "$src"; printf '%s\n' "$end"; } >> "$dst"
+    fi
+    echo -e "${GREEN}  ✅ $3을 $dst 에 병합${NC}"
+}
+
+# ── 유틸: 역할 지침 조립 (Claude·Codex 공용) ────────────────
+role_prompt_content() {
+    # 사용법: role_prompt_content <역할 지침 파일> <역할> <작업 디렉터리>
+    # 지침 뒤에 작업 경로 안내(cwd가 프로젝트가 아닐 때)와 lead 팀원 표를 붙여 출력한다.
+    local file="$1" role="$2" work_dir="$3" content m
+    content="$(cat "$file")"
+    # 역할 디렉터리를 작업 대상으로 오인하지 않도록 프로젝트 루트를 알린다.
+    if [ "$work_dir" != "$PROJECT_DIR" ]; then
+        content+=$'\n\n'"## 작업 경로
+
+현재 셸의 cwd는 역할별 런타임 디렉터리(\`$work_dir\`)이며 작업 대상이 아니다.
+**실제 프로젝트 루트는 \`$PROJECT_DIR\` 이다.** 파일을 읽고 쓰거나 git을 다룰 때는
+그 경로를 기준으로 하고, 셸 작업이 필요하면 먼저 \`cd $(shell_quote "$PROJECT_DIR")\` 한다."
+    fi
+    if [ "$role" = "lead" ]; then
+        content+=$'\n\n'"## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 지시 방법 |"$'\n'"| --- | --- |"
+        for ((m = 1; m < ${#MEMBER_NAMES[@]}; m++)); do
+            content+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${MEMBER_NAMES[$m]} \"...\" |"
+        done
+    fi
+    printf '%s' "$content"
+}
+
 # ── 유틸: Claude 실행 + 다이얼로그 자동 처리 ────────────────
 start_claude_in_pane() {
     # 역할별 지침·훅·플러그인을 적용해 Claude를 시작한다.
@@ -414,25 +465,9 @@ start_claude_in_pane() {
     [ -f "$role_file" ] || role_file="$TEAM_DIR/${role}.md"
     local system_prompt_arg=""
     if [ -n "$role" ] && [ -f "$role_file" ]; then
-        local role_content; role_content="$(cat "$role_file")"
-        # 역할 디렉터리를 작업 대상으로 오인하지 않도록 프로젝트 루트를 알린다.
-        if [ "$work_dir" != "$PROJECT_DIR" ]; then
-            role_content="${role_content}"$'\n\n'"## 작업 경로
-
-현재 셸의 cwd는 역할별 스킬 격리용 디렉터리(\`$work_dir\`)이며 작업 대상이 아니다.
-**실제 프로젝트 루트는 \`$PROJECT_DIR\` 이다.** 파일을 읽고 쓰거나 git을 다룰 때는
-그 경로를 기준으로 하고, 셸 작업이 필요하면 먼저 \`cd $(shell_quote "$PROJECT_DIR")\` 한다."
-        fi
-        if [ "$role" = "lead" ]; then
-            local team_table="## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 지시 방법 |"$'\n'"| --- | --- |"
-            for ((m = 1; m < ${#MEMBER_NAMES[@]}; m++)); do
-                team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${MEMBER_NAMES[$m]} \"...\" |"
-            done
-            role_content="${role_content}"$'\n\n'"${team_table}"
-        fi
         # tmux 명령 길이 제한을 피하고 재시작 후에도 읽도록 지침을 파일로 전달한다.
         local prompt_file="$RUNTIME_DIR/${role}.prompt.md"
-        printf '%s' "$role_content" > "$prompt_file"
+        role_prompt_content "$role_file" "$role" "$work_dir" > "$prompt_file"
         system_prompt_arg="--append-system-prompt-file $(shell_quote "$prompt_file")"
     elif [ -n "$role" ]; then
         echo -e "${RED}⚠️  team/${role}.md 없음 → 이 파인은 역할 지침 없이 실행됩니다 (MEMBER_NAMES 오타 확인)${NC}" >&2
@@ -463,10 +498,7 @@ start_claude_in_pane() {
     if [ -n "$role" ]; then
         local enabled_entries=() marketplace_entries=() seen_marketplaces=" "
         for plugin in "${!CLAUDE_PLUGIN_ROLES[@]}"; do
-            local roles="${CLAUDE_PLUGIN_ROLES[$plugin]}"
-            if [ "$roles" != "*" ] && [[ " $roles " != *" $role "* ]]; then
-                continue
-            fi
+            role_in "${CLAUDE_PLUGIN_ROLES[$plugin]}" "$role" || continue
             enabled_entries+=("\"${plugin}\":true")
             # 출처도 전달해야 해당 마켓플레이스의 플러그인을 찾는다.
             local mp="${plugin##*@}"
@@ -486,18 +518,13 @@ start_claude_in_pane() {
     local stop_hook_cmd_json; stop_hook_cmd_json="$(json_escape "$STOP_HOOK_CMD")"
 
     local settings_arg=""
-    if [ "$role" = "lead" ]; then
-        # lead의 자기 보고 루프를 막고 busy 정리만 수행한다.
-        # 지침만으로 막히지 않는 직접 tmux 전송은 권한 설정으로 차단한다.
-        local lead_deny_json="\"permissions\":{\"deny\":[\"Bash(tmux send-keys:*)\"]},"
-        local lead_settings_json="{${plugins_json}${lead_deny_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${stop_hook_cmd_json}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}"
-        local lead_settings_file="$RUNTIME_DIR/${role}.settings.json"
-        printf '%s' "$lead_settings_json" > "$lead_settings_file"
-        settings_arg="--settings $(shell_quote "$lead_settings_file")"
-    elif [ -n "$role" ]; then
-        local settings_json="{${plugins_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${stop_hook_cmd_json}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}"
+    if [ -n "$role" ]; then
+        # lead의 자기 보고 루프는 Stop 명령에서 막고, 지침만으로 막히지 않는
+        # 직접 tmux 전송은 권한 설정으로 차단한다.
+        local deny_json=""
+        [ "$role" != "lead" ] || deny_json="\"permissions\":{\"deny\":[\"Bash(tmux send-keys:*)\"]},"
         local settings_file="$RUNTIME_DIR/${role}.settings.json"
-        printf '%s' "$settings_json" > "$settings_file"
+        printf '%s' "{${plugins_json}${deny_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${stop_hook_cmd_json}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}" > "$settings_file"
         settings_arg="--settings $(shell_quote "$settings_file")"
     fi
 
@@ -524,26 +551,9 @@ write_codex_role_agents() {
         return 1
     fi
 
-    local role_content
-    role_content="$(cat "$role_file")"
-    role_content="${role_content}"$'\n\n'"## 작업 경로
-
-현재 셸의 cwd는 역할별 런타임 디렉터리(\`$work_dir\`)이며 작업 대상이 아니다.
-**실제 프로젝트 루트는 \`$PROJECT_DIR\` 이다.** 파일을 읽고 쓰거나 git을 다룰 때는
-그 경로를 기준으로 하고, 셸 작업이 필요하면 먼저 \`cd $(shell_quote "$PROJECT_DIR")\` 한다."
-
-    if [ "$role" = "lead" ]; then
-        local team_table="## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 지시 방법 |"$'\n'"| --- | --- |"
-        local m
-        for ((m = 1; m < ${#MEMBER_NAMES[@]}; m++)); do
-            team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${MEMBER_NAMES[$m]} \"...\" |"
-        done
-        role_content="${role_content}"$'\n\n'"${team_table}"
-    fi
-
     mkdir -p "$work_dir"
     local agents_content
-    agents_content="$(printf '%s\n\n%s' '# Generated by ai-setup. Edit team/{role}.md instead.' "$role_content")"$'\n'
+    agents_content="$(printf '%s\n\n%s' '# Generated by ai-setup. Edit team/{role}.md instead.' "$(role_prompt_content "$role_file" "$role" "$work_dir")")"$'\n'
     # 정리 후 남은 파일·링크는 사용자 소유로 취급하고 덮어쓰지 않는다.
     if [ -e "$work_dir/AGENTS.md" ] || [ -L "$work_dir/AGENTS.md" ]; then
         team_owned_adopt_identical "$work_dir" AGENTS.md "$agents_content" ||
@@ -836,29 +846,7 @@ echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Claude — 런타임 준비 (공�
 # 배분은 CLAUDE_{플러그인}_SKILL_SETS를 따른다. 스킬이 없어도 역할 cwd는 만든다.
 # 전역 규칙은 홈 아래 프로젝트에서 자동 상속하므로 별도로 주입하지 않는다.
 
-# ── 공통 지침을 대상 프로젝트 CLAUDE.md에 병합 ──────────────
-merge_team_claude_md() {
-    # 사용자 내용은 보존하고 프로젝트의 팀 지침 블록만 갱신한다.
-    local src="$SCRIPT_DIR/CLAUDE.md"
-    local dst="$PROJECT_DIR/CLAUDE.md"
-    [ -f "$src" ] || return 0
-    [ "$(realpath "$src")" != "$(realpath "$dst" 2>/dev/null || echo "$dst")" ] || return 0
-
-    local begin="<!-- ai-setup:team:start -->"
-    local end="<!-- ai-setup:team:end -->"
-
-    if [ -f "$dst" ] && grep -qF "$begin" "$dst"; then
-        awk -v b="$begin" -v e="$end" -v f="$src" '
-            index($0, b) { print; while ((getline line < f) > 0) print line; skip = 1; next }
-            index($0, e) { skip = 0 }
-            !skip
-        ' "$dst" > "$dst.tmp" && mv "$dst.tmp" "$dst"
-    else
-        { [ -f "$dst" ] && printf '\n'; printf '%s\n' "$begin"; cat "$src"; printf '%s\n' "$end"; } >> "$dst"
-    fi
-    echo -e "${GREEN}  ✅ 팀 공통 지침을 $dst 에 병합${NC}"
-}
-merge_team_claude_md
+merge_team_md CLAUDE.md team "팀 공통 지침"
 
 for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
     [ "${MEMBER_AGENTS[$role_index]}" = "claude" ] || continue
@@ -888,29 +876,6 @@ if [ -n "${USED_AGENTS[codex]:-}" ]; then
 # ── [4/7] Codex — 필요한 플러그인 설치 ────────────────────────────
 echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Codex — 필요한 플러그인 설치...${NC}"
 
-merge_team_agents_md() {
-    # 사용자 내용은 보존하고 프로젝트의 Codex 팀 지침 블록만 갱신한다.
-    local src="$SCRIPT_DIR/AGENTS.md"
-    local dst="$PROJECT_DIR/AGENTS.md"
-    [ -f "$src" ] || return 0
-    [ "$(realpath "$src")" != "$(realpath "$dst" 2>/dev/null || echo "$dst")" ] || return 0
-
-    local begin="<!-- ai-setup:codex:start -->"
-    local end="<!-- ai-setup:codex:end -->"
-    if [ -f "$dst" ] && grep -qF "$begin" "$dst"; then
-        awk -v b="$begin" -v e="$end" -v f="$src" '
-            index($0, b) { print; while ((getline line < f) > 0) print line; skip = 1; next }
-            index($0, e) { skip = 0 }
-            !skip
-        ' "$dst" > "$dst.tmp" && mv "$dst.tmp" "$dst"
-    else
-        { [ -f "$dst" ] && printf '\n'; printf '%s\n' "$begin"; cat "$src"; printf '%s\n' "$end"; } >> "$dst"
-    fi
-    echo -e "${GREEN}  ✅ Codex 팀 공통 지침을 $dst 에 병합${NC}"
-}
-
-
-
 base_codex_home="${CODEX_HOME:-$HOME/.codex}"
 codex_assets_home="$TEAM_SKILLS_ROOT/_assets/codex-home"
 
@@ -922,14 +887,13 @@ codex_default_model_config() {
 
 write_codex_role_plugins() {
     # 기본 모델 설정을 매번 상속하고 배정 플러그인만 켠다. 명시한 실행 인자가 우선한다.
-    local role="$1" role_home="$2" plugin roles
+    local role="$1" role_home="$2" plugin
     mkdir -p "$role_home"
     {
         codex_default_model_config "${base_codex_home:-}"
         printf '[plugins._default]\nenabled = false\n'
         for plugin in "${!CODEX_PLUGIN_ROLES[@]}"; do
-            roles="${CODEX_PLUGIN_ROLES[$plugin]}"
-            [ "$roles" = "*" ] || [[ " $roles " == *" $role "* ]] || continue
+            role_in "${CODEX_PLUGIN_ROLES[$plugin]}" "$role" || continue
             printf '\n[plugins."%s"]\nenabled = true\n' "$plugin"
         done
     } > "$role_home/config.toml"
@@ -975,10 +939,9 @@ prepare_codex_role_home() {
         return 1
     fi
 
-    local role_plugins=() roles
+    local role_plugins=()
     for plugin in "${!CODEX_PLUGIN_ROLES[@]}"; do
-        roles="${CODEX_PLUGIN_ROLES[$plugin]}"
-        [ "$roles" = "*" ] || [[ " $roles " == *" $role "* ]] || continue
+        role_in "${CODEX_PLUGIN_ROLES[$plugin]}" "$role" || continue
         role_plugins+=("$plugin")
     done
     [ ${#role_plugins[@]} -gt 0 ] || return 0
@@ -1050,7 +1013,7 @@ prepare_codex_skill_sources() {
         roles="${CODEX_PLUGIN_ROLES[$key]:-}"
         for ((i = 0; i < PANE_COUNT; i++)); do
             [ "${MEMBER_AGENTS[$i]}" = "codex" ] || continue
-            if [ "$roles" = "*" ] || [[ " $roles " == *" ${MEMBER_NAMES[$i]} "* ]]; then activated=true; fi
+            if role_in "$roles" "${MEMBER_NAMES[$i]}"; then activated=true; fi
         done
         if [ "$activated" = true ]; then
             echo "  ℹ️  $key 역할 홈 설치본을 스킬 원본으로 사용"
@@ -1091,7 +1054,7 @@ done
 
 # ── [5/7] Codex — 런타임 준비 ────────────────────────────
 echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Codex — 런타임 준비 (공통 지침 병합·역할별 스킬 제한)...${NC}"
-merge_team_agents_md
+merge_team_md AGENTS.md codex "Codex 팀 공통 지침"
 
 link_codex_standalone_skills() {
     # 호출 측의 role·role_skills_dir·granted를 쓴다. CODEX_SKILL_SETS[역할]의 standalone

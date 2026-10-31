@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$repo_dir/team/config.codex.sh"
-eval "$(sed -n '/^codex_default_model_config() {$/,/^}$/p; /^write_codex_role_plugins() {$/,/^}$/p' "$repo_dir/setup-team.sh")"
+eval "$(sed -n '/^role_in() {$/,/^}$/p; /^codex_default_model_config() {$/,/^}$/p; /^write_codex_role_plugins() {$/,/^}$/p' "$repo_dir/setup-team.sh")"
 test_dir="$(mktemp -d)"
 trap 'rm -rf "$test_dir"' EXIT
 

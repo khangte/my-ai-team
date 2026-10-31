@@ -5,50 +5,15 @@
 
 set -e
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+SETUP_NAME="setup-docker.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/setup-common.sh"
+setup_parse_args "$@"
 
 IMAGE="claude-team"
 CONTAINER="claude-env"
-TEAM_AGENT="${TEAM_AGENT:-claude}"
-PROJECT_ARG=""
-
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --agent)
-            [ $# -ge 2 ] || { echo "--agent에는 값이 필요합니다." >&2; exit 2; }
-            TEAM_AGENT="$2"
-            shift 2
-            ;;
-        --agent=*)
-            TEAM_AGENT="${1#--agent=}"
-            shift
-            ;;
-        -h|--help)
-            echo "사용법: ./setup-docker.sh [--agent claude|codex] <project-path>"
-            exit 0
-            ;;
-        -*)
-            echo "알 수 없는 옵션: $1" >&2
-            exit 2
-            ;;
-        *)
-            [ -z "$PROJECT_ARG" ] || { echo "프로젝트 경로는 하나만 지정할 수 있습니다." >&2; exit 2; }
-            PROJECT_ARG="$1"
-            shift
-            ;;
-    esac
-done
-
-case "$TEAM_AGENT" in
-    claude|codex) ;;
-    *) echo "지원하지 않는 에이전트: $TEAM_AGENT (claude 또는 codex)" >&2; exit 2 ;;
-esac
-
 PROJECT_DIR="${PROJECT_ARG:?사용법: ./setup-docker.sh [--agent claude|codex] <project-path>}"
 PROJECT_DIR="$(realpath "$PROJECT_DIR")"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── 이미지 빌드 ─────────────────────────────────────────────
 echo -e "${YELLOW}이미지 빌드 중...${NC}"

@@ -92,6 +92,13 @@ rm -f "$test_dir/npm.log"
 out="$(HOME="$nvmhome" PATH="/mnt/c/Program Files/nodejs:$lean:/usr/bin:/bin" "$repo_dir/setup-wsl.sh" "$proj")"
 grep -q 'nvm-codex' <<< "$out" && grep -q 'nvm-claude' <<< "$out" && grep -q 'nvm-node' <<< "$out" || fail 'NVM의 node/claude/codex를 쓰지 않음'
 [ ! -e "$test_dir/npm.log" ] || fail '이미 NVM에 있는 CLI를 재설치함'
+# 한국어 locale이 없으면 locales·CJK 글꼴을 설치하고 locale을 만든다.
+printf '#!/bin/bash\necho "SUDO $*" >> "%s/sudo.log"\n' "$test_dir" > "$lean/sudo"
+printf '#!/bin/bash\n' > "$lean/locale"; chmod +x "$lean/sudo" "$lean/locale"
+HOME="$nvmhome" PATH="$lean:/usr/bin:/bin" "$repo_dir/setup-wsl.sh" "$proj" >/dev/null
+grep -q 'SUDO apt-get install -y .*locales fonts-noto-cjk' "$test_dir/sudo.log" && grep -q 'SUDO locale-gen ko_KR.UTF-8' "$test_dir/sudo.log" \
+    || fail "locale 없음 처리 누락: $(cat "$test_dir/sudo.log")"
+printf '#!/bin/bash\necho ko_KR.utf8\n' > "$lean/locale"
 
 # ── 3. macOS ────────────────────────────────────────────────────
 [ "$(uname -s)" = Darwin ] || {
