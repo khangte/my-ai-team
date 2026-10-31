@@ -50,7 +50,7 @@ grep -qF 'tmux set-option -t "$SESSION" pane-border-format " #{@display_name} "'
 ! grep -qF 'tmux set-option -t "$SESSION" pane-border-format " #{pane_title} "' "$repo_dir/setup-team.sh"
 grep -qF 'tmux set-option -t "$SESSION" set-titles on' "$repo_dir/setup-team.sh"
 grep -qF 'tmux set-option -t "$SESSION" set-titles-string "#{@display_name}"' "$repo_dir/setup-team.sh"
-grep -qF 'say_name="${MEMBER_NAMES[$m]}"' "$repo_dir/setup-team.sh"
+grep -qF '| say ${MEMBER_NAMES[$m]} \"...\" |' "$repo_dir/setup-team.sh"
 # 매초 파인 제목을 조회하는 타이틀 워처는 두지 않는다.
 ! grep -qF '파인 타이틀 워처' "$repo_dir/setup-team.sh"
 ! grep -qF 'SESSION_ID' "$repo_dir/setup-team.sh"

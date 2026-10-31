@@ -404,7 +404,6 @@ keys_file="$test_dir/keys"
 tmux() {
     case "$1" in
         capture-pane) cat "$screen_file" ;;
-        clear-history) echo "$*" >> "$keys_file" ;;
         send-keys)
             echo "$*" >> "$keys_file"
             [[ "${4:-}" != "cd "* ]] || printf '%s' "$4" > "$test_dir/sent_cmd"
@@ -546,9 +545,8 @@ after_enter='Ask Codex to do anything'
 start_codex_in_pane s:0.1 model developer high || fail 'Codex 신뢰 대화상자 처리 실패'
 unset after_enter
 
-# 기동 전 이전 화면을 비운다(남은 준비 화면 텍스트를 성공으로 오인하지 않게).
-grep -n -m1 -- 'C-l' "$keys_file" >/dev/null && grep -q 'clear-history' "$keys_file" || fail '기동 전 화면 정리 누락'
-[ "$(grep -c -- 'C-c' "$keys_file")" -ge 2 ] || fail '떠 있는 Codex 종료용 C-c 두 번 누락'
+# 새 세션의 빈 셸이므로 기동 전 정리 키를 보내지 않는다(셸 rc 로딩을 끊지 않게).
+! grep -qE -- ' C-c| C-l' "$keys_file" || fail '새 파인에 불필요한 정리 키 전송'
 
 printf 'starting\n' > "$screen_file"
 ! start_codex_in_pane s:0.1 model developer high 2>/dev/null || fail 'Codex 시간 초과가 성공 처리됨'
@@ -563,16 +561,13 @@ tmux() {
             echo "$n" > "$st.n"
             case "$(cat "$st.phase")" in
                 flash) [ "$n" -lt 2 ] || printf '  Folder access\n  Trust this folder? Codex can read,\n› 1. Trust and continue\n  2. Quit\n' > "$screen_file"; [ "$n" -lt 2 ] || echo trust > "$st.phase" ;;
-                booting) [ "$n" -lt 3 ] || { printf 'Ask Codex to do anything\n' > "$screen_file"; echo ready > "$st.phase"; echo 0 > "$st.n"; [ -z "${trust_dialog:-}" ] || echo flash > "$st.phase"; }
-                         [ "$n" -ge 3 ] || ! grep -q 'Ask Codex' "$screen_file" || touch "$st.stale_ready" ;;
+                booting) [ "$n" -lt 3 ] || { printf 'Ask Codex to do anything\n' > "$screen_file"; echo ready > "$st.phase"; echo 0 > "$st.n"; [ -z "${trust_dialog:-}" ] || echo flash > "$st.phase"; } ;;
                 typed) [ "$n" -lt 2 ] || { printf 'Ask Codex to do anything\n› /hooks\n' > "$screen_file"; echo shown > "$st.phase"; echo 0 > "$st.n"; } ;;
                 entered) [ "$n" -lt 2 ] || { [ -n "${menu_never:-}" ] || printf 'Hooks\nLifecycle hooks from config\n' > "$screen_file"; echo menu > "$st.phase"; echo 0 > "$st.n"; } ;;
             esac
             cat "$screen_file" ;;
-        clear-history) : ;;
         send-keys)
             case "$*" in
-                *" C-l"*) : > "$screen_file" ;;
                 *" cd "*) echo booting > "$st.phase"; echo 0 > "$st.n" ;;
                 *"-l /hooks"*) [ "$(cat "$st.phase")" != trust ] || echo "hooks_in_trust_dialog" >> "$st.bad"; echo typed > "$st.phase"; echo 0 > "$st.n" ;;
                 *" Enter") if [ "$(cat "$st.phase")" = trust ]; then printf 'Ask Codex to do anything\n' > "$screen_file"; echo ready > "$st.phase"; touch "$st.trust_accepted"; elif [ "$(cat "$st.phase")" = shown ]; then echo entered > "$st.phase"; echo 0 > "$st.n"; else echo "enter_early:$(cat "$st.phase")" >> "$st.bad"; fi ;;
@@ -582,13 +577,12 @@ tmux() {
     esac
 }
 run_stateful() {
-    # 상태를 초기화하고 남은 준비 화면에서 start_codex_in_pane을 실행한다.
-    rm -f "$st".*; echo idle > "$st.phase"; printf 'Ask Codex to do anything\n' > "$screen_file"
+    # 상태를 초기화하고 새 파인(빈 화면)에서 start_codex_in_pane을 실행한다.
+    rm -f "$st".*; echo idle > "$st.phase"; : > "$screen_file"
     start_codex_in_pane s:0.1 model developer high 2>"$st.err"
 }
 
 run_stateful || fail '상태 기반 기동 실패'
-[ ! -e "$st.stale_ready" ] || fail '이전 화면의 준비 문구를 성공으로 오인'
 [ ! -e "$st.bad" ] || fail "키 순서 오류: $(cat "$st.bad")"
 [ -e "$st.trusted" ] || fail '지연된 /hooks 메뉴에서 t가 전송되지 않음'
 [ ! -s "$st.err" ] || fail "정상 경로에 경고 출력: $(cat "$st.err")"

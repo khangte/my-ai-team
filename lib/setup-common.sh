@@ -69,7 +69,7 @@ setup_load_team() {
 setup_plan() {
     # 단계 수(TOTAL)를 계산하고 선택된 공급자를 출력한다. 기본 단계 수를 인자로 받는다.
     TOTAL="$1"
-    [ "$NEED_CLAUDE" = true ] && TOTAL=$((TOTAL + 3))
+    [ "$NEED_CLAUDE" = true ] && TOTAL=$((TOTAL + 2))
     [ "$NEED_CODEX" = true ] && TOTAL=$((TOTAL + 1))
     STEP=0
     echo "설치 대상 공급자: $([ "$NEED_CLAUDE" = true ] && printf 'claude ')$([ "$NEED_CODEX" = true ] && printf 'codex')"
@@ -81,20 +81,16 @@ step() {
 }
 
 setup_install_agent_clis() {
-    # claude/rtk/bun/codex CLI를 선택된 공급자에 맞게 설치한다. (node·npm이 준비된 뒤 호출)
+    # claude/rtk/codex CLI를 선택된 공급자에 맞게 설치한다. (node·npm이 준비된 뒤 호출)
     if [ "$NEED_CLAUDE" = true ]; then
         step "claude CLI 확인..."
         command -v claude &>/dev/null || npm install -g @anthropic-ai/claude-code
         echo "  ✅ claude $(claude --version 2>/dev/null | head -1)"
 
         step "rtk 확인..."
-        command -v rtk &>/dev/null || curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
+        # Dockerfile과 같은 버전으로 고정한다.
+        command -v rtk &>/dev/null || curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | RTK_VERSION="${RTK_VERSION:-v0.43.0}" sh
         echo "  ✅ rtk $(rtk --version 2>/dev/null | head -1)"
-
-        step "bun 확인..."
-        command -v bun &>/dev/null || curl -fsSL https://bun.sh/install | bash
-        export PATH="$HOME/.bun/bin:$PATH"
-        echo "  ✅ bun $(bun --version 2>/dev/null)"
     fi
 
     if [ "$NEED_CODEX" = true ]; then
@@ -106,7 +102,7 @@ setup_install_agent_clis() {
 
 setup_prepare_linux_path() {
     # WSL 비로그인 셸용 PATH 정리: Windows 상호운용 경로(/mnt/*)를 빼 Windows용 node·npm·CLI를 고르지 않게 하고,
-    # 기존 NVM·~/.local·bun 도구를 앞에 둔다. 로그인 셸(bash -l)에 기대지 않는다.
+    # 기존 NVM·~/.local 도구를 앞에 둔다. 로그인 셸(bash -l)에 기대지 않는다.
     local nvm_bin entry rest="$PATH" kept=""
     nvm_bin="$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)"
     while [ -n "$rest" ]; do
@@ -115,6 +111,6 @@ setup_prepare_linux_path() {
         case "$entry" in ""|/mnt/*) continue ;; esac
         kept="${kept:+$kept:}$entry"
     done
-    PATH="${nvm_bin:+$nvm_bin:}$HOME/.local/bin:$HOME/.bun/bin:$kept"
+    PATH="${nvm_bin:+$nvm_bin:}$HOME/.local/bin:$kept"
     export PATH
 }

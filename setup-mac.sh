@@ -3,7 +3,7 @@
 # 사용: ./setup-mac.sh [--agent claude|codex] [프로젝트_경로]
 # setup-team.sh는 bash 4+(연관 배열·mapfile)가 필요하므로 macOS 기본 bash 3.2로는 실행할 수 없다.
 # 또 timeout·realpath(GNU coreutils)가 필요하다. 이 스크립트는 둘을 설치·확인하고 실행 명령을 안내한다.
-# setup-team.sh는 Homebrew bin과 coreutils gnubin을 PATH 앞에 두어 파인·훅(bin/say)도 같은 도구를 쓴다.
+# setup-team.sh는 Homebrew bin과 coreutils gnubin을 PATH 앞에 두어 파인·훅(bin/say)도 Homebrew bash를 쓴다.
 
 set -e
 
@@ -33,7 +33,6 @@ MISSING_BREW=()
 command -v tmux    &>/dev/null || MISSING_BREW+=(tmux)
 command -v git     &>/dev/null || MISSING_BREW+=(git)
 command -v curl    &>/dev/null || MISSING_BREW+=(curl)
-command -v unzip   &>/dev/null || MISSING_BREW+=(unzip)
 command -v node    &>/dev/null || MISSING_BREW+=(node)
 # python3는 bin/log-hook(프롬프트·툴 로깅)이 쓴다.
 command -v python3 &>/dev/null || MISSING_BREW+=(python)
@@ -53,7 +52,7 @@ if [ "$(bash_major "$BREW_BASH")" -lt 4 ]; then
     brew install bash
 fi
 [ "$(bash_major "$BREW_BASH")" -ge 4 ] || { echo "bash 4+ 설치에 실패했습니다: $BREW_BASH" >&2; exit 1; }
-# setup-team.sh·파인·훅이 쓰는 timeout·realpath는 GNU coreutils의 gnubin에서 온다(setup-team.sh가 PATH에 앞세움).
+# setup-team.sh가 쓰는 timeout·realpath는 GNU coreutils의 gnubin에서 온다(setup-team.sh가 PATH에 앞세움).
 GNUBIN="$BREW_PREFIX/opt/coreutils/libexec/gnubin"
 if [ ! -x "$GNUBIN/timeout" ] || [ ! -x "$GNUBIN/realpath" ]; then
     brew install coreutils

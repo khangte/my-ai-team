@@ -2,7 +2,7 @@
 # 사용: .\setup-windows.ps1 [-Agent claude|codex] [-Project <경로>]
 #
 # 범위 구분:
-#   - CLI 설치: claude/codex/rtk/bun/tmux는 WSL 배포판(Linux) 안에만 설치한다. Windows용
+#   - CLI 설치: claude/codex/rtk/tmux는 WSL 배포판(Linux) 안에만 설치한다. Windows용
 #     claude.exe·codex.exe 등 네이티브 CLI는 설치하지도 사용하지도 않는다.
 #   - 팀 실행: tmux와 Bash 4+에 의존하는데 tmux는 네이티브 Windows(PowerShell/cmd)에서
 #     동작하지 않는다. Git Bash는 setup-windows.sh로 설치를 시작한다. setup-team.sh와

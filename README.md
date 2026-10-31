@@ -110,7 +110,7 @@ bash ./setup-windows.sh                  # 현재 폴더를 프로젝트로 사�
 ```
 
 - Git Bash 진입점은 Windows PowerShell(`powershell.exe`)을 호출한다. 프로젝트 경로는 Git Bash 형식(`/c/...`, 상대 경로 등)으로 넘기며, 공백이 있으면 따옴표로 감싼다
-- **CLI 설치**: claude/codex/rtk/bun/tmux는 WSL 배포판(Linux) 안에만 설치된다. Windows용 네이티브 CLI는 설치도 사용도 하지 않는다
+- **CLI 설치**: claude/codex/rtk/tmux는 WSL 배포판(Linux) 안에만 설치된다. Windows용 네이티브 CLI는 설치도 사용도 하지 않는다
 - **팀 실행**: **WSL2가 필수**이고 `setup-team.sh`·`tmux attach`는 WSL 터미널에서 실행한다. Git Bash 지원 범위는 WSL 셋업 호출이며, Git Bash 안에서 tmux를 직접 실행하는 방식과 별도 MSYS2·Cygwin은 지원하지 않는다
 - `setup-windows.ps1`은 직접 설치하지 않고 `wsl.exe --cd <저장소> -e bash ./setup-wsl.sh`로 호출한다(`wsl.exe`/배포판이 없으면 안내 후 종료). 경로는 인자 배열로 넘겨 공백이 있어도 안전하다
 - 프로젝트는 WSL 홈(`~/`) 아래 두는 편이 `/mnt/c`보다 빠르다

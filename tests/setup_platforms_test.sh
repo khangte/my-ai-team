@@ -16,7 +16,7 @@ real_git="$(command -v git)"   # 아래 스텁이 git을 가린다
 # 외부 도구 스텁: 설치돼 있는 것처럼 동작해 실제 설치가 일어나지 않게 한다.
 stub="$test_dir/stub"
 mkdir -p "$stub/bin"
-for c in tmux git curl unzip python3 node claude rtk bun codex; do
+for c in tmux git curl python3 node claude rtk codex; do
     printf '#!/bin/bash\necho "%s 0.0.0"\n' "$c" > "$stub/bin/$c"
 done
 printf '#!/bin/bash\necho "ko_KR.utf8"\n' > "$stub/bin/locale"
@@ -81,12 +81,12 @@ grep -q 'setup-mac.sh' <<< "$err" || fail 'Darwin 거부 시 setup-mac.sh 안내
     [ "${PATH%%:*}" = "$HOME/.nvm/versions/node/v20.1.0/bin" ] && [[ "$PATH" == *":/usr/bin:/bin" ]]
 ) || fail 'setup_prepare_linux_path: /mnt 제거 또는 NVM 우선 실패'
 nvmhome="$test_dir/nvmhome"; nvmbin="$nvmhome/.nvm/versions/node/v20.1.0/bin"; mkdir -p "$nvmbin"
-for c in node npm claude rtk bun codex; do
+for c in node npm claude rtk codex; do
     printf '#!/bin/bash\n[ "$1" = install ] && echo "NPM-INSTALL $*" >> "%s/npm.log"\necho "nvm-%s 1.0"\n' "$test_dir" "$c" > "$nvmbin/$c"
 done
 chmod +x "$nvmbin"/*
 lean="$test_dir/lean"; mkdir -p "$lean"
-for c in tmux git curl unzip python3 sudo; do printf '#!/bin/bash\nexit 0\n' > "$lean/$c"; done
+for c in tmux git curl python3 sudo; do printf '#!/bin/bash\nexit 0\n' > "$lean/$c"; done
 printf '#!/bin/bash\necho ko_KR.utf8\n' > "$lean/locale"; chmod +x "$lean"/*
 rm -f "$test_dir/npm.log"
 out="$(HOME="$nvmhome" PATH="/mnt/c/Program Files/nodejs:$lean:/usr/bin:/bin" "$repo_dir/setup-wsl.sh" "$proj")"

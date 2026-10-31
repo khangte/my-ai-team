@@ -11,7 +11,6 @@ RUN apt-get update && apt-get install -y \
     git \
     tmux \
     vim \
-    unzip \
     locales \
     fonts-noto-cjk \
     python3 \
@@ -32,21 +31,10 @@ ENV PATH=/opt/npm-global/bin:$PATH
 ENV RTK_INSTALL_DIR=/opt/rtk-bin
 ENV PATH=/opt/rtk-bin:$PATH
 
-ENV BUN_INSTALL=/opt/bun
-ENV PATH=/opt/bun/bin:$PATH
-
 RUN useradd -m -s /bin/bash user
 
-RUN mkdir -p /opt/npm-global /opt/rtk-bin /opt/bun /opt/ai-setup /workspace && \
-    chown -R user:user /opt/npm-global /opt/rtk-bin /opt/bun /opt/ai-setup /workspace
-
-COPY setup-team.sh /opt/ai-setup/setup-team.sh
-COPY team /opt/ai-setup/team
-COPY bin /opt/ai-setup/bin
-COPY CLAUDE.md AGENTS.md /opt/ai-setup/
-
-RUN chown -R user:user /opt/ai-setup
-RUN chmod +x /opt/ai-setup/setup-team.sh
+RUN mkdir -p /opt/npm-global /opt/rtk-bin /opt/ai-setup /workspace && \
+    chown -R user:user /opt/npm-global /opt/rtk-bin /opt/ai-setup /workspace
 
 USER user
 WORKDIR /workspace
@@ -57,6 +45,10 @@ RUN npm install -g @anthropic-ai/claude-code @openai/codex
 ENV RTK_VERSION=v0.43.0
 RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
 
-RUN curl -fsSL https://bun.sh/install | bash
+# 자주 바뀌는 저장소 파일은 마지막에 복사해 위 CLI 설치 레이어 캐시를 유지한다.
+COPY --chown=user:user setup-team.sh /opt/ai-setup/setup-team.sh
+COPY --chown=user:user team /opt/ai-setup/team
+COPY --chown=user:user bin /opt/ai-setup/bin
+COPY --chown=user:user CLAUDE.md AGENTS.md /opt/ai-setup/
 
 CMD ["bash"]

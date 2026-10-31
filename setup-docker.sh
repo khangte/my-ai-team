@@ -7,7 +7,6 @@ set -e
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-RED='\033[0;31m'
 NC='\033[0m'
 
 IMAGE="claude-team"
@@ -68,8 +67,6 @@ fi
 echo -e "\n${YELLOW}컨테이너 기동 중...${NC}"
 mkdir -p "$PROJECT_DIR"
 
-docker volume inspect claude-home >/dev/null 2>&1 || \
-docker volume create claude-home >/dev/null
 
 # 컨테이너는 유지하고 팀 구성은 아래 docker exec에서 실행한다.
 docker run -d --name "$CONTAINER" \

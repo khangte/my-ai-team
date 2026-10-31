@@ -22,10 +22,9 @@ if [ "$(uname -s)" = Darwin ]; then
 fi
 PATH="$BREW_FIRST$PATH"   # 아래 sort -V가 GNU 판을 쓰도록 먼저 반영
 NVM_BIN=$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)
-export PATH="$BREW_FIRST$HOME/.local/bin:/opt/rtk-bin:/opt/npm-global/bin:/opt/bun/bin:$HOME/.bun/bin:${NVM_BIN:+$NVM_BIN:}/usr/local/bin:/usr/bin:/bin:$PATH"
+export PATH="$BREW_FIRST$HOME/.local/bin:${NVM_BIN:+$NVM_BIN:}/usr/local/bin:/usr/bin:/bin:$PATH"
 
 GREEN='\033[0;32m'
-CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
@@ -210,7 +209,6 @@ wait_claude_ready() {
         screen="$(tmux capture-pane -t "$pane" -p 2>/dev/null)"
         if grep -q "trust this folder\|I accept" <<< "$screen"; then
             answer_claude_dialog "$pane" "$screen"
-            sleep 1; waited=$((waited + 1))
         elif grep -q "bypass permissions on\|? for shortcuts" <<< "$screen"; then
             return 0
         fi
@@ -404,10 +402,6 @@ start_claude_in_pane() {
     local pane_id="${pane##*:}"   # "team1:0.4" → "0.4". busy 마커·say 큐 키와 형식을 맞춘다.
     local state_key; state_key="$(pane_state_key "$pane")"
 
-    # 이전 프로세스와 입력 잔여물을 비운다.
-    tmux send-keys -t "$pane" C-c 2>/dev/null; sleep 0.3
-    tmux send-keys -t "$pane" C-u 2>/dev/null; sleep 0.2
-
     # 역할별 cwd와 설정 소스로 전역 스킬을 차단한다.
     local work_dir="$PROJECT_DIR" skills_arg=""
     if [ -n "$role" ] && [ -d "$TEAM_SKILLS_ROOT/$role/.claude/skills" ]; then
@@ -415,6 +409,7 @@ start_claude_in_pane() {
         skills_arg="--setting-sources project"
     fi
 
+    mkdir -p "$RUNTIME_DIR"   # 지침·설정 파일 위치
     local role_file="$PROJECT_DIR/team/${role}.md"
     [ -f "$role_file" ] || role_file="$TEAM_DIR/${role}.md"
     local system_prompt_arg=""
@@ -431,14 +426,12 @@ start_claude_in_pane() {
         if [ "$role" = "lead" ]; then
             local team_table="## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 지시 방법 |"$'\n'"| --- | --- |"
             for ((m = 1; m < ${#MEMBER_NAMES[@]}; m++)); do
-                local say_name="${MEMBER_NAMES[$m]}"
-                team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${say_name} \"...\" |"
+                team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${MEMBER_NAMES[$m]} \"...\" |"
             done
             role_content="${role_content}"$'\n\n'"${team_table}"
         fi
         # tmux 명령 길이 제한을 피하고 재시작 후에도 읽도록 지침을 파일로 전달한다.
         local prompt_file="$RUNTIME_DIR/${role}.prompt.md"
-        mkdir -p "$RUNTIME_DIR"
         printf '%s' "$role_content" > "$prompt_file"
         system_prompt_arg="--append-system-prompt-file $(shell_quote "$prompt_file")"
     elif [ -n "$role" ]; then
@@ -483,8 +476,8 @@ start_claude_in_pane() {
             fi
         done
         if [ ${#enabled_entries[@]} -gt 0 ]; then
-            local IFS=,
-            plugins_json="\"enabledPlugins\":{${enabled_entries[*]}},\"extraKnownMarketplaces\":{${marketplace_entries[*]}},"
+            # IFS 변경을 서브셸에 가둔다. local IFS는 함수 끝까지 남는다.
+            plugins_json="\"enabledPlugins\":{$(IFS=,; echo "${enabled_entries[*]}")},\"extraKnownMarketplaces\":{$(IFS=,; echo "${marketplace_entries[*]}")},"
         fi
     fi
 
@@ -499,13 +492,11 @@ start_claude_in_pane() {
         local lead_deny_json="\"permissions\":{\"deny\":[\"Bash(tmux send-keys:*)\"]},"
         local lead_settings_json="{${plugins_json}${lead_deny_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${stop_hook_cmd_json}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}"
         local lead_settings_file="$RUNTIME_DIR/${role}.settings.json"
-        mkdir -p "$RUNTIME_DIR"
         printf '%s' "$lead_settings_json" > "$lead_settings_file"
         settings_arg="--settings $(shell_quote "$lead_settings_file")"
     elif [ -n "$role" ]; then
         local settings_json="{${plugins_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${stop_hook_cmd_json}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}"
         local settings_file="$RUNTIME_DIR/${role}.settings.json"
-        mkdir -p "$RUNTIME_DIR"
         printf '%s' "$settings_json" > "$settings_file"
         settings_arg="--settings $(shell_quote "$settings_file")"
     fi
@@ -543,10 +534,9 @@ write_codex_role_agents() {
 
     if [ "$role" = "lead" ]; then
         local team_table="## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 지시 방법 |"$'\n'"| --- | --- |"
-        local m say_name
+        local m
         for ((m = 1; m < ${#MEMBER_NAMES[@]}; m++)); do
-            say_name="${MEMBER_NAMES[$m]}"
-            team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${say_name} \"...\" |"
+            team_table+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${MEMBER_NAMES[$m]} \"...\" |"
         done
         role_content="${role_content}"$'\n\n'"${team_table}"
     fi
@@ -590,13 +580,7 @@ start_codex_in_pane() {
     # 격리된 역할 홈으로 Codex를 시작하고 신뢰 승인을 처리한다.
     local pane="$1" model="${2:-}" role="${3:-}" reasoning_effort="${4:-}"
     local codex_bin; codex_bin="$(command -v codex)"
-
-    tmux send-keys -t "$pane" C-c 2>/dev/null; sleep 0.3
-    tmux send-keys -t "$pane" C-c 2>/dev/null; sleep 0.3   # 떠 있는 Codex는 두 번째 C-c로 종료된다.
-    tmux send-keys -t "$pane" C-u 2>/dev/null; sleep 0.2
-    # 이전 Codex 화면이 남아 있으면 준비 화면으로 오인하므로 화면과 스크롤백을 비운다.
-    tmux send-keys -t "$pane" C-l 2>/dev/null; sleep 0.3
-    tmux clear-history -t "$pane" 2>/dev/null
+    # 세션은 매번 새로 만들어 파인이 빈 셸이므로, 이전 화면·프로세스 정리는 하지 않는다.
 
     local pane_id="${pane##*:}"   # busy 마커·say 큐 키와 형식을 맞춘다(Claude와 동일).
     local state_key; state_key="$(pane_state_key "$pane")"
@@ -620,14 +604,12 @@ start_codex_in_pane() {
         permission_args="--ask-for-approval never --sandbox workspace-write"
     fi
 
-    local hook_trust_args="--dangerously-bypass-hook-trust"
-
     # sandbox 모드에서도 프로젝트와 say IPC 경로를 쓸 수 있도록 추가한다.
     # tmux 소켓의 seccomp 차단을 푸는 network_access는 외부 통신도 허용한다.
     # 파일 쓰기 경계는 --add-dir로 별도 유지한다.
     local tmux_tmpdir="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)"
     tmux send-keys -t "$pane" \
-        "cd $(shell_quote "$work_dir") && export CODEX_HOME=$(shell_quote "$role_codex_home") && export PATH=$(shell_quote "${TEAM_PATH:-$PATH}") && $(shell_quote "$codex_bin") $permission_args $hook_trust_args --add-dir $(shell_quote "$PROJECT_DIR") --add-dir $(shell_quote "$tmux_tmpdir") --add-dir /tmp/team-busy --add-dir /tmp/team-say --add-dir /tmp/team-say-queue -c 'sandbox_workspace_write.network_access=true' -c check_for_update_on_startup=false $model_arg $reasoning_arg" Enter
+        "cd $(shell_quote "$work_dir") && export CODEX_HOME=$(shell_quote "$role_codex_home") && export PATH=$(shell_quote "${TEAM_PATH:-$PATH}") && $(shell_quote "$codex_bin") $permission_args --dangerously-bypass-hook-trust --add-dir $(shell_quote "$PROJECT_DIR") --add-dir $(shell_quote "$tmux_tmpdir") --add-dir /tmp/team-busy --add-dir /tmp/team-say --add-dir /tmp/team-say-queue -c 'sandbox_workspace_write.network_access=true' -c check_for_update_on_startup=false $model_arg $reasoning_arg" Enter
 
     # 프로젝트 신뢰 대화상자 또는 입력 화면을 기다린다. 둘 다 없으면 실패한다.
     local trust_pattern="Do you trust the contents\|Trust this folder?"
@@ -663,9 +645,8 @@ start_codex_in_pane() {
         echo -e "${RED}⚠️  /hooks 입력이 화면에 보이지 않아 훅 신뢰를 건너뜁니다: $pane${NC}" >&2
         tmux send-keys -t "$pane" C-u
     fi
-    sleep 1
-
-    sleep 2
+    # 고정 3초 대신 입력 화면 복귀를 기다린다. 보이지 않아도 기동은 성공으로 둔다.
+    wait_for_pane "$pane" "Ask Codex to do anything" 3 || true
     return 0
 }
 
