@@ -63,13 +63,10 @@
 say lead "[reviewer] {feature} review done. Result: approved. No findings"
 ```
 
-- **승인을 기다리는 파인에게도 직접 보낸다** — 리뷰를 요청한 작성자(developer·designer)나 이 승인을 받아야 다음 단계(architect 게이트 종결 요청 등)로 넘어갈 수 있는 파인이 있으면, 그 파인에게도 같은 결과를 보낸다
-  - lead에게만 보내면 기다리는 파인은 승인을 받지 못하고 계속 대기한다
+- **작성자(developer·designer)에게는 승인 사본을 보내지 않는다** — 승인 후 커밋 등 다음 단계는 lead가 진행하므로 작성자는 할 일이 없다
+  - 사본을 보내면 작성자는 빈 턴을 돌고, 보고 없이 끝난 그 턴의 Stop 훅 종료 신호로 lead 턴이 한 번 더 든다
+- **예외: 이 승인을 받아야 직접 다음 단계로 넘어가는 파인이 있으면 그 파인에게만 같은 결과를 보낸다**
   - 이 전달은 lead 사본 금지 규칙과 별개다. 다음 단계를 진행시키기 위한 필수 전달이다
-
-```bash
-say developer "[reviewer] {feature} review done. Result: approved. No findings"
-```
 
 ### 수정요청 — 코드 품질만 → 작성자에게 직행
 
