@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # setup_team_round3_test.sh가 실제 tmux 서버를 띄운다.
       - run: sudo apt-get update && sudo apt-get install -y tmux
       - name: run tests
