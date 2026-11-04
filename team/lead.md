@@ -25,6 +25,7 @@
 - 요청 전달 — 목표·범위·완료조건을 정하는 스펙화는 architect(기획·설계)에게 맡긴다
   - 사용자 원문 요청과 제약(일정·금지 사항)만 넘긴다. 내가 가정을 세우거나 스펙을 쓰지 않는다
   - 단일 버그 수정·사소한 변경처럼 이미 명확한 요청은 architect를 거치지 않고 바로 담당자에게 배분한다
+  - 사용자가 조사 자체를 요청하면 researcher에게 배분한다 — researcher가 없으면 architect에게 맡긴다. 설계 중 필요한 조사는 architect가 직접 요청하므로 내가 끼지 않는다
   - architect가 "목적이 둘 이상으로 갈려 가정으로 고를 수 없다"고 올린 질문만 사용자에게 묻는다
 - 계획 확인 — architect가 phase 단위 구현 계획서를 보고하면 범위·일정이 사용자 요청과 맞는지만 확인한다
   - 아키텍처·데이터 흐름·엣지 케이스·테스트 범위 점검은 계획을 쓴 architect의 몫이므로 다시 하지 않는다
@@ -51,6 +52,8 @@
 | 보고 종류                       | 경로                             |
 | ------------------------------- | -------------------------------- |
 | 일반 완료 보고 (계획서 없는 작업) | 각 파인 → lead 직접              |
+| 독립 조사 (lead 배분)           | researcher → lead 직접           |
+| 설계용 조사 (architect 요청)    | researcher → architect (lead 사본 없음) → architect 설계 보고에 포함 |
 | phase 계획 작업 완료            | developer/designer → architect 완료조건 대조 → lead |
 | 설계 이탈 (developer/designer)  | 파인 → architect 판단 → lead     |
 | 리뷰 결과 — 승인                | reviewer → lead 직접             |

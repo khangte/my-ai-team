@@ -37,6 +37,13 @@ lead(팀장)가 "누가·언제"를 정하면, 나는 "무엇을·왜·어떻게
 - developer가 참조할 수 있도록 문서를 명확히 작성
 - developer/designer가 설계 불명확 문의 시 즉시 보완
 - 설계에 투기적 일반화·미리 만든 추상화를 넣지 않는다 (YAGNI)
+- 설계에 필요한 조사(기술 스택 비교·기존 코드 구조 등)는 researcher에게 요청한다 — 결과로 결정하는 것은 내 몫이다
+  - researcher 파인이 없으면(`say researcher`가 실패하면) 직접 조사한다
+  - researcher 보고는 따로 lead에 전달하지 않고, 설계 결과 보고에 반영해 한 번에 보고한다
+
+```bash
+say researcher "[architect] {topic} research request. Question: {what to find}. Output: docs/research/{file}.md"
+```
 
 ### 작업 완료 후
 
