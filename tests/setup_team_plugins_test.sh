@@ -504,6 +504,7 @@ log_has "ARG=claude-x" && log_has "ARG=high" && log_has "ARG=--dangerously-skip-
 [ ! -e "$test_dir/pwned" ] || fail '경로의 백틱이 명령으로 평가됨'
 # 훅 JSON은 유효하고, 안의 셸 명령도 같은 경로를 인자로 전달한다.
 python3 -I -c 'import json,sys; json.load(open(sys.argv[1]))' "$RUNTIME_DIR/dev.settings.json" || fail 'settings JSON 오류'
+python3 -I -c 'import json,sys; assert json.load(open(sys.argv[1]))["skipDangerousModePermissionPrompt"] is True' "$RUNTIME_DIR/dev.settings.json" || fail '우회 모드 경고 생략 누락(낮은 pane에서 기동 멈춤)'
 : > "$FAKE_LOG"
 run_hook_commands "$RUNTIME_DIR/dev.settings.json"
 log_has "CALL=log-hook" && log_has "ARG=dev" && log_has "ARG=$PROJECT_DIR" || fail 'Claude log-hook 인자 불일치'

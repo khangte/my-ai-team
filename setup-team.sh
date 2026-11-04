@@ -491,6 +491,9 @@ start_claude_in_pane() {
     # 무인 파인에서 팀 밖 Claude 메시지가 승인 대기 후 폐기되지 않도록 수신을 허용한다.
     local inbound_json="\"crossSessionInbound\":\"accept\""
 
+    # project 설정 소스가 사용자 설정의 우회 모드 동의를 제외한다. 낮은 pane에선 경고창의 동의 선택지가 잘려 응답할 수 없다.
+    local bypass_json="\"skipDangerousModePermissionPrompt\":true,"
+
     # 200K에서 세션을 유지한 채 압축하고 번들 스킬의 프롬프트 고정비를 줄인다.
     local env_json="\"env\":{\"CLAUDE_CODE_DISABLE_1M_CONTEXT\":\"1\",\"CLAUDE_CODE_DISABLE_BUNDLED_SKILLS\":\"1\"},"
 
@@ -525,7 +528,7 @@ start_claude_in_pane() {
         local deny_json=""
         [ "$role" != "lead" ] || deny_json="\"permissions\":{\"deny\":[\"Bash(tmux send-keys:*)\"]},"
         local settings_file="$RUNTIME_DIR/${role}.settings.json"
-        printf '%s' "{${plugins_json}${deny_json}${env_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${stop_hook_cmd_json}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}" > "$settings_file"
+        printf '%s' "{${plugins_json}${deny_json}${env_json}${bypass_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${stop_hook_cmd_json}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}" > "$settings_file"
         settings_arg="--settings $(shell_quote "$settings_file")"
     fi
 
