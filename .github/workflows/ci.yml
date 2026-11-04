@@ -1,0 +1,24 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      # setup_team_round3_test.sh가 실제 tmux 서버를 띄운다.
+      - run: sudo apt-get update && sudo apt-get install -y tmux
+      - name: run tests
+        run: |
+          status=0
+          for t in tests/*_test.sh; do
+            echo "::group::$t"
+            bash "$t" || { echo "::error::$t failed"; status=1; }
+            echo "::endgroup::"
+          done
+          exit $status
