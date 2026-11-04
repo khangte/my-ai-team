@@ -202,12 +202,13 @@ answer_claude_dialog() {
 }
 
 wait_claude_ready() {
-    # 폴더 신뢰·약관 대화상자에 응답하며 입력 화면이 뜰 때까지 기다린다.
+    # 폴더 신뢰·약관·외부 CLAUDE.md import 대화상자에 응답하며 입력 화면이 뜰 때까지 기다린다.
     # 이미 처리된 대화상자는 기다리지 않고, 시간 초과면 1을 반환한다.
     local pane="$1" timeout="${2:-60}" waited=0 screen
     while [ "$waited" -lt "$timeout" ]; do
         screen="$(tmux capture-pane -t "$pane" -p 2>/dev/null)"
-        if grep -q "trust this folder\|I accept" <<< "$screen"; then
+        # 낮은 pane에선 대화상자 제목이 잘리므로 선택지 문구로 판별한다.
+        if grep -q "trust this folder\|I accept\|disable external imports" <<< "$screen"; then
             answer_claude_dialog "$pane" "$screen"
         elif grep -q "bypass permissions on\|? for shortcuts" <<< "$screen"; then
             return 0

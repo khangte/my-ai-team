@@ -431,6 +431,14 @@ wait_claude_ready pane 5 || fail 'Yes 기본 선택 처리 실패'
 ! grep -q 'Down' "$keys_file" || fail 'Yes 기본 선택에서 Down 전송'
 unset after_enter
 
+: > "$keys_file"
+# 높이 7줄 pane처럼 제목과 Yes 줄이 잘린 화면
+printf '  https://code.claude.com/docs/en/security\n\n  ❯ No, disable external imports\n\n  Enter to confirm · Esc to cancel\n' > "$screen_file"
+after_enter='  ? for shortcuts'
+wait_claude_ready pane 5 || fail '외부 import 대화상자 처리 실패'
+grep -q 'Down' "$keys_file" || fail '외부 import 대화상자에서 Down 누락'
+unset after_enter
+
 printf 'loading...\n' > "$screen_file"
 ! wait_claude_ready pane 3 || fail 'Claude 시간 초과가 성공 처리됨'
 
