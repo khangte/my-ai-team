@@ -53,14 +53,16 @@ esac
 if [ "$msg" != "${msg%$'\n'*}" ] || [ "$msg" != "${msg#*$'\n'}" ]; then
     line_count=$(printf '%s\n' "$msg" | grep -c '')
     # 항목 경계는 남기되 빈 줄에서 생긴 중복 구분자는 제거한다.
-    msg="$(printf '%s' "$msg" | sed ':a;N;$!ba;s/\n/ \/ /g' \
-        | sed 's|\( */ *\)\{2,\}| / |g; s|^ */ *||; s| */ *$||; s/  */ /g')"
+    msg="$(printf '%s\n' "$msg" | awk 'NF { printf "%s%s", sep, $0; sep=" / " }')"
     if [ "$line_count" -gt 5 ]; then
         echo "say: NOTE - ${line_count}줄 메시지를 한 줄로 합쳐 보냈습니다." >&2
         echo "      긴 목록은 파일로 쓰고 경로만 넘기는 편이 읽기 쉽습니다:" >&2
         echo "      say $target \"[역할] 작업 목록: /tmp/tasks.md 참조. N건\"" >&2
     fi
 fi
+
+# 빈 메시지는 큐를 막으므로 처음부터 거부한다.
+[ "$drain_only" = true ] || [ -n "$msg" ] || { echo "say: 빈 메시지" >&2; exit 1; }
 
 record_marker() {
     # 큐 등록 시점에 발신 파인의 보고를 기록해 Stop의 중복 알림을 막는다.
@@ -293,7 +295,6 @@ process_queue() {
             msg="$(head -n 1 "$queue_file")"
             queue_unlock
 
-            [ -n "$msg" ] || continue
             if [ "$delivery_attempts" -lt "$max_delivery_attempts" ]; then
                 delivery_attempts=$((delivery_attempts + 1))
                 if ! deliver; then

@@ -395,6 +395,10 @@ merge_team_md() {
 
     local begin="<!-- ai-setup:$2:start -->"
     local end="<!-- ai-setup:$2:end -->"
+    if [ -f "$dst" ] && grep -qF "$begin" "$dst" && ! grep -qF "$end" "$dst"; then
+        echo -e "${YELLOW}  ⚠️ $dst 에 끝 마커($end)가 없어 병합을 건너뜀${NC}"
+        return 0
+    fi
     if [ -f "$dst" ] && grep -qF "$begin" "$dst"; then
         awk -v b="$begin" -v e="$end" -v f="$src" '
             index($0, b) { print; while ((getline line < f) > 0) print line; skip = 1; next }
@@ -765,6 +769,7 @@ reset_generated_team_files() {
 }
 
 mkdir -p "$TEAM_SKILLS_ROOT"
+[ -e "$TEAM_SKILLS_ROOT/.gitignore" ] || printf '*\n' > "$TEAM_SKILLS_ROOT/.gitignore"
 reset_generated_team_files
 mkdir -p "$RUNTIME_DIR"
 
