@@ -29,6 +29,12 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+# say·훅이 공유하는 상태 경로. 공용 /tmp 대신 사용자 전용 경로를 쓰고 SAY_* 환경변수로 덮어쓸 수 있다.
+STATE_ROOT="$HOME/.cache"
+BUSY_STATE_DIR="${SAY_BUSY_DIR:-$STATE_ROOT/team-busy}"
+REPORT_STATE_DIR="${SAY_REPORT_DIR:-$STATE_ROOT/team-say}"
+QUEUE_STATE_DIR="${SAY_QUEUE_DIR:-$STATE_ROOT/team-say-queue}"
+
 PROJECT_ARG=""
 
 usage() {
@@ -283,14 +289,14 @@ stop_hook_cmd_for_role() {
     local role="$1" pane_id="$2" state_key="$3"
     # watcher가 종료돼도 입력창 준비 후 tmux 서버가 큐를 다시 가동한다.
     local drain_inner
-    drain_inner="export PATH=$(shell_quote "${TEAM_PATH:-$PATH}"); sleep 1; $(shell_quote "$BIN_DIR/say") --drain-one $(shell_quote "${SESSION}:0.${pane_id#*.}")"
+    drain_inner="export PATH=$(shell_quote "${TEAM_PATH:-$PATH}"); $(say_state_exports); sleep 1; $(shell_quote "$BIN_DIR/say") --drain-one $(shell_quote "${SESSION}:0.${pane_id#*.}")"
     local drain_cmd="tmux run-shell -b $(shell_quote "$drain_inner")"
     if [ "$role" = "lead" ]; then
-        STOP_HOOK_CMD="rm -f /tmp/team-busy/${state_key}; ${drain_cmd}"
+        STOP_HOOK_CMD="rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}"); ${drain_cmd}"
     else
         # 보고 마커는 턴마다 소비한다. Codex에는 별도 턴 시작 초기화 훅이 없다.
-        local marker="/tmp/team-say/${state_key}"
-        STOP_HOOK_CMD="rm -f /tmp/team-busy/${state_key}; if [ -f $(shell_quote "$marker") ]; then rm -f $(shell_quote "$marker"); else $(shell_quote "$BIN_DIR/say") $(shell_quote "${SESSION}:lead") $(shell_quote "[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요"); fi; ${drain_cmd}"
+        local marker="$REPORT_STATE_DIR/${state_key}"
+        STOP_HOOK_CMD="rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}"); if [ -f $(shell_quote "$marker") ]; then rm -f $(shell_quote "$marker"); else $(shell_quote "$BIN_DIR/say") $(shell_quote "${SESSION}:lead") $(shell_quote "[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요"); fi; ${drain_cmd}"
     fi
 }
 
@@ -377,6 +383,12 @@ shell_quote() {
     # 작은따옴표를 포함한 값을 POSIX 셸의 한 인자로 직렬화한다.
     local quote="'\\''"
     printf "'%s'" "${1//\'/$quote}"
+}
+
+say_state_exports() {
+    # 파인 환경이 달라도 say와 훅이 같은 상태 경로를 쓰도록 export 문을 만든다.
+    printf 'export SAY_BUSY_DIR=%s SAY_REPORT_DIR=%s SAY_QUEUE_DIR=%s' \
+        "$(shell_quote "$BUSY_STATE_DIR")" "$(shell_quote "$REPORT_STATE_DIR")" "$(shell_quote "$QUEUE_STATE_DIR")"
 }
 
 # ── 유틸: JSON 문자열 값으로 안전하게 넣을 수 있게 이스케이프 ──
@@ -474,11 +486,15 @@ start_claude_in_pane() {
     log_cmd_json="$(json_escape "$log_cmd")"
     local pretooluse_json="\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"rtk hook claude\"}]},{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]}]"
 
+    # 상태 경로에 작은따옴표 등이 있어도 JSON이 깨지지 않도록 이스케이프한다.
+    local busy_start_json busy_clear_json
+    busy_start_json="$(json_escape "mkdir -p $(shell_quote "$BUSY_STATE_DIR") && touch $(shell_quote "$BUSY_STATE_DIR/${state_key}") && rm -f $(shell_quote "$REPORT_STATE_DIR/${state_key}")")"
+    busy_clear_json="$(json_escape "rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}")")"
     # 턴 시작에 busy 마커를 만들고 이전 보고 마커를 비운다.
-    local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]},{\"hooks\":[{\"type\":\"command\",\"command\":\"mkdir -p /tmp/team-busy && touch /tmp/team-busy/${state_key} && rm -f /tmp/team-say/${state_key}\"}]}]"
+    local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]},{\"hooks\":[{\"type\":\"command\",\"command\":\"${busy_start_json}\"}]}]"
 
     # /clear·/compact는 Stop 훅 없이 끝날 수 있으므로 SessionStart에서 마커를 지운다.
-    local sessionstart_json="\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"rm -f /tmp/team-busy/${state_key}\"}]}]"
+    local sessionstart_json="\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${busy_clear_json}\"}]}]"
 
     # 무인 파인에서 팀 밖 Claude 메시지가 승인 대기 후 폐기되지 않도록 수신을 허용한다.
     local inbound_json="\"crossSessionInbound\":\"accept\""
@@ -526,7 +542,7 @@ start_claude_in_pane() {
 
     # 부모 Claude 세션 감지를 해제하고 say 실행 경로를 추가한다.
     tmux send-keys -t "$pane" \
-        "cd $(shell_quote "$work_dir") && unset CLAUDECODE && export PATH=$(shell_quote "${TEAM_PATH:-$PATH}") && export CAVEMAN_DEFAULT_MODE=full && $(shell_quote "$claude_bin") $model_arg $effort_arg --dangerously-skip-permissions $skills_arg $system_prompt_arg $settings_arg" Enter
+        "cd $(shell_quote "$work_dir") && unset CLAUDECODE && export PATH=$(shell_quote "${TEAM_PATH:-$PATH}") && $(say_state_exports) && export CAVEMAN_DEFAULT_MODE=full && $(shell_quote "$claude_bin") $model_arg $effort_arg --dangerously-skip-permissions $skills_arg $system_prompt_arg $settings_arg" Enter
 
     wait_claude_ready "$pane" 60 || {
         echo -e "${RED}⚠️  Claude 준비 화면을 확인하지 못했습니다 (60초 초과)${NC}" >&2
@@ -563,12 +579,12 @@ write_codex_role_agents() {
     [ -n "$pane_id" ] || return 0
     stop_hook_cmd_for_role "$role" "$pane_id" "$state_key"
     local hook_cmd_json; hook_cmd_json="$(json_escape "$STOP_HOOK_CMD")"
-    local session_start_cmd_json; session_start_cmd_json="$(json_escape "rm -f /tmp/team-busy/${state_key}")"
+    local session_start_cmd_json; session_start_cmd_json="$(json_escape "rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}")")"
     local log_cmd_json
     log_cmd_json="$(json_escape "$(shell_quote "$BIN_DIR/log-hook") $(shell_quote "${role:-unknown}") $(shell_quote "$PROJECT_DIR") --quiet")"
     local log_hook_json="[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]}]"
     # 보고 마커는 턴마다 비운다. Codex busy 마커는 say가 관리한다.
-    local report_clear_json; report_clear_json="$(json_escape "rm -f /tmp/team-say/${state_key}")"
+    local report_clear_json; report_clear_json="$(json_escape "rm -f $(shell_quote "$REPORT_STATE_DIR/${state_key}")")"
     local userprompt_json="[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]},{\"hooks\":[{\"type\":\"command\",\"command\":\"${report_clear_json}\"}]}]"
     local hooks_json="{\"hooks\":{\"SessionStart\":[{\"matcher\":\"startup|resume|clear|compact\",\"hooks\":[{\"type\":\"command\",\"command\":\"${session_start_cmd_json}\"}]}],\"UserPromptSubmit\":${userprompt_json},\"PreToolUse\":${log_hook_json},\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd_json}\"}]}]}}"
     mkdir -p "$work_dir/.codex"
@@ -615,7 +631,7 @@ start_codex_in_pane() {
     # 파일 쓰기 경계는 --add-dir로 별도 유지한다.
     local tmux_tmpdir="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)"
     tmux send-keys -t "$pane" \
-        "cd $(shell_quote "$work_dir") && export CODEX_HOME=$(shell_quote "$role_codex_home") && export PATH=$(shell_quote "${TEAM_PATH:-$PATH}") && $(shell_quote "$codex_bin") $permission_args --dangerously-bypass-hook-trust --add-dir $(shell_quote "$PROJECT_DIR") --add-dir $(shell_quote "$tmux_tmpdir") --add-dir /tmp/team-busy --add-dir /tmp/team-say --add-dir /tmp/team-say-queue -c 'sandbox_workspace_write.network_access=true' -c check_for_update_on_startup=false $model_arg $reasoning_arg" Enter
+        "cd $(shell_quote "$work_dir") && export CODEX_HOME=$(shell_quote "$role_codex_home") && export PATH=$(shell_quote "${TEAM_PATH:-$PATH}") && $(say_state_exports) && $(shell_quote "$codex_bin") $permission_args --dangerously-bypass-hook-trust --add-dir $(shell_quote "$PROJECT_DIR") --add-dir $(shell_quote "$tmux_tmpdir") --add-dir $(shell_quote "$BUSY_STATE_DIR") --add-dir $(shell_quote "$REPORT_STATE_DIR") --add-dir $(shell_quote "$QUEUE_STATE_DIR") -c 'sandbox_workspace_write.network_access=true' -c check_for_update_on_startup=false $model_arg $reasoning_arg" Enter
 
     # 프로젝트 신뢰 대화상자 또는 입력 화면을 기다린다. 둘 다 없으면 실패한다.
     local trust_pattern="Do you trust the contents\|Trust this folder?"
@@ -1109,6 +1125,9 @@ create_team_session() {
     local first_window
     tmux new-session -d -s "$SESSION" -x 220 -y 50
     tmux set-option -t "$SESSION" @project "$PROJECT_DIR"
+    tmux set-environment -t "$SESSION" SAY_BUSY_DIR "$BUSY_STATE_DIR"
+    tmux set-environment -t "$SESSION" SAY_REPORT_DIR "$REPORT_STATE_DIR"
+    tmux set-environment -t "$SESSION" SAY_QUEUE_DIR "$QUEUE_STATE_DIR"
     tmux set-environment -t "$SESSION" PATH "${TEAM_PATH:-$PATH}"   # 세션 범위만 — 전역 환경은 건드리지 않는다
     first_window="$(tmux list-windows -t "$SESSION" -F '#{window_index}' | head -1)"
     tmux set-window-option -t "$SESSION:$first_window" pane-base-index 0
@@ -1153,9 +1172,9 @@ echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] 공통 (Claude·Codex) — 파인�
 
 # codex의 --add-dir는 존재하는 경로만 받는다. say의 lazy mkdir은
 # codex sandbox(workspace-write) 안에서 막히므로 파인 기동 전에 미리 만든다.
-mkdir -p /tmp/team-busy /tmp/team-say /tmp/team-say-queue
-# 공용 /tmp에서 다른 사용자가 먼저 만든 디렉터리를 신뢰하지 않는다.
-for d in /tmp/team-busy /tmp/team-say /tmp/team-say-queue; do
+# 상태 디렉터리는 사용자 전용 경로에 만들고 소유자를 확인한다.
+for d in "$BUSY_STATE_DIR" "$REPORT_STATE_DIR" "$QUEUE_STATE_DIR"; do
+    mkdir -p "$d"
     [ -O "$d" ] || { echo -e "${RED}❌ $d 의 소유자가 현재 사용자가 아닙니다.${NC}" >&2; exit 1; }
     chmod 700 "$d"
 done

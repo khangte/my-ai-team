@@ -1,6 +1,7 @@
 #!/bin/bash
 # setup-team.sh의 플러그인 설치 판별·.team 재사용·기동 대기를 모의 CLI로 검증한다.
 set -euo pipefail
+BUSY_STATE_DIR="/state/o'wner/busy" REPORT_STATE_DIR="/state/o'wner/say" QUEUE_STATE_DIR="/state/o'wner/queue"   # setup-team.sh 전역을 흉내 낸다
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="$repo_dir/setup-team.sh"
@@ -18,7 +19,7 @@ load_functions codex_default_model_config plugin_skill_set provider_plugin_neede
     link_codex_base_assets prepare_codex_role_home codex_plugin_skills_root \
     prepare_codex_skill_sources codex_shared_plugin_cache link_codex_standalone_skills find_codex_skill_source write_codex_role_plugins answer_claude_dialog \
     wait_claude_ready wait_for_pane start_codex_in_pane team_owned_record team_owned_adopt_identical team_owned_clean \
-    link_owned_skill json_escape stop_hook_cmd_for_role write_codex_role_agents shell_quote \
+    link_owned_skill json_escape say_state_exports stop_hook_cmd_for_role write_codex_role_agents shell_quote \
     start_claude_in_pane role_in role_prompt_content merge_team_md
 
 test_dir="$(mktemp -d)"
@@ -467,7 +468,7 @@ export FAKE_LOG="$test_dir/fake.log"
 log_has() { grep -qxF -- "$1" "$FAKE_LOG"; }
 run_sent() { ( cd /; PATH="$fakebin:$PATH" bash -c "$(cat "$test_dir/sent_cmd")" ); }
 json_commands() { # <json 파일> : 모든 hook command를 NUL 구분으로 출력
-    python3 -I - "$1" <<'PY'
+    python3 -I - "$1" "${2:-claude}" <<'PY'
 import json, sys
 def walk(node):
     if isinstance(node, dict):
@@ -495,6 +496,9 @@ printf '%s\n' "$screen_ready" > "$screen_file"
 start_claude_in_pane s:0.1 claude-x dev high || fail '특수문자 경로에서 Claude 기동 실패'
 bash -n <<< "$(cat "$test_dir/sent_cmd")" || fail 'Claude 기동 명령 문법 오류'
 grep -qF "$fakebin/claude" "$test_dir/sent_cmd" || fail '실제 claude 경로가 명령에 들어감'
+for v in BUSY REPORT QUEUE; do
+    grep -qF "SAY_${v}_DIR='/state/o'\\''wner/" "$test_dir/sent_cmd" || fail "Claude 기동 명령에 SAY_${v}_DIR export 누락"
+done
 run_sent
 log_has "CALL=claude" || fail 'Claude가 실행되지 않음'
 log_has "PWD=$TEAM_SKILLS_ROOT/dev" || fail 'Claude cwd 불일치'
@@ -510,9 +514,30 @@ run_hook_commands "$RUNTIME_DIR/dev.settings.json"
 log_has "CALL=log-hook" && log_has "ARG=dev" && log_has "ARG=$PROJECT_DIR" || fail 'Claude log-hook 인자 불일치'
 log_has "CALL=say" && log_has "ARG=s:lead" || fail 'Stop 훅의 say 호출 불일치'
 log_has "CALL=tmux" && log_has "ARG=run-shell" || fail 'drain tmux 호출 없음'
+# 생성된 훅이 busy/보고 상태 경로(작은따옴표 포함)를 올바른 이벤트에 쓰는지 확인한다.
+check_hook_state_paths() {
+    python3 -I - "$1" "${2:-claude}" <<'PY' || fail "$1 훅 상태 경로 오류"
+import json, sys
+d = json.load(open(sys.argv[1]))["hooks"]
+def cmds(ev):
+    return " ".join(h["command"] for g in d.get(ev, []) for h in g["hooks"] if "command" in h)
+need = {"UserPromptSubmit": ["o'\\''wner/busy", "o'\\''wner/say"], "SessionStart": ["o'\\''wner/busy"], "Stop": ["o'\\''wner/busy", "o'\\''wner/say"]}
+if sys.argv[2] == "codex":  # Codex는 턴 시작 busy 표시가 없고 보고 마커만 지운다
+    need["UserPromptSubmit"] = ["o'\\''wner/say"]
+for ev, subs in need.items():
+    c = cmds(ev)
+    assert c, ev + " 없음"
+    for sub in subs:
+        assert sub in c, (ev, sub)
+    assert "queue" not in c.replace("--drain-one", "") or ev == "Stop", ev
+    assert "/tmp/team" not in c, ev
+PY
+}
+check_hook_state_paths "$RUNTIME_DIR/dev.settings.json"
 # tmux run-shell 인자로 넘어간 drain 명령도 BIN_DIR 경로를 올바르게 실행한다.
 inner="$(awk '/^CALL=tmux/{f=1} f&&/^ARG=export PATH=.*sleep 1;/{sub(/^ARG=/,""); print; exit}' "$FAKE_LOG")"
 : > "$FAKE_LOG"
+grep -qF "SAY_QUEUE_DIR='/state/o'\\''wner/queue'" <<< "$inner" || fail 'drain 명령에 SAY_* export 누락'
 ( cd /; PATH="$fakebin:$PATH" bash -c "$inner" )
 log_has "CALL=say" && log_has "ARG=--drain-one" && log_has "ARG=s:0.1" || fail 'drain-one 명령이 특수문자 BIN_DIR에서 실패'
 [ ! -e "$test_dir/pwned" ] || fail '훅 명령에서 백틱이 평가됨'
@@ -537,6 +562,11 @@ run_hook_commands "$TEAM_SKILLS_ROOT/dev/.codex/hooks.json"
 log_has "CALL=log-hook" && log_has "ARG=dev" && log_has "ARG=$PROJECT_DIR" && log_has "ARG=--quiet" || fail 'Codex log-hook 인자 불일치'
 log_has "CALL=say" && log_has "ARG=s:lead" || fail 'Codex Stop 훅 say 불일치'
 [ ! -e "$test_dir/pwned" ] || fail 'Codex 훅에서 백틱이 평가됨'
+check_hook_state_paths "$TEAM_SKILLS_ROOT/dev/.codex/hooks.json" codex
+for d in busy say queue; do
+    grep -qF -- "--add-dir '/state/o'\\''wner/$d'" "$test_dir/sent_cmd" || fail "Codex --add-dir에 $d 상태 경로 누락"
+done
+grep -qF "SAY_BUSY_DIR='/state/o'\\''wner/busy'" "$test_dir/sent_cmd" || fail 'Codex 기동 명령에 SAY_* export 누락'
 # 역할 지침의 cd 안내도 올바르게 인용된다.
 grep -F 'cd ' "$TEAM_SKILLS_ROOT/dev/AGENTS.md" | grep -qF "owner'\\''s" || fail 'AGENTS.md cd 안내 인용 오류'
 

@@ -243,4 +243,18 @@ FAKE_CAPTURE_SCREEN='> sticky message long enough' FAKE_TMUX_STATE='$7:%32' \
     "$repo_dir/bin/say" demo:0.1 'sticky message long enough' 2>/dev/null || true
 grep -q -- 'send-keys -t demo:0.1 C-u' "$test_dir/tmux.log" || grep -q -- 'C-u' "$test_dir/tmux.log" || { echo '입력창 비우기 누락'; exit 1; }
 
+# 기본 상태 경로는 공용 /tmp가 아닌 $HOME/.cache 아래의 사용자 전용(700) 디렉터리이며 없으면 다시 만든다.
+! grep -q '/tmp/team' "$repo_dir/bin/say" "$repo_dir/setup-team.sh" || { echo '/tmp/team-* 경로가 남아 있음'; exit 1; }
+xdg="$test_dir/xdg"; mkdir -p "$xdg"
+( unset SAY_BUSY_DIR SAY_REPORT_DIR SAY_QUEUE_DIR
+  HOME="$xdg" TMUX_PANE=%1 FAKE_TMUX_STATE='$7:%40' "$repo_dir/bin/say" demo:0.1 'private state dir message' )
+test -d "$xdg/.cache/team-busy" && test "$(stat -c %a "$xdg/.cache/team-busy")" = 700 || { echo '기본 busy 경로가 사용자 전용이 아님'; exit 1; }
+test -d "$xdg/.cache/team-say" || { echo '기본 report 경로 누락'; exit 1; }
+
+# 상태 디렉터리가 사라져도 say가 다시 만들어 전송한다.
+rm -rf "$xdg/.cache"
+( unset SAY_BUSY_DIR SAY_REPORT_DIR SAY_QUEUE_DIR
+  HOME="$xdg" TMUX_PANE=%1 FAKE_TMUX_STATE='$7:%41' "$repo_dir/bin/say" demo:0.1 'recreated state dir message' )
+grep -q 'recreated state dir message' "$test_dir/tmux.log" && test -d "$xdg/.cache/team-busy" || { echo '상태 디렉터리 재생성 실패'; exit 1; }
+
 echo 'say tests passed'

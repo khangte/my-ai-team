@@ -14,7 +14,8 @@ IMAGE="claude-team"
 PROJECT_DIR="${PROJECT_ARG:?사용법: ./install/docker.sh <project-path>}"
 PROJECT_DIR="$(realpath "$PROJECT_DIR")"
 # 프로젝트마다 컨테이너를 분리해 다른 프로젝트의 팀을 종료하지 않는다.
-CONTAINER="claude-env-$(basename "$PROJECT_DIR" | tr -c '0-9A-Za-z_.\n-' _)"
+# 같은 이름의 다른 경로가 충돌하지 않도록 절대 경로의 짧은 체크섬을 붙인다.
+CONTAINER="claude-env-$(basename "$PROJECT_DIR" | tr -c '0-9A-Za-z_.\n-' _)-$(printf '%s' "$PROJECT_DIR" | cksum | cut -d' ' -f1)"
 
 # ── 이미지 빌드 ─────────────────────────────────────────────
 echo -e "${YELLOW}이미지 빌드 중...${NC}"
@@ -38,6 +39,9 @@ mkdir -p "$PROJECT_DIR"
 docker run -d --name "$CONTAINER" \
     -v "$PROJECT_DIR":/workspace \
     -v claude-home:/home/user \
+    -e SAY_BUSY_DIR=/tmp/team-runtime/team-busy \
+    -e SAY_REPORT_DIR=/tmp/team-runtime/team-say \
+    -e SAY_QUEUE_DIR=/tmp/team-runtime/team-say-queue \
     "$IMAGE" \
     sleep infinity
 

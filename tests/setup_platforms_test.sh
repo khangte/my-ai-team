@@ -160,12 +160,13 @@ if [ -n "$real_tmux" ]; then
     env -i PATH=/usr/bin:/bin HOME="$test_dir" "$real_tmux" -S "$sock" new-session -d -s pre
     global_before="$(tmux show-environment -g PATH)"
     eval "$(sed -n '/^create_team_session() {$/,/^}$/p' "$repo_dir/setup-team.sh")"
-    SESSION=team PROJECT_DIR="$proj" TEAM_PATH="$fakebrew/bin:/usr/bin:/bin"
+    SESSION=team PROJECT_DIR="$proj" BUSY_STATE_DIR=/s/b REPORT_STATE_DIR=/s/r QUEUE_STATE_DIR=/s/q TEAM_PATH="$fakebrew/bin:/usr/bin:/bin"
     create_team_session
     [ "$(tmux show-environment -t team PATH)" = "PATH=$TEAM_PATH" ] || fail '팀 세션 환경에 TEAM_PATH 누락'
     [ "$(tmux show-environment -g PATH)" = "$global_before" ] || fail 'tmux 전역 PATH를 바꿈'
     tmux run-shell -t team "printf %s \"\$PATH\" > '$test_dir/runshell.path'"
     [ "$(cat "$test_dir/runshell.path")" = "$TEAM_PATH" ] || fail 'run-shell이 팀 세션 PATH를 받지 못함'
+    [ "$(tmux show-environment -t team SAY_QUEUE_DIR)" = "SAY_QUEUE_DIR=/s/q" ] && [ "$(tmux show-environment -t team SAY_BUSY_DIR)" = "SAY_BUSY_DIR=/s/b" ] || fail '팀 세션 환경에 SAY_* 상태 경로 누락'
     tmux kill-server
 else
     echo '참고: tmux가 없어 tmux PATH 전파 검사를 건너뜁니다.'
@@ -199,6 +200,11 @@ dstub="$test_dir/dstub"; mkdir -p "$dstub" "$test_dir/my proj.x"
 printf '#!/bin/bash\necho "$*" >> "%s/docker.log"\n[ "$1 $2" = "container inspect" ] && exit 1\nexit 0\n' "$test_dir" > "$dstub/docker"
 chmod +x "$dstub/docker"
 PATH="$dstub:$PATH" "$repo_dir/install/docker.sh" "$test_dir/my proj.x" >/dev/null 2>&1 || fail 'docker.sh가 실패함'
-grep -q -- '--name claude-env-my_proj.x ' "$test_dir/docker.log" || fail "컨테이너 이름 오류: $(cat "$test_dir/docker.log")"
+grep -qE -- '--name claude-env-my_proj\.x-[0-9]+ ' "$test_dir/docker.log" || fail "컨테이너 이름 오류: $(cat "$test_dir/docker.log")"
+grep -q -- '-e SAY_BUSY_DIR=/tmp/team-runtime/team-busy' "$test_dir/docker.log" && grep -q -- '-e SAY_QUEUE_DIR=/tmp/team-runtime/team-say-queue' "$test_dir/docker.log" || fail '컨테이너별 전용 상태 경로(SAY_*) 누락'
+# 이름이 같은 다른 경로의 프로젝트는 서로 다른 컨테이너 이름을 받는다.
+mkdir -p "$test_dir/other/my proj.x"; : > "$test_dir/docker.log"
+PATH="$dstub:$PATH" "$repo_dir/install/docker.sh" "$test_dir/other/my proj.x" >/dev/null 2>&1 || fail 'docker.sh(두 번째)가 실패함'
+[ "$(grep -o -- '--name [^ ]*' "$test_dir/docker.log")" != '--name claude-env-my_proj.x-'"$(printf '%s' "$test_dir/my proj.x" | cksum | cut -d' ' -f1)" ] || fail '다른 경로가 같은 컨테이너 이름을 받음'
 
 echo 'setup_platforms_test 통과'

@@ -43,7 +43,7 @@ Git Bash에서는 `bash ./install/windows.sh /c/path/to/project`로 설치할 �
 
 ```bash
 ./install/docker.sh /path/to/project
-docker exec -it claude-env-<프로젝트이름> bash -lc "tmux attach -t team1"
+docker exec -it claude-env-<프로젝트이름>-<경로체크섬> bash -lc "tmux attach -t team1"
 ```
 
 기본 실행은 Claude의 `--dangerously-skip-permissions`와 Codex의
