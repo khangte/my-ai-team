@@ -110,7 +110,7 @@ Stop 훅 커맨드 안의 `tmux display-message -p '#{pane_index}'`가 자기 �
 파인 번호를 호출 시점의 `$pane`에서 직접 가져오도록 고쳤다.
 
 같은 커밋에서 **중복 신호 억제**도 넣었다. 본 보고와 종료 신호가 둘 다 도착하면
-lead 턴을 한 번 더 태운다. `say`가 `/tmp/team-say/{파인번호}`에 마커를 남기고,
+lead 턴을 한 번 더 태운다. `say`가 `$HOME/.cache/team-say/{파인번호}`에 마커를 남기고,
 Stop 훅은 마커가 있으면 신호를 생략하고 마커만 소비한다. 훅이 부르는 `say`는
 `TMUX_PANE`이 없어 마커를 남기지 않으므로, 신호가 자기 자신을 억제하지 않는다.
 
@@ -200,7 +200,7 @@ append와 '빈 큐 판정+rm+dequeue'를 같은 락으로 상호배제해, 읽�
 좁혀도 걸러지지 않는다(애초에 상태줄 자체가 문제라서).
 
 화면 문구 대신 **harness가 보장하는 실제 턴 경계**로 옮겼다.
-`UserPromptSubmit` 훅이 턴 시작 시 `/tmp/team-busy/{pane_id}` 마커를
+`UserPromptSubmit` 훅이 턴 시작 시 `$HOME/.cache/team-busy/{pane_id}` 마커를
 찍고, `Stop` 훅이 턴 종료 시 지운다. `is_busy()`는 이제 화면을 캡처하지
 않고 이 마커 파일의 존재만 본다. 훅 인프라 없이 뜬 세션(마커 디렉터리
 자체가 없는 경우) 대비로, 스피너 경과시간 패턴(`(15s ·` 형태, 고정
@@ -233,7 +233,7 @@ commerce-data-platform Phase 6 세션(`.claude-logs`, lead 56턴)을 실측했�
 마커는 "이번 턴에 보고했나" 1비트인데 **턴 경계에서 초기화되지 않아**,
 한 턴에 두 번 보내면 이전 턴에 소비된 상태가 그대로 넘어온다.
 
-`UserPromptSubmit` 훅에 `rm -f /tmp/team-say/{state_key}`를 추가해 턴
+`UserPromptSubmit` 훅에 `rm -f $HOME/.cache/team-say/{state_key}`를 추가해 턴
 시작마다 비운다. 이 훅이 없는 Codex 파인은 Stop 훅의 삭제가 유일한
 초기화 지점이라, 그쪽 주석에 그 사실을 명시했다.
 
@@ -287,13 +287,13 @@ architect 발신 3건 중 lead로 간 것은 1건뿐이었다 — 구현 지시�
 
 ```bash
 is_busy() {
-    local marker="/tmp/team-busy/${busy_key}"
+    local marker="$HOME/.cache/team-busy/${busy_key}"
     if [ -f "$marker" ]; then
         # Stop 훅이 못 지운 stale 마커(파인 크래시 등) 대비 30분 만료.
         [ "$age" -lt 1800 ] && return 0
         return 1
     fi
-    if [ -d "/tmp/team-busy" ]; then
+    if [ -d "$HOME/.cache/team-busy" ]; then
         return 1   # 마커 디렉터리는 있는데 이 파인 마커가 없다 = 유휴
     fi
     # 훅 인프라가 없는 세션용 폴백: 스피너 경과시간 패턴만 본다.

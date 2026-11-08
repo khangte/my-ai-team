@@ -110,7 +110,7 @@ cwd가 홈 밖일 때만 성립한다.
 
 ### 2. Stop 훅 중복 신호 가드 — 불필요한 턴
 
-`setup-team.sh` `start_claude_in_pane()`, 마커 파일 `/tmp/team-say/{파인번호}`.
+`setup-team.sh` `start_claude_in_pane()`, 마커 파일 `$HOME/.cache/team-say/{파인번호}`.
 
 각 파인은 응답이 끝나면 Stop 훅으로 lead에 "응답 종료" 신호를 보낸다. 파인이
 보고를 잊어도 harness가 훅을 실행하므로 신호는 반드시 나간다.
