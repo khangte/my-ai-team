@@ -11,7 +11,8 @@
 declare -A CODEX_PLUGIN_ROLES=(
     ["superpowers@openai-curated-remote"]=""
     ["product-design@openai-curated-remote"]="designer"
-    ["engineering-suite-ponytail@openai-curated-remote"]="developer"
+    ["open-design@openai-curated-remote"]="designer"
+    ["engineering-suite-ponytail@openai-curated-remote"]="architect developer designer"
     ["caveman@openai-curated-remote"]="*"
 )
 
@@ -29,7 +30,7 @@ declare -A CODEX_SKILL_SETS=(
 declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
     [lead]="finishing-a-development-branch"
     [architect]="writing-plans"
-    [designer]=""
+    [designer]="systematic-debugging receiving-code-review"
     [developer]="systematic-debugging receiving-code-review"
     [reviewer]=""
 )
