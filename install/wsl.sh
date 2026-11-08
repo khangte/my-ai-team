@@ -31,7 +31,8 @@ NEED_LOCALE=false
 locale -a | grep -qi ko_KR.utf8 || { NEED_LOCALE=true; MISSING_APT+=(locales fonts-noto-cjk); }
 
 if [ ${#MISSING_APT[@]} -gt 0 ]; then
-    sudo apt-get update && sudo apt-get install -y "${MISSING_APT[@]}"
+    sudo apt-get update || echo "  ⚠️ apt-get update 실패 — 기존 목록으로 계속" >&2
+    sudo apt-get install -y "${MISSING_APT[@]}"
     if [ "$NEED_LOCALE" = true ]; then
         sudo locale-gen ko_KR.UTF-8
         sudo update-locale LANG=ko_KR.UTF-8

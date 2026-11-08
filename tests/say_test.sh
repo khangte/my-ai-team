@@ -20,6 +20,9 @@ case "$1" in
     capture-pane)
         if [ -n "${FAKE_CAPTURE_SCREEN:-}" ]; then
             printf '%s\n' "$FAKE_CAPTURE_SCREEN"
+        elif [ -n "${FAKE_CAPTURE_CREATE:-}" ]; then
+            # is_busy 이후 다른 say가 busy 표시를 선점한 상황을 흉내 낸다.
+            mkdir -p "$(dirname "$FAKE_CAPTURE_CREATE")"; : > "$FAKE_CAPTURE_CREATE"
         elif [ -n "${FAKE_CAPTURE_MSG:-}" ]; then
             enter_count="$(cat "$FAKE_ENTER_COUNT_FILE" 2>/dev/null || printf '0')"
             if [ "$enter_count" -lt "${FAKE_TMUX_STICKY_UNTIL:-0}" ]; then
@@ -215,5 +218,29 @@ test ! -e "$test_dir/queue/demo_0_1"
 test ! -e "$test_dir/queue/demo_0_1.lock"
 test "$(grep -c -- '-l -- background queued failure' "$test_dir/tmux.log")" -eq 3
 grep -q 'attempts=3 message=background queued failure' "$test_dir/queue/dropped.log"
+
+# 빈 메시지는 거부한다.
+if "$repo_dir/bin/say" demo:0.1 '' 2>/dev/null; then echo '빈 메시지가 통과함'; exit 1; fi
+
+# 여러 줄 메시지는 경로·URL을 보존하고 빈 줄만 제거해 한 줄로 합친다.
+FAKE_TMUX_STATE='$7:%30' "$repo_dir/bin/say" demo:0.1 $'see /tmp/a.md\n\nhttps://x.io/y'
+grep -qF -- '-l -- see /tmp/a.md / https://x.io/y' "$test_dir/tmux.log"
+
+# 동시 전송 중 busy 선점에 실패하면 직접 전송하지 않고 큐에 넣는다.
+rm -rf "$test_dir/busy"; rm -f "$test_dir/queue/demo_0_1"
+FAKE_CAPTURE_CREATE="$test_dir/busy/_7__31" FAKE_TMUX_STATE='$7:%31' \
+    "$repo_dir/bin/say" demo:0.1 'raced message xxxx' 2>/dev/null
+! grep -q 'raced message xxxx' "$test_dir/tmux.log" || { echo '선점 실패 후에도 직접 전송함'; exit 1; }
+grep -q 'raced message xxxx' "$test_dir/queue/demo_0_1" || { echo '선점 실패 메시지가 큐에 없음'; exit 1; }
+# watcher가 test_dir 삭제 뒤 남지 않도록 종료한다.
+for _ in $(seq 1 50); do [ -s "$test_dir/queue/demo_0_1.lock/owner" ] && break; sleep 0.1; done
+kill "$(cut -d' ' -f1 "$test_dir/queue/demo_0_1.lock/owner")" 2>/dev/null || true
+sleep 0.3
+rm -rf "$test_dir/queue/demo_0_1" "$test_dir/queue/demo_0_1.lock" "$test_dir/queue/demo_0_1.oplock"
+
+# 전송 실패 시 재시도 전에 입력창을 비운다.
+FAKE_CAPTURE_SCREEN='> sticky message long enough' FAKE_TMUX_STATE='$7:%32' \
+    "$repo_dir/bin/say" demo:0.1 'sticky message long enough' 2>/dev/null || true
+grep -q -- 'send-keys -t demo:0.1 C-u' "$test_dir/tmux.log" || grep -q -- 'C-u' "$test_dir/tmux.log" || { echo '입력창 비우기 누락'; exit 1; }
 
 echo 'say tests passed'

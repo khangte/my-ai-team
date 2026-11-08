@@ -508,7 +508,7 @@ python3 -I -c 'import json,sys; assert json.load(open(sys.argv[1]))["skipDangero
 : > "$FAKE_LOG"
 run_hook_commands "$RUNTIME_DIR/dev.settings.json"
 log_has "CALL=log-hook" && log_has "ARG=dev" && log_has "ARG=$PROJECT_DIR" || fail 'Claude log-hook 인자 불일치'
-log_has "CALL=say" && log_has "ARG=s:0.0" || fail 'Stop 훅의 say 호출 불일치'
+log_has "CALL=say" && log_has "ARG=s:lead" || fail 'Stop 훅의 say 호출 불일치'
 log_has "CALL=tmux" && log_has "ARG=run-shell" || fail 'drain tmux 호출 없음'
 # tmux run-shell 인자로 넘어간 drain 명령도 BIN_DIR 경로를 올바르게 실행한다.
 inner="$(awk '/^CALL=tmux/{f=1} f&&/^ARG=export PATH=.*sleep 1;/{sub(/^ARG=/,""); print; exit}' "$FAKE_LOG")"
@@ -535,7 +535,7 @@ python3 -I -c 'import json,sys; json.load(open(sys.argv[1]))' "$TEAM_SKILLS_ROOT
 : > "$FAKE_LOG"
 run_hook_commands "$TEAM_SKILLS_ROOT/dev/.codex/hooks.json"
 log_has "CALL=log-hook" && log_has "ARG=dev" && log_has "ARG=$PROJECT_DIR" && log_has "ARG=--quiet" || fail 'Codex log-hook 인자 불일치'
-log_has "CALL=say" && log_has "ARG=s:0.0" || fail 'Codex Stop 훅 say 불일치'
+log_has "CALL=say" && log_has "ARG=s:lead" || fail 'Codex Stop 훅 say 불일치'
 [ ! -e "$test_dir/pwned" ] || fail 'Codex 훅에서 백틱이 평가됨'
 # 역할 지침의 cd 안내도 올바르게 인용된다.
 grep -F 'cd ' "$TEAM_SKILLS_ROOT/dev/AGENTS.md" | grep -qF "owner'\\''s" || fail 'AGENTS.md cd 안내 인용 오류'
@@ -617,6 +617,10 @@ grep -q '훅 신뢰를 건너뜁니다' "$st.err" || fail '훅 신뢰 실패 경
     printf 'v2\n' > "$SCRIPT_DIR/AGENTS.md"
     merge_team_md AGENTS.md codex "Codex 팀 공통 지침" >/dev/null
     [ "$(cat "$PROJECT_DIR/AGENTS.md")" = "$(printf '사용자 내용\n\n<!-- ai-setup:codex:start -->\nv2\n<!-- ai-setup:codex:end -->')" ] || fail "공통 지침 병합 결과 오류: $(cat "$PROJECT_DIR/AGENTS.md")"
+    # 끝 마커가 없으면 사용자 내용을 지우지 않고 병합을 건너뛴다.
+    printf '앞\n<!-- ai-setup:codex:start -->\n사용자 뒷내용\n' > "$PROJECT_DIR/AGENTS.md"
+    merge_team_md AGENTS.md codex x >/dev/null
+    [ "$(cat "$PROJECT_DIR/AGENTS.md")" = "$(printf '앞\n<!-- ai-setup:codex:start -->\n사용자 뒷내용')" ] || fail '끝 마커 누락 시 내용이 변경됨'
     # 저장소 자신이 프로젝트면 병합하지 않는다.
     PROJECT_DIR="$SCRIPT_DIR"; merge_team_md AGENTS.md codex x >/dev/null
     [ "$(cat "$SCRIPT_DIR/AGENTS.md")" = v2 ] || fail '저장소 원본에 병합함'

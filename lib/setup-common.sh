@@ -74,8 +74,12 @@ setup_install_agent_clis() {
 
         step "rtk 확인..."
         # Dockerfile과 같은 버전으로 고정한다.
-        command -v rtk &>/dev/null || curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | RTK_VERSION="${RTK_VERSION:-v0.43.0}" sh
-        echo "  ✅ rtk $(rtk --version 2>/dev/null | head -1)"
+        command -v rtk &>/dev/null || curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/tags/v0.43.0/install.sh | RTK_VERSION="${RTK_VERSION:-v0.43.0}" sh
+        if command -v rtk &>/dev/null; then
+            echo "  ✅ rtk $(rtk --version 2>/dev/null | head -1)"
+        else
+            echo "  ⚠️ rtk 설치 확인 실패 — PATH를 확인하세요" >&2
+        fi
     fi
 
     if [ "$NEED_CODEX" = true ]; then

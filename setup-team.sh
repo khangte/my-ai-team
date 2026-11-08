@@ -50,12 +50,6 @@ while [ $# -gt 0 ]; do
             usage
             exit 0
             ;;
-        --)
-            shift
-            [ $# -le 1 ] || { echo -e "${RED}❌ 프로젝트 경로는 하나만 지정할 수 있습니다.${NC}" >&2; exit 2; }
-            PROJECT_ARG="${1:-}"
-            break
-            ;;
         -*)
             echo -e "${RED}❌ 알 수 없는 옵션: $1${NC}" >&2
             usage >&2
@@ -132,6 +126,13 @@ for ((i = 0; i < PANE_COUNT; i++)); do
     fi
 done
 
+# role은 say 주소이자 설정 파일 이름이므로 중복을 허용하지 않는다.
+dup_roles="$(printf '%s\n' "${MEMBER_NAMES[@]}" | sort | uniq -d)"
+if [ -n "$dup_roles" ]; then
+    echo -e "${RED}❌ 중복된 역할: $(echo $dup_roles). team/config.sh의 MEMBERS를 확인하세요.${NC}" >&2
+    exit 1
+fi
+
 # 혼합 팀에서는 실제 배정된 공급자 모두를 준비한다.
 declare -A USED_AGENTS=()
 for ((i = 0; i < PANE_COUNT; i++)); do
@@ -143,7 +144,6 @@ for ((i = 0; i < PANE_COUNT; i++)); do
             exit 2
             ;;
     esac
-    MEMBER_AGENTS[$i]="$a"
     USED_AGENTS["$a"]=1
 done
 
@@ -290,7 +290,7 @@ stop_hook_cmd_for_role() {
     else
         # 보고 마커는 턴마다 소비한다. Codex에는 별도 턴 시작 초기화 훅이 없다.
         local marker="/tmp/team-say/${state_key}"
-        STOP_HOOK_CMD="rm -f /tmp/team-busy/${state_key}; if [ -f $(shell_quote "$marker") ]; then rm -f $(shell_quote "$marker"); else $(shell_quote "$BIN_DIR/say") $(shell_quote "${SESSION}:0.0") $(shell_quote "[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요"); fi; ${drain_cmd}"
+        STOP_HOOK_CMD="rm -f /tmp/team-busy/${state_key}; if [ -f $(shell_quote "$marker") ]; then rm -f $(shell_quote "$marker"); else $(shell_quote "$BIN_DIR/say") $(shell_quote "${SESSION}:lead") $(shell_quote "[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요"); fi; ${drain_cmd}"
     fi
 }
 
@@ -427,7 +427,8 @@ role_prompt_content() {
     fi
     if [ "$role" = "lead" ]; then
         content+=$'\n\n'"## 팀원 배분 (자동 생성)"$'\n\n'"| 역할 | 지시 방법 |"$'\n'"| --- | --- |"
-        for ((m = 1; m < ${#MEMBER_NAMES[@]}; m++)); do
+        for ((m = 0; m < ${#MEMBER_NAMES[@]}; m++)); do
+            [ "${MEMBER_NAMES[$m]}" != "lead" ] || continue
             content+=$'\n'"| ${MEMBER_NAMES[$m]} | say ${MEMBER_NAMES[$m]} \"...\" |"
         done
     fi
@@ -678,10 +679,11 @@ echo -e "${YELLOW}[$((STEP++))/$STEP_TOTAL] 공통 (Claude·Codex) — 사전 �
 NEED_FIRST_LOGIN=false
 
 MISSING=()
+command -v python3 &>/dev/null || MISSING+=("python3 (apt-get install -y python3)")
 command -v tmux &>/dev/null || MISSING+=("tmux (apt-get install -y tmux)")
 if [ -n "${USED_AGENTS[claude]:-}" ]; then
     command -v claude &>/dev/null || MISSING+=("claude (npm install -g @anthropic-ai/claude-code)")
-    command -v rtk    &>/dev/null || MISSING+=("rtk (curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh)")
+    command -v rtk    &>/dev/null || MISSING+=("rtk (curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/tags/v0.43.0/install.sh | sh)")
 fi
 if [ -n "${USED_AGENTS[codex]:-}" ]; then
     command -v codex &>/dev/null || MISSING+=("codex (npm install -g @openai/codex)")
@@ -741,6 +743,11 @@ if [ -n "${USED_AGENTS[codex]:-}" ]; then
 fi
 
 # 실행 중인 파인과 생성 파일 갱신이 경합하지 않도록 기존 세션부터 종료한다.
+existing_project="$(tmux show-options -qv -t "$SESSION" @project 2>/dev/null || true)"
+if [ -n "$existing_project" ] && [ "$existing_project" != "$PROJECT_DIR" ]; then
+    echo -e "${RED}❌ 세션 '$SESSION'이 다른 프로젝트($existing_project)에서 실행 중입니다. SESSION을 다르게 지정하세요.${NC}" >&2
+    exit 1
+fi
 tmux has-session -t "$SESSION" 2>/dev/null && {
     tmux kill-session -t "$SESSION"
     # 비동기 정리가 끝나기 전에 같은 이름으로 세션을 재생성하지 않도록 기다린다.
@@ -1101,6 +1108,7 @@ create_team_session() {
     # 팀 창·파인 번호만 0부터 맞추고 사용자 전역 설정은 유지한다.
     local first_window
     tmux new-session -d -s "$SESSION" -x 220 -y 50
+    tmux set-option -t "$SESSION" @project "$PROJECT_DIR"
     tmux set-environment -t "$SESSION" PATH "${TEAM_PATH:-$PATH}"   # 세션 범위만 — 전역 환경은 건드리지 않는다
     first_window="$(tmux list-windows -t "$SESSION" -F '#{window_index}' | head -1)"
     tmux set-window-option -t "$SESSION:$first_window" pane-base-index 0
@@ -1112,6 +1120,8 @@ create_team_session
 
 for ((i = 0; i < PANE_COUNT - 1; i++)); do
     tmux split-window -t "$SESSION:0.$i" -h
+    # 분할마다 균등 배치해야 파인이 많아도 공간이 부족하지 않다.
+    tmux select-layout -t "$SESSION:0" even-horizontal
 done
 
 # 균등 배치 후 main-vertical로 전환해야 좁은 파인이 생기지 않는다.
@@ -1144,6 +1154,11 @@ echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] 공통 (Claude·Codex) — 파인�
 # codex의 --add-dir는 존재하는 경로만 받는다. say의 lazy mkdir은
 # codex sandbox(workspace-write) 안에서 막히므로 파인 기동 전에 미리 만든다.
 mkdir -p /tmp/team-busy /tmp/team-say /tmp/team-say-queue
+# 공용 /tmp에서 다른 사용자가 먼저 만든 디렉터리를 신뢰하지 않는다.
+for d in /tmp/team-busy /tmp/team-say /tmp/team-say-queue; do
+    [ -O "$d" ] || { echo -e "${RED}❌ $d 의 소유자가 현재 사용자가 아닙니다.${NC}" >&2; exit 1; }
+    chmod 700 "$d"
+done
 
 start_agent_in_pane() {
     # 파인 하나에 에이전트를 띄우고 보존된 say 큐를 다시 가동한다.

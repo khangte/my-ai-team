@@ -36,7 +36,8 @@ for f in install/wsl.sh install/mac.sh lib/setup-common.sh; do bash -n "$repo_di
 ! "$real_git" -C "$repo_dir" grep -n 'setup-native' -- . ':!tests/' >/dev/null || fail 'setup-native 참조가 남아 있음'
 
 # ── 2. WSL: 에이전트 선택·혼합 팀 ───────────────────────────────
-out="$("$repo_dir/install/wsl.sh" "$proj")"       # 저장소 기본 config.sh는 claude+codex 혼합
+printf 'MEMBER_AGENTS=(claude codex)\n' > "$proj/team/config.sh"   # 저장소 config 대신 고정 입력을 사용
+out="$("$repo_dir/install/wsl.sh" "$proj")"       # 혼합 팀
 grep -q '설치 대상 공급자: claude codex' <<< "$out" || fail '혼합 팀이 둘 다 설치 대상이 아님'
 printf 'MEMBER_AGENTS=(codex codex)\n' > "$proj/team/config.sh"   # 프로젝트 config가 저장소 것을 덮어씀
 out="$("$repo_dir/install/wsl.sh" "$proj")"
@@ -87,6 +88,7 @@ lean="$test_dir/lean"; mkdir -p "$lean"
 for c in tmux git curl python3 sudo; do printf '#!/bin/bash\nexit 0\n' > "$lean/$c"; done
 printf '#!/bin/bash\necho ko_KR.utf8\n' > "$lean/locale"; chmod +x "$lean"/*
 rm -f "$test_dir/npm.log"
+printf 'MEMBER_AGENTS=(claude codex)\n' > "$proj/team/config.sh"
 out="$(HOME="$nvmhome" PATH="/mnt/c/Program Files/nodejs:$lean:/usr/bin:/bin" "$repo_dir/install/wsl.sh" "$proj")"
 grep -q 'nvm-codex' <<< "$out" && grep -q 'nvm-claude' <<< "$out" && grep -q 'nvm-node' <<< "$out" || fail 'NVM의 node/claude/codex를 쓰지 않음'
 [ ! -e "$test_dir/npm.log" ] || fail '이미 NVM에 있는 CLI를 재설치함'
@@ -158,7 +160,7 @@ if [ -n "$real_tmux" ]; then
     env -i PATH=/usr/bin:/bin HOME="$test_dir" "$real_tmux" -S "$sock" new-session -d -s pre
     global_before="$(tmux show-environment -g PATH)"
     eval "$(sed -n '/^create_team_session() {$/,/^}$/p' "$repo_dir/setup-team.sh")"
-    SESSION=team TEAM_PATH="$fakebrew/bin:/usr/bin:/bin"
+    SESSION=team PROJECT_DIR="$proj" TEAM_PATH="$fakebrew/bin:/usr/bin:/bin"
     create_team_session
     [ "$(tmux show-environment -t team PATH)" = "PATH=$TEAM_PATH" ] || fail '팀 세션 환경에 TEAM_PATH 누락'
     [ "$(tmux show-environment -g PATH)" = "$global_before" ] || fail 'tmux 전역 PATH를 바꿈'
@@ -191,5 +193,12 @@ PS
 else
     echo '참고: pwsh가 없어 install/windows.ps1은 정적 검사만 했습니다.'
 fi
+
+# ── Docker: 컨테이너 이름은 프로젝트별이며 특수문자는 안전하게 치환된다 ──
+dstub="$test_dir/dstub"; mkdir -p "$dstub" "$test_dir/my proj.x"
+printf '#!/bin/bash\necho "$*" >> "%s/docker.log"\n[ "$1 $2" = "container inspect" ] && exit 1\nexit 0\n' "$test_dir" > "$dstub/docker"
+chmod +x "$dstub/docker"
+PATH="$dstub:$PATH" "$repo_dir/install/docker.sh" "$test_dir/my proj.x" >/dev/null 2>&1 || fail 'docker.sh가 실패함'
+grep -q -- '--name claude-env-my_proj.x ' "$test_dir/docker.log" || fail "컨테이너 이름 오류: $(cat "$test_dir/docker.log")"
 
 echo 'setup_platforms_test 통과'

@@ -43,7 +43,7 @@ RUN npm install -g @anthropic-ai/claude-code @openai/codex
 
 # 빌드 재현성을 위해 버전을 고정한다.
 ENV RTK_VERSION=v0.43.0
-RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
+RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/tags/v0.43.0/install.sh | sh
 
 # 자주 바뀌는 저장소 파일은 마지막에 복사해 위 CLI 설치 레이어 캐시를 유지한다.
 COPY --chown=user:user setup-team.sh /opt/ai-setup/setup-team.sh

@@ -156,7 +156,8 @@ deliver() {
     if tmux capture-pane -t "$pane" -p \
         | grep -E '^[[:space:]]*[›>]' | tail -n 1 | grep -qF -- "$probe"; then
         echo "say: WARNING - '$pane'에 메시지가 전달되지 않고 입력창에 남아있는 것으로 보입니다: $probe..." >&2
-        # 제출 실패 시 busy를 되돌려 다음 큐 재시도가 막히지 않게 한다.
+        # 재시도가 같은 글을 덧붙이지 않도록 입력창을 비우고 busy를 되돌린다.
+        tmux send-keys -t "$pane" C-u || true
         rm -f "$BUSY_DIR/${state_key}"
         return 1
     fi
@@ -175,8 +176,12 @@ lock_file="$queue_file.lock"
 # PID 재사용까지 판별하고 owner 기록 전의 짧은 구간에는 5초 유예한다.
 process_start_time() {
     # PID 재사용 판별에 쓸 프로세스 시작 시각을 읽는다.
-    [ -r "/proc/$1/stat" ] || return 1
-    awk '{print $22}' "/proc/$1/stat" 2>/dev/null
+    if [ -r "/proc/$1/stat" ]; then
+        awk '{print $22}' "/proc/$1/stat" 2>/dev/null
+    else
+        # macOS 등 /proc이 없는 환경
+        ps -o lstart= -p "$1" 2>/dev/null | tr -d ' :'
+    fi
 }
 
 watcher_lock_is_orphaned() {
@@ -185,7 +190,7 @@ watcher_lock_is_orphaned() {
     local owner pid started actual age
     owner="$(cat "$lock_file/owner" 2>/dev/null || true)"
     read -r pid started <<< "$owner"
-    if [[ "$pid" =~ ^[0-9]+$ ]] && [[ "$started" =~ ^[0-9]+$ ]]; then
+    if [[ "$pid" =~ ^[0-9]+$ ]] && [[ "$started" =~ ^[0-9A-Za-z]+$ ]]; then
         actual="$(process_start_time "$pid" || true)"
         [ "$actual" != "$started" ]
         return
@@ -237,9 +242,16 @@ fi
 if [ "$drain_only" = false ] && { [ -n "${SAY_NOWAIT:-}" ] || [ "$target_busy" = false ]; }; then
     # 앞선 메시지가 없을 때만 직접 전송해 FIFO 순서를 유지한다.
     if [ -n "${SAY_NOWAIT:-}" ] || [ ! -s "$queue_file" ]; then
-        deliver || exit 1
-        record_marker
-        exit 0
+        # 동시 전송이 합쳐지지 않도록 busy 표시를 원자적으로 선점한다. 실패하면 큐로 보낸다.
+        if [ -z "${SAY_NOWAIT:-}" ]; then
+            mkdir -p "$BUSY_DIR"
+            ( set -C; : > "$BUSY_DIR/${state_key}" ) 2>/dev/null || target_busy=true
+        fi
+        if [ "$target_busy" = false ]; then
+            deliver || exit 1
+            record_marker
+            exit 0
+        fi
     fi
 fi
 
