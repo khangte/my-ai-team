@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Git Bash에서 기존 PowerShell 진입점을 거쳐 WSL2에 의존성을 설치한다.
-# 사용: bash ./install/windows.sh [--agent claude|codex] [프로젝트_경로]
+# 사용: bash ./install/windows.sh [프로젝트_경로]
 set -e
 
 SETUP_NAME="install/windows.sh"
@@ -28,4 +28,4 @@ project="$(cygpath -aw "$project")"
 # MSYS의 자동 인자 변환을 끄고, 공백·한글 경로를 각각 하나의 인자로 전달한다.
 export MSYS_NO_PATHCONV=1
 # 기본 실행 정책에서도 이 호출에 한해 저장소의 PowerShell 스크립트를 실행한다.
-exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ps1" -Agent "$TEAM_AGENT" -Project "$project"
+exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ps1" -Project "$project"

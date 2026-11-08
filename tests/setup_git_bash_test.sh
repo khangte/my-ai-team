@@ -33,29 +33,28 @@ export PATH="$stub:$PATH"
 bash -n "$repo_dir/install/windows.sh"
 
 project="$test_dir/프로젝트 공백 ' [1]"
-bash "$repo_dir/install/windows.sh" --agent=codex "$project"
+bash "$repo_dir/install/windows.sh" "$project"
 mapfile -t args < "$CALL_LOG"
-[ "${#args[@]}" -eq 10 ] || fail 'PowerShell 인자 개수가 달라짐'
+[ "${#args[@]}" -eq 8 ] || fail 'PowerShell 인자 개수가 달라짐'
 [ "${args[0]}" = 1 ] || fail 'MSYS 자동 경로 변환을 끄지 않음'
 [ "${args[1]}" = -NoProfile ] && [ "${args[4]}" = -File ] || fail 'PowerShell 파일 호출 누락'
 [ "${args[2]}" = -ExecutionPolicy ] && [ "${args[3]}" = Bypass ] || fail '프로세스 실행 정책 누락'
 [ "${args[5]}" = "C:$repo_dir/install/windows.ps1" ] || fail '스크립트 경로 변환 실패'
-[ "${args[6]}" = -Agent ] && [ "${args[7]}" = codex ] || fail '에이전트 전달 실패'
-[ "${args[8]}" = -Project ] && [ "${args[9]}" = "C:$project" ] || fail '프로젝트 경로 보존 실패'
+[ "${args[6]}" = -Project ] && [ "${args[7]}" = "C:$project" ] || fail '프로젝트 경로 보존 실패'
 
 (
     cd "$project"
     bash "$repo_dir/install/windows.sh"
 )
 mapfile -t args < "$CALL_LOG"
-[ "${args[7]}" = claude ] && [ "${args[9]}" = "C:$project" ] || fail '기본 에이전트·현재 폴더 전달 실패'
+[ "${args[7]}" = "C:$project" ] || fail '현재 폴더 전달 실패'
 
 # 공백·한글이 있는 저장소 경로도 PowerShell의 단일 인자로 보존한다.
 copy="$test_dir/저장소 사본 ' [2]"
 mkdir -p "$copy/lib" "$copy/install"
 cp "$repo_dir/install/windows.sh" "$repo_dir/install/windows.ps1" "$copy/install/"
 cp "$repo_dir/lib/setup-common.sh" "$copy/lib/"
-bash "$copy/install/windows.sh" --agent claude "$project"
+bash "$copy/install/windows.sh" "$project"
 mapfile -t args < "$CALL_LOG"
 [ "${args[5]}" = "C:$copy/install/windows.ps1" ] || fail '저장소 경로 보존 실패'
 

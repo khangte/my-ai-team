@@ -7,22 +7,12 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 setup_parse_args() {
-    # 인자를 해석해 TEAM_AGENT·PROJECT_ARG를 채운다. 호출 전 SETUP_NAME(스크립트명)이 필요하다.
-    TEAM_AGENT="${TEAM_AGENT:-claude}"
+    # 인자를 해석해 PROJECT_ARG를 채운다. 호출 전 SETUP_NAME(스크립트명)이 필요하다.
     PROJECT_ARG=""
     while [ $# -gt 0 ]; do
         case "$1" in
-            --agent)
-                [ $# -ge 2 ] || { echo "--agent에는 값이 필요합니다." >&2; exit 2; }
-                TEAM_AGENT="$2"
-                shift 2
-                ;;
-            --agent=*)
-                TEAM_AGENT="${1#--agent=}"
-                shift
-                ;;
             -h|--help)
-                echo "사용법: ./$SETUP_NAME [--agent claude|codex] [프로젝트_경로]"
+                echo "사용법: ./$SETUP_NAME [프로젝트_경로]"
                 exit 0
                 ;;
             -*)
@@ -36,11 +26,6 @@ setup_parse_args() {
                 ;;
         esac
     done
-
-    case "$TEAM_AGENT" in
-        claude|codex) ;;
-        *) echo "지원하지 않는 에이전트: $TEAM_AGENT (claude 또는 codex)" >&2; exit 2 ;;
-    esac
 }
 
 setup_load_team() {
@@ -56,9 +41,9 @@ setup_load_team() {
 
     NEED_CLAUDE=false
     NEED_CODEX=false
-    [ "${#MEMBER_AGENTS[@]}" -gt 0 ] || MEMBER_AGENTS=("")
+    [ "${#MEMBER_AGENTS[@]}" -gt 0 ] || { echo "팀 구성이 없습니다. team/config.sh의 MEMBERS를 확인하세요." >&2; exit 2; }
     for a in "${MEMBER_AGENTS[@]}"; do
-        case "${a:-$TEAM_AGENT}" in
+        case "$a" in
             claude) NEED_CLAUDE=true ;;
             codex)  NEED_CODEX=true ;;
             *) echo "지원하지 않는 에이전트: '$a' (team/config.sh의 MEMBER_AGENTS 확인)" >&2; exit 2 ;;

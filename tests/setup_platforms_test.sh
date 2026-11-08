@@ -41,14 +41,13 @@ grep -q '설치 대상 공급자: claude codex' <<< "$out" || fail '혼합 팀�
 printf 'MEMBER_AGENTS=(codex codex)\n' > "$proj/team/config.sh"   # 프로젝트 config가 저장소 것을 덮어씀
 out="$("$repo_dir/install/wsl.sh" "$proj")"
 grep -q '설치 대상 공급자: codex' <<< "$out" && ! grep -q 'claude CLI' <<< "$out" || fail '프로젝트 config(codex)가 반영되지 않음'
-printf 'MEMBER_AGENTS=("" "")\n' > "$proj/team/config.sh"          # 빈 값은 --agent 기본값을 따름
-out="$("$repo_dir/install/wsl.sh" --agent codex "$proj")"
-grep -q '설치 대상 공급자: codex' <<< "$out" && ! grep -q 'claude CLI' <<< "$out" || fail '--agent codex가 반영되지 않음'
-out="$("$repo_dir/install/wsl.sh" --agent=claude "$proj")"
-grep -q '설치 대상 공급자: claude' <<< "$out" && ! grep -q 'codex CLI' <<< "$out" || fail '--agent=claude가 반영되지 않음'
+printf 'MEMBER_AGENTS=("" "")\n' > "$proj/team/config.sh"          # 빈 값은 기본값 없이 중단
+"$repo_dir/install/wsl.sh" "$proj" >/dev/null 2>&1 && fail '빈 MEMBER_AGENTS를 통과시킴'
+printf 'MEMBER_NAMES=() MEMBER_AGENTS=()\n' > "$proj/team/config.sh"
+"$repo_dir/install/wsl.sh" "$proj" >/dev/null 2>&1 && fail '팀 구성 없음을 통과시킴'
 printf 'MEMBER_AGENTS=(gemini)\n' > "$proj/team/config.sh"
 "$repo_dir/install/wsl.sh" "$proj" >/dev/null 2>&1 && fail '잘못된 MEMBER_AGENTS를 통과시킴'
-"$repo_dir/install/wsl.sh" --agent foo "$proj" >/dev/null 2>&1 && fail '잘못된 --agent를 통과시킴'
+"$repo_dir/install/wsl.sh" --agent foo "$proj" >/dev/null 2>&1 && fail '제거된 --agent를 통과시킴'
 rm "$proj/team/config.sh"
 
 # 값 없는 옵션, 재실행(멱등), 공백 경로(프로젝트·저장소 모두)
@@ -56,13 +55,12 @@ for bad in "--agent" "--agent="; do
     err="$("$repo_dir/install/wsl.sh" $bad 2>&1)" && fail "'$bad'를 통과시킴"
     [ -n "$err" ] || fail "'$bad' 오류 메시지 없음"
 done
-"$repo_dir/install/wsl.sh" --agent >/dev/null 2>&1 && fail '값 없는 --agent를 통과시킴'
 "$repo_dir/install/wsl.sh" "$proj" extra >/dev/null 2>&1 && fail '프로젝트 경로 2개를 통과시킴'
 "$repo_dir/install/wsl.sh" "$test_dir/없는 경로" >/dev/null 2>&1 && fail '없는 프로젝트 경로를 통과시킴'
 sp="$test_dir/공백 프로젝트 dir"; mkdir -p "$sp/team"; printf 'MEMBER_AGENTS=(codex)\n' > "$sp/team/config.sh"
 first="$("$repo_dir/install/wsl.sh" "$sp")"; second="$("$repo_dir/install/wsl.sh" "$sp")"
 [ "$first" = "$second" ] || fail '재실행 결과가 다름'
-grep -q "setup-team.sh --agent claude $sp" <<< "$first" || fail '공백 프로젝트 경로가 안내에 보존되지 않음'
+grep -q "setup-team.sh $sp" <<< "$first" || fail '공백 프로젝트 경로가 안내에 보존되지 않음'
 grep -q '설치 대상 공급자: codex' <<< "$first" || fail '공백 경로 프로젝트의 config를 못 읽음'
 cp -r "$repo_dir" "$test_dir/저장소 사본 dir"
 "$test_dir/저장소 사본 dir/install/wsl.sh" "$sp" >/dev/null || fail '공백이 있는 저장소 경로에서 실패'
@@ -105,11 +103,11 @@ printf '#!/bin/bash\necho ko_KR.utf8\n' > "$lean/locale"
     "$repo_dir/install/mac.sh" "$proj" >/dev/null 2>&1 && fail 'macOS가 아닌데 통과함'
 }
 export SETUP_ALLOW_NON_DARWIN=1
-"$repo_dir/install/mac.sh" --agent >/dev/null 2>&1 && fail 'mac: 값 없는 --agent를 통과시킴'
+"$repo_dir/install/mac.sh" --agent >/dev/null 2>&1 && fail 'mac: 제거된 --agent를 통과시킴'
 printf 'MEMBER_AGENTS=(claude codex)\n' > "$proj/team/config.sh"
 out="$("$repo_dir/install/mac.sh" "$proj")"
 grep -q '설치 대상 공급자: claude codex' <<< "$out" || fail 'mac 혼합 팀 판독 실패'
-grep -q "$stub/bin/bash $repo_dir/setup-team.sh --agent claude $proj" <<< "$out" || fail 'Homebrew bash 실행 안내 누락'
+grep -q "$stub/bin/bash $repo_dir/setup-team.sh $proj" <<< "$out" || fail 'Homebrew bash 실행 안내 누락'
 ! grep -q 'install' "$test_dir/brew.log" || fail '이미 있는 의존성을 재설치함'
 # bash 3.x만 있으면 거짓 성공 없이 실패해야 한다.
 printf '#!/bin/bash\necho 3\n' > "$stub/bin/bash"

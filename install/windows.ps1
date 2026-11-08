@@ -1,5 +1,5 @@
 ﻿# Windows에서 WSL2 안의 install/wsl.sh를 호출하는 진입 스크립트.
-# 사용: .\install\windows.ps1 [-Agent claude|codex] [-Project <경로>]
+# 사용: .\install\windows.ps1 [-Project <경로>]
 #
 # 범위 구분:
 #   - CLI 설치: claude/codex/rtk/tmux는 WSL 배포판(Linux) 안에만 설치한다. Windows용
@@ -8,7 +8,6 @@
 #     동작하지 않는다. Git Bash는 install/windows.sh로 설치를 시작한다. setup-team.sh와
 #     tmux attach는 WSL 터미널에서 실행한다.
 param(
-    [ValidateSet('claude', 'codex')][string]$Agent,
     [string]$Project
 )
 
@@ -50,7 +49,6 @@ try {
     # 로그인 셸(bash -l)은 쓰지 않는다: 일부 배포판의 ~/.bash_logout이 종료 코드를 덮어쓴다.
     # 셸 문자열을 조립하지 않고 인자 배열로 넘겨 공백·따옴표 경로를 그대로 보존한다.
     $setupArgs = @()
-    if ($Agent) { $setupArgs += '--agent', $Agent }
     # -Project를 생략하면 호출한 현재 폴더를 프로젝트로 넘긴다(생략하면 WSL에서 저장소가 프로젝트가 된다).
     if (-not $Project) { $Project = (Get-Location).ProviderPath }
     if (-not (Test-Path -LiteralPath $Project)) { Stop-Setup "프로젝트 경로가 없습니다: $Project" }

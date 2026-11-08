@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tmux 기반 Claude/Codex 팀 구성. 역할·모델은 team/config.sh의 MEMBERS에서 설정한다.
-# 사용: ./setup-team.sh [--agent claude|codex] [프로젝트_경로]
+# 사용: ./setup-team.sh [프로젝트_경로]
 # 경로 생략 시 $PROJECT_DIR, 그것도 없으면 현재 디렉터리를 사용한다.
 
 set -e
@@ -29,36 +29,23 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-SESSION="team1"
-TEAM_AGENT="${TEAM_AGENT:-claude}"
 PROJECT_ARG=""
 
 usage() {
     # 사용법을 출력한다.
     cat <<'EOF'
-사용법: ./setup-team.sh [--agent claude|codex] [프로젝트_경로]
+사용법: ./setup-team.sh [프로젝트_경로]
 
 옵션:
-    --agent NAME       사용할 에이전트 (claude 또는 codex, 기본: claude)
     -h, --help         이 도움말 표시
 
 환경변수:
-    TEAM_AGENT         --agent가 없을 때 사용할 에이전트
     PROJECT_DIR        프로젝트 경로 (인자가 없을 때 사용)
 EOF
 }
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --agent)
-            [ $# -ge 2 ] || { echo -e "${RED}❌ --agent에는 값이 필요합니다.${NC}" >&2; exit 2; }
-            TEAM_AGENT="$2"
-            shift 2
-            ;;
-        --agent=*)
-            TEAM_AGENT="${1#--agent=}"
-            shift
-            ;;
         -h|--help)
             usage
             exit 0
@@ -81,14 +68,6 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
-
-case "$TEAM_AGENT" in
-    claude|codex) ;;
-    *)
-        echo -e "${RED}❌ 지원하지 않는 에이전트: $TEAM_AGENT (claude 또는 codex)${NC}" >&2
-        exit 2
-        ;;
-esac
 
 PROJECT_DIR="${PROJECT_ARG:-${PROJECT_DIR:-$(pwd)}}"
 PROJECT_DIR="$(realpath "$PROJECT_DIR")"
@@ -119,7 +98,12 @@ if [ -f "$project_common_config" ]; then
 fi
 
 if [ "${#MEMBER_NAMES[@]}" -eq 0 ]; then
-    echo -e "${RED}❌ team/config.sh를 찾을 수 없습니다 (${common_config} 또는 ${project_common_config}).${NC}"
+    echo -e "${RED}❌ 팀 구성이 없습니다. team/config.sh의 MEMBERS를 확인하세요 (${common_config} 또는 ${project_common_config}).${NC}" >&2
+    exit 1
+fi
+
+if [ -z "${SESSION:-}" ]; then
+    echo -e "${RED}❌ SESSION이 비어 있습니다. team/config.sh를 확인하세요.${NC}" >&2
     exit 1
 fi
 
@@ -134,21 +118,24 @@ if [ "${#SPEC_MEMBER_REASONING_EFFORTS[@]}" -ne "$PANE_COUNT" ]; then
     exit 1
 fi
 
-if [ "${#MEMBER_AGENTS[@]}" -eq 0 ]; then
-    for ((i = 0; i < PANE_COUNT; i++)); do
-        MEMBER_AGENTS+=("")
-    done
-fi
-
 if [ "${#MEMBER_AGENTS[@]}" -ne "$PANE_COUNT" ]; then
     echo -e "${RED}❌ MEMBER_NAMES(${PANE_COUNT}개)와 MEMBER_AGENTS(${#MEMBER_AGENTS[@]}개) 길이가 다릅니다.${NC}"
     exit 1
 fi
 
+# 자체 파서를 가진 프로젝트 config도 있으므로 빈 값은 여기서 한 번 더 막는다.
+for ((i = 0; i < PANE_COUNT; i++)); do
+    if [ -z "${MEMBER_NAMES[$i]}" ] || [ -z "${MEMBER_DISPLAY_NAMES[$i]:-}" ] \
+        || [ -z "${SPEC_MEMBER_MODELS[$i]}" ] || [ -z "${SPEC_MEMBER_REASONING_EFFORTS[$i]}" ]; then
+        echo -e "${RED}❌ $((i + 1))번째 역할('${MEMBER_NAMES[$i]}')에 비어 있는 값이 있습니다. team/config.sh의 MEMBERS를 확인하세요.${NC}" >&2
+        exit 1
+    fi
+done
+
 # 혼합 팀에서는 실제 배정된 공급자 모두를 준비한다.
 declare -A USED_AGENTS=()
 for ((i = 0; i < PANE_COUNT; i++)); do
-    a="${MEMBER_AGENTS[$i]:-$TEAM_AGENT}"
+    a="${MEMBER_AGENTS[$i]}"
     case "$a" in
         claude|codex) ;;
         *)
@@ -1129,7 +1116,7 @@ tmux set-option -t "$SESSION" main-pane-width '55%'
 tmux select-layout -t "$SESSION:0" main-vertical
 
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
-    display_name="${MEMBER_DISPLAY_NAMES[$pane]:-${MEMBER_NAMES[$pane]}}"
+    display_name="${MEMBER_DISPLAY_NAMES[$pane]}"
     tmux select-pane -t "$SESSION:0.$pane" -T "${display_name^^}"
     tmux set-option -p -t "$SESSION:0.$pane" @role "${MEMBER_NAMES[$pane]}"
     # pane_title은 에이전트 CLI의 OSC 제목 변경 대상이다. 테두리에 보일

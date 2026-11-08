@@ -1,6 +1,6 @@
 #!/bin/bash
 # macOS에 팀 의존성을 Homebrew로 설치한다.
-# 사용: ./install/mac.sh [--agent claude|codex] [프로젝트_경로]
+# 사용: ./install/mac.sh [프로젝트_경로]
 # setup-team.sh는 bash 4+(연관 배열·mapfile)가 필요하므로 macOS 기본 bash 3.2로는 실행할 수 없다.
 # 또 timeout·realpath(GNU coreutils)가 필요하다. 이 스크립트는 둘을 설치·확인하고 실행 명령을 안내한다.
 # setup-team.sh는 Homebrew bin과 coreutils gnubin을 PATH 앞에 두어 파인·훅(bin/say)도 Homebrew bash를 쓴다.
@@ -63,4 +63,4 @@ echo "  ✅ $BREW_BASH (bash $("$BREW_BASH" -c 'echo $BASH_VERSION')), coreutils
 setup_install_agent_clis
 
 echo -e "\n${GREEN}✅ 의존성 설치 완료. 새 셸을 열고 Homebrew bash로 setup-team.sh를 실행하세요 (/bin/bash 3.2는 불가):${NC}"
-echo "   $BREW_BASH $SCRIPT_DIR/setup-team.sh --agent $TEAM_AGENT $PROJECT_DIR"
+echo "   $BREW_BASH $SCRIPT_DIR/setup-team.sh $PROJECT_DIR"

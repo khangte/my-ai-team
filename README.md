@@ -75,22 +75,21 @@ Codex를 `workspace-write`로 제한하려면 `CODEX_FULL_ACCESS=0`으로 실행
 # /path/to/project/team/config.sh
 SESSION="team1"
 declare -a MEMBERS=(
-    "lead|팀장|claude||medium"
-    "architect|기획·설계|claude||high"
-    "developer|백엔드|codex||medium"
-    "reviewer|리뷰어|claude||medium"
+    "lead|팀장|claude-sonnet-5-5|medium"
+    "architect|기획·설계|claude-sonnet-5-5|high"
+    "developer|백엔드|gpt-6.1-sol|medium"
+    "reviewer|리뷰어|gpt-6.1-sol|medium"
 )
 ```
 
-항목 형식은 `role|표시이름|agent|model|effort`이며, 배열 순서대로 패널이 배치됩니다.
+항목 형식은 `role|표시이름|model|effort`이며, 배열 순서대로 패널이 배치됩니다.
+네 필드와 `SESSION`은 모두 필수이고, 비어 있거나 형식이 틀리면 경고를 출력하고 실행을 멈춥니다.
 역할을 추가하거나 제거해 인원을 조절합니다.
 
-- `agent`: `claude` 또는 `codex`. 비우면 `--agent` 또는 `TEAM_AGENT` 값을 따릅니다(기본 `claude`).
-- `model`·`effort`: 비우면 해당 CLI의 사용자 기본값을 사용합니다.
+- `model`: 전체 모델 ID를 씁니다. 접두사로 공급자를 정합니다(`claude-*`는 Claude, `gpt-*`는 Codex).
 - `effort`: `low`·`medium`·`high`·`xhigh`·`max` 중 모델이 지원하는 값을 지정합니다.
 
-`--agent codex`는 공급자가 비어 있는 역할에만 적용됩니다.
-팀 전체를 Codex로 실행하려면 각 역할의 `agent`를 `codex`로 지정하거나 비운 뒤 실행하세요.
+팀 전체를 Codex로 실행하려면 각 역할의 `model`을 `gpt-*`로 지정하세요.
 설치 스크립트도 같은 팀 구성을 읽어 필요한 공급자의 CLI를 설치합니다.
 
 ### 지침과 스킬

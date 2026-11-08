@@ -1,7 +1,7 @@
 #!/bin/bash
 # Docker 이미지를 빌드하고 프로젝트를 /workspace에 마운트해 팀을 구성한다.
 # 사용자 홈은 claude-home 볼륨으로 보존한다.
-# 사용: ./install/docker.sh [--agent claude|codex] /path/to/project
+# 사용: ./install/docker.sh /path/to/project
 
 set -e
 
@@ -12,7 +12,7 @@ setup_parse_args "$@"
 
 IMAGE="claude-team"
 CONTAINER="claude-env"
-PROJECT_DIR="${PROJECT_ARG:?사용법: ./install/docker.sh [--agent claude|codex] <project-path>}"
+PROJECT_DIR="${PROJECT_ARG:?사용법: ./install/docker.sh <project-path>}"
 PROJECT_DIR="$(realpath "$PROJECT_DIR")"
 
 # ── 이미지 빌드 ─────────────────────────────────────────────
@@ -47,4 +47,4 @@ echo -e "\n${YELLOW}팀 환경 구성 중 (컨테이너 내부)...${NC}"
 
 # 최초 로그인에 응답할 대화형 TTY가 필요하다.
 docker exec -it "$CONTAINER" \
-bash /opt/ai-setup/setup-team.sh --agent "$TEAM_AGENT" /workspace
+bash /opt/ai-setup/setup-team.sh /workspace

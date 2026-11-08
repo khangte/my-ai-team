@@ -1,6 +1,6 @@
 #!/bin/bash
 # WSL에 팀 의존성을 사용자 기본 경로로 설치한다.
-# 사용: ./install/wsl.sh [--agent claude|codex] [프로젝트_경로]
+# 사용: ./install/wsl.sh [프로젝트_경로]
 # 저장소·프로젝트의 team/config.sh를 읽고 실제 배정된 공급자를 설치한다.
 
 set -e
@@ -63,4 +63,4 @@ esac
 setup_install_agent_clis
 
 echo -e "\n${GREEN}✅ 의존성 설치 완료. 새 셸을 열거나 source ~/.bashrc 후 setup-team.sh를 실행하세요:${NC}"
-echo "   $SCRIPT_DIR/setup-team.sh --agent $TEAM_AGENT $PROJECT_DIR"
+echo "   $SCRIPT_DIR/setup-team.sh $PROJECT_DIR"
