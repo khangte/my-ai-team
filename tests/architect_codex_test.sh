@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# 현재 팀 구성에서 developer는 Codex다. 배열 위치가 아니라 역할로 찾으므로
+# 현재 팀 구성에서 developer는 Claude다. 배열 위치가 아니라 역할로 찾으므로
 # config.sh에서 인원을 증감해도 이 계약은 유지된다.
 source "$repo_dir/team/config.sh"
 developer_index=""
@@ -14,7 +14,7 @@ for ((member_index = 0; member_index < ${#MEMBER_NAMES[@]}; member_index++)); do
     fi
 done
 test -n "$developer_index"
-test "${MEMBER_AGENTS[$developer_index]}" = "codex"
+test "${MEMBER_AGENTS[$developer_index]}" = "claude"
 
 # 모델·추론강도는 team/config.sh의 MEMBERS가 유일한 출처다.
 test -n "${SPEC_MEMBER_MODELS[$developer_index]}"
@@ -34,7 +34,7 @@ test "${CODEX_SUPERPOWERS_SKILL_SETS[developer]}" = "systematic-debugging receiv
 test "${CODEX_PLUGIN_ROLES[product-design@openai-curated-remote]}" = "designer"
 test "${CODEX_SUPERPOWERS_SKILL_SETS[lead]}" = "finishing-a-development-branch"
 test "${CODEX_SUPERPOWERS_SKILL_SETS[architect]}" = "writing-plans"
-test "${CODEX_PLUGIN_ROLES[engineering-suite-ponytail@openai-curated-remote]}" = "developer"
+test "${CODEX_PLUGIN_ROLES[engineering-suite-ponytail@openai-curated-remote]}" = "architect developer designer"
 test "${CODEX_PLUGIN_ROLES[caveman@openai-curated-remote]}" = "*"
 
 # 런처가 파인별 CODEX_HOME과 세션 시작 정리 훅을 사용해야 한다.
