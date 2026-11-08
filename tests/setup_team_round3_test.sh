@@ -17,8 +17,9 @@ load_functions() {
 }
 load_functions codex_default_model_config write_codex_role_plugins codex_plugin_cache \
     codex_shared_plugin_cache link_codex_base_assets prepare_codex_role_home \
-    start_codex_in_pane shell_quote create_team_session role_in
+    start_codex_in_pane shell_quote say_state_exports create_team_session role_in
 TEAM_PATH="$PATH"
+BUSY_STATE_DIR=/state/busy REPORT_STATE_DIR=/state/say QUEUE_STATE_DIR=/state/queue PROJECT_DIR="${PROJECT_DIR:-/p}"
 YELLOW='' RED='' GREEN='' NC=''
 sleep() { :; }
 
