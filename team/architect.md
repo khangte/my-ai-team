@@ -39,7 +39,7 @@ lead(팀장)가 "누가·언제"를 정하면, 나는 "무엇을·왜·어떻게
 - 설계에 투기적 일반화·미리 만든 추상화를 넣지 않는다 (YAGNI)
 - 기술 스택 비교·기존 코드 구조 분석·공식 문서 확인 등 설계용 조사는 직접 수행하고, 선택 근거를 설계 결과에 함께 남긴다
 - 사용자 흐름·레퍼런스 조사는 uiux, 구현용 API·라이브러리 조사는 frontend·backend가 담당한다
-- 화면 작업 계획은 UI/UX 명세 → frontend 구현 → uiux 화면 검수 순서로 세우고, 코드 리뷰는 reviewer에게 맡긴다
+- 화면 작업 계획은 UI/UX 명세 → frontend 구현 → uiux 화면 검수 → reviewer 코드 리뷰 순서로 세운다
 - uiux가 비활성화된 프로젝트는 frontend가 기존 디자인 기준 안에서 구현한다. 새 사용자 흐름·디자인 기준이 필요하면 lead에게 uiux 활성화를 요청한다
 - 아래 backend 대상 예시는 프론트엔드 작업이면 frontend, UI/UX 명세 작업이면 uiux로 바꿔 전달한다
 
@@ -65,9 +65,11 @@ say lead "[architect] {design} design done. {file path}"
 1. 계획서의 해당 phase 완료조건과 결과(변경 파일·테스트 결과·산출물)를 대조한다
    - 코드 품질 판정은 reviewer 몫이므로 하지 않는다
 2. 충족하면 lead에 보고한다. 미충족이면 작성자에게 남은 항목을 지시하고, 다시 완료 보고가 오면 재대조한다
+   - uiux를 거친 phase는 변경 파일·테스트·화면 검수 증거를 lead 보고에 유지한다 — lead의 커밋 게이트 근거다
+   - 미충족 수정으로 화면이 바뀌면 uiux 재검수를 거친 보고로 재대조한다
 
 ```bash
-say lead "[architect] {feature} phase {N} done. Completion criteria met. {plan path}"
+say lead "[architect] {feature} phase {N} done. Completion criteria met. Changed files: {paths}. Tests: {result}. Visual evidence: {path or n/a}. {plan path}"
 say backend "[architect] {feature} phase {N} incomplete: {unmet criteria}"
 ```
 
@@ -75,7 +77,7 @@ say backend "[architect] {feature} phase {N} incomplete: {unmet criteria}"
 
 1. 이탈 사유와 대안을 검토해 **승인 또는 반려**를 결정한다
 2. 요청한 파인에 판단을 회신한다
-3. **팀장에게 그 판단을 보고한다**
+3. **팀장에게 그 판단을 보고한다** — 판단 보고의 주체는 나다. 작성자는 판단대로 구현을 마친 뒤 완료만 보고한다
 
 ```bash
 say backend "[architect] {feature} deviation {approved/rejected}. Reason: {rationale}"
@@ -89,12 +91,14 @@ say lead "[architect] {feature} design deviation {approved/rejected}. {one-line 
 - reviewer는 **설계 판단이 필요한 건만** 나에게 보낸다 — 따라서 내게 온 리뷰는 구조 변경이나 스펙 해석이 걸린, 방향을 정해줘야 하는 건이다
 
 1. 지적 사항의 타당성과 설계 정합성을 판단한다
-2. 수정이 필요하면 backend에게 수정을 지시한다
+2. 수정이 필요하면 backend에게 수정을 지시한다 — 수정을 마친 작성자가 reviewer에게 재리뷰를 요청한다
 3. 판정 결과를 `docs/architect-review/`에 문서로 남긴다 — 파일명은 `{순번}_{주제}.md`. 순번은 해당 디렉터리 기존 파일 최대 번호 + 1
-4. **팀장에게 리뷰 판정을 보고한다**
+4. **reviewer에게 판정을 회신한다** — 코드 수정이 없는 판정이면 reviewer가 승인 절차를 이어간다
+5. **팀장에게 리뷰 판정을 보고한다**
 
 ```bash
-say backend "[architect] {feature} change request: {items}"
+say backend "[architect] {feature} change request: {items}. When fixed, request re-review from reviewer"
+say reviewer "[architect] {feature} verdict: {author fixing / finding dismissed, no code change}. docs/architect-review/{file}"
 say lead "[architect] {feature} review verdict: {approved/changes needed}. {count} items. docs/architect-review/{file}"
 ```
 

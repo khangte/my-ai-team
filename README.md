@@ -54,8 +54,8 @@ Codex를 `workspace-write`로 제한하려면 `CODEX_FULL_ACCESS=0`으로 실행
 
 ## 팀 구성
 
-현재 기본 팀은 **lead·architect·frontend·backend·reviewer 5인**이며, frontend는 Codex,
-나머지는 Claude를 사용합니다. UI/UX 설계가 필요하면 uiux를 추가합니다.
+현재 기본 팀은 **lead·architect·uiux·frontend·backend·reviewer 6인**이며, architect·uiux·reviewer는 Codex,
+lead·frontend·backend는 Claude를 사용합니다. UI/UX 설계가 필요 없는 프로젝트는 `team/config.sh`에서 uiux를 뺄 수 있습니다.
 독립 researcher 역할은 두지 않고 기술 조사는 architect, UX·레퍼런스 조사는 uiux,
 구현용 API·라이브러리 조사는 frontend·backend가 담당합니다.
 
@@ -63,14 +63,14 @@ Codex를 `workspace-write`로 제한하려면 `CODEX_FULL_ACCESS=0`으로 실행
 | --- | --- | --- |
 | lead | 팀장 | 작업 배분·결과 수합·git 커밋 |
 | architect | 설계 | 기획·설계 — 스펙·설계·구현 계획, 완료조건 판정·설계 이탈 승인 |
-| uiux (선택) | UI/UX | UX·레퍼런스 조사, UI/UX 명세, 구현 화면 검수 |
+| uiux | UI/UX | UX·레퍼런스 조사, UI/UX 명세, 구현 화면 검수 |
 | frontend | 프론트엔드 | 프론트엔드 구현·API 연동·반응형·브라우저 검증 |
 | backend | 백엔드 | 백엔드 구현·API·DB·테스트·빌드 |
 | reviewer | 리뷰어 | 코드 리뷰·QA·커버리지 판정 |
 
-화면 작업은 `architect → uiux 명세 → frontend 구현 → uiux 화면 검수`로 진행합니다.
-코드 품질은 reviewer가 별도로 검증합니다. uiux가 없는 경우 frontend는 기존 디자인 기준 안에서
-사소한 수정을 처리하고, 새 사용자 흐름·디자인 기준이 필요하면 uiux 활성화를 요청합니다.
+화면 작업은 `architect → uiux 명세 → frontend 구현 → uiux 화면 검수 → reviewer 코드 리뷰`로 진행합니다.
+uiux가 없는 경우 frontend는 기존 디자인 기준 안에서 사소한 수정을 처리합니다.
+새 사용자 흐름·디자인 기준이 필요하면 lead가 사용자에게 uiux 활성화(`team/config.sh` 변경과 재기동)를 요청합니다.
 
 ### 프로젝트별 설정
 

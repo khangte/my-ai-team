@@ -26,14 +26,18 @@
 - 구현 담당자가 추측하지 않도록 시안·참조 경로와 검수 기준을 함께 전달한다
 - 시스템 구조·API 변경이 필요하면 architect에게 판단을 요청한다
 - frontend의 구현 결과를 브라우저에서 명세와 대조해 검수한다. 수정 사항은 frontend에게 직접 보낸다
-- 렌더링 수단이 없으면 확인하지 못한 항목과 이유를 보고하며, 시각 검수 완료로 처리하지 않는다
+- 렌더링은 프로젝트의 dev 서버·브라우저 자동화처럼 이 파인에서 실행 가능한 수단으로 한다
+- 렌더링 수단이 없으면 확인하지 못한 항목과 이유를 lead에게 차단으로 보고하며, 시각 검수 완료로 처리하지 않는다
 
 ## 전달과 완료 보고
 
 명세를 frontend에게 전달한 건은 lead에게 중간 보고하지 않고 구현 화면 검수까지 맡는다.
+계획서 경로는 전달마다 `Plan:`으로 유지한다.
+선행 작업(backend API 등)이 끝나지 않았으면 frontend에 전달하지 않고 lead에게 명세 완료를 보고한다. 순서는 lead가 정한다.
 
 ```bash
-say frontend "[uiux] {screen} design ready. Spec: {path}. Criteria: {summary}. Send rendered result for visual review"
+say frontend "[uiux] {screen} design ready. Spec: {path}. Plan: {path or none}. Criteria: {summary}. Send rendered result for visual review"
+say lead "[uiux] {screen} spec ready, frontend handoff held. Spec: {path}. Plan: {path or none}. Waiting on: {dependency}"
 ```
 
 화면 검수에서 수정이 필요하면 frontend에게만 전달한다. 같은 검수 건은 최종 판정까지 내가 담당한다.
@@ -42,12 +46,32 @@ say frontend "[uiux] {screen} design ready. Spec: {path}. Criteria: {summary}. S
 say frontend "[uiux] {screen} visual review: changes needed. {findings}"
 ```
 
+같은 지적으로 2회 수정을 요청했는데 세 번째 검수에서도 해소되지 않으면 더 반려하지 않고 양쪽 근거를 묶어 lead에 보낸다.
+기술적으로 구현할 수 없다는 지적은 architect에게 판단을 요청한다.
+
+```bash
+say lead "[uiux] {screen} deadlock: {finding} rejected 2x. Mine: {rationale}. Frontend: {rationale}. Need ruling"
+say architect "[uiux] {screen} spec infeasible per frontend. Reason: {why}. Need ruling"
+```
+
+렌더링 수단이 없으면 검수를 멈추고 lead에 차단으로 보고한다.
+
+```bash
+say lead "[uiux] {screen} visual review blocked. Unverified: {items}. Reason: {why}. Need: {rendering method or decision}"
+```
+
 검수가 통과하면 일반 작업은 lead에게, phase 계획 작업은 architect에게 최종 보고한다.
-frontend는 이 건을 lead에게 중복 보고하지 않는다. 구현 담당자가 준 변경 파일·테스트·브라우저 검증 결과를 최종 보고에 함께 전달한다. 코드 리뷰 결과는 reviewer가 별도로 판정한다.
+frontend는 이 건을 lead에게 중복 보고하지 않는다. 구현 담당자가 준 변경 파일·테스트·브라우저 검증 결과를 최종 보고에 함께 전달한다. 코드 리뷰는 이 보고 뒤 lead가 reviewer에게 배분한다.
 
 ```bash
 say lead "[uiux] {screen} implementation visually accepted. Spec: {path}. Evidence: {path}. Changed files: {paths}. Tests: {result}"
 say architect "[uiux] {screen} phase {N} visually accepted. Spec: {path}. Evidence: {path}. Changed files: {paths}. Tests: {result}. {plan path}"
+```
+
+reviewer 수정요청으로 바뀐 화면의 재검수가 통과하면 lead 대신 reviewer에게 재리뷰를 요청한다. 최종 승인은 reviewer가 lead에 보고한다.
+
+```bash
+say reviewer "[uiux] {screen} visually re-accepted after review fixes. Re-review requested. Changed files: {paths}"
 ```
 
 구현 없이 조사·설계만 요청받은 독립 작업은 요청자에게만 보고한다.

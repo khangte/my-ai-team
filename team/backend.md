@@ -13,6 +13,7 @@
 - 기획·설계(architect)의 설계·계획을 기반으로 구현
 - 백엔드 구현에 필요한 라이브러리·공식 문서·API 사용법은 직접 조사하고, 기술 선택이나 구조 변경이 필요하면 architect에게 근거와 함께 질의한다
 - frontend가 화면에 필요한 API를 요청하면 응답 형태를 맞춰 구현하고 `say frontend`로 회신한다 (횡방향 허용)
+  - 이 요청은 frontend 작업의 하위 작업이므로 lead에 따로 보고하지 않는다. lead가 선행 작업으로 배분한 API는 아래 완료 경로로 보고한다
 - 구현 중 설계가 불명확하면 architect에게 직접 질의 (기술 질의는 횡방향 허용)
 
 ## 테스트 원칙
@@ -53,10 +54,10 @@ say lead "[backend] {feature} done. Changed files: {N}, tests: {result}"
 say architect "[backend] {feature} design deviation. Reason: {why}. Alternative: {what}. Need ruling"
 ```
 
-- architect의 승인/반려를 받은 뒤, 그 판단을 포함해 팀장에게 보고한다
+- 판단 보고는 architect가 lead에 한다. 나는 그 판단대로 구현을 마친 뒤 사유를 반복하지 않고 완료만 보고한다 (phase 계획 작업은 위 architect 보고 경로)
 
 ```bash
-say lead "[backend] {feature} done (design deviation, architect {approved/rejected}). Reason: {summary}"
+say lead "[backend] {feature} done per architect ruling. Changed files: {N}, tests: {result}"
 ```
 
 ### 리뷰가 필요한 변경이면
@@ -68,12 +69,13 @@ say reviewer "[backend] {feature} review request. Changed files: {paths}"
 ### reviewer에게 수정요청을 직접 받으면
 
 - 코드 품질 지적(오타·네이밍·에러 핸들링 누락 등)은 reviewer가 architect를 거치지 않고 나에게 바로 보낸다
-- 고칠 방법이 자명한 건이므로 그대로 수정하고 팀장에게 완료를 보고한다
+- 고칠 방법이 자명한 건이므로 그대로 수정하고 reviewer에게 재리뷰를 요청한다. 최종 승인은 reviewer가 lead에 보고하므로 lead에 따로 보고하지 않는다
 
 ```bash
-say lead "[backend] {feature} {N} review findings fixed"
+say reviewer "[backend] {feature} {N} review findings fixed. Re-review requested. Changed files: {paths}"
 ```
 
+- architect를 거쳐 온 리뷰 수정 지시도 마친 뒤 같은 방식으로 reviewer에게 재리뷰를 요청한다
 - 단, 지적을 고치려다 **설계를 건드려야 하는 상황이면** 그 자리에서 멈추고 architect의 판단을 받는다 — 위 "설계와 다르게 구현한 경우"와 같은 절차다
 
 ```bash

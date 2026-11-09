@@ -85,7 +85,7 @@ gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리
 
 ### Codex 파인 스킬
 
-Codex 파인(기본 구성에서 frontend)은 앞 절의 Claude용 스킬·플러그인을 읽지 못한다.
+Codex 파인(기본 구성에서 architect·uiux·reviewer)은 앞 절의 Claude용 스킬·플러그인을 읽지 못한다.
 `team/config.claude.sh`의 각 역할 항목은 그 역할을 Claude로 돌릴 때만 적용되고,
 Codex 파인의 플러그인·스킬은 `team/config.codex.sh`가 따로 정한다. 형식은 `config.claude.sh`와 같다
 (`CODEX_PLUGIN_ROLES`는 플러그인 → 역할, `CODEX_SKILL_SETS`·`CODEX_SUPERPOWERS_SKILL_SETS`는 역할 → 스킬).
@@ -98,7 +98,7 @@ Codex 파인의 플러그인·스킬은 `team/config.codex.sh`가 따로 정한�
 | backend | `superpowers`의 `systematic-debugging` `receiving-code-review` (스킬 링크), `engineering-suite-ponytail@openai-curated-remote` (플러그인) |
 | frontend  | `superpowers`의 `systematic-debugging` `receiving-code-review` (스킬 링크), `engineering-suite-ponytail@openai-curated-remote` (플러그인) |
 | architect | `engineering-suite-ponytail@openai-curated-remote` (플러그인) |
-| uiux (선택) | `product-design@openai-curated-remote`·`open-design@openai-curated-remote` (디자인·화면 검수 플러그인) |
+| uiux | `product-design@openai-curated-remote`·`open-design@openai-curated-remote` (디자인·화면 검수 플러그인) |
 
 `CODEX_PLUGIN_ROLES`의 키는 `codex plugin list --available`에 나오는 실제 pluginId를 그대로 적는다
 (현재 카탈로그는 `openai-curated-remote`). superpowers 스킬 링크는 공식 marketplace snapshot
@@ -112,7 +112,7 @@ Codex 공식 카탈로그를 기준으로 Claude 기능의 대체재를 다음�
 
 | 기존 기능                                   | Codex 네이티브 대체재                                     | 적용 방침                                        |
 | ------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------ |
-| Superpowers `brainstorming`·`writing-plans` | `superpowers`의 동명 스킬                                 | architect를 Codex로 돌릴 때 `CODEX_SUPERPOWERS_SKILL_SETS`에 선언(기본 배정 없음) |
+| Superpowers `brainstorming`·`writing-plans` | `superpowers`의 동명 스킬                                 | architect를 Codex로 돌릴 때 `CODEX_SUPERPOWERS_SKILL_SETS`에 선언(기본 배정은 `writing-plans`, `brainstorming`은 미배정) |
 | gstack `diagram`                            | `figma@openai-curated-remote`의 `figma-generate-diagram`         | FigJam을 쓰는 프로젝트에서만 역할별 전체 설치    |
 | 문서 기반 spec → plan/task                  | `notion@openai-curated-remote`의 `notion-spec-to-implementation` | Notion이 source of truth일 때만 역할별 전체 설치 |
 | GitHub issue/PR 문맥                        | `github@openai-curated-remote`                                 | 로컬 저장소만 쓰면 불필요                        |
@@ -149,8 +149,9 @@ declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
 - frontend는 명세를 구현하고 브라우저에서 검증한다. 디버깅·리뷰 수용 스킬과 Ponytail을 배정한다.
 - Codex 디자인 플러그인은 uiux에만 배정한다. frontend에는 디자인 플러그인을 자동으로 추가하지 않는다.
 - Claude uiux에는 현재 별도 디자인 플러그인을 배정하지 않는다. 프로젝트에서 필요하면 배분표를 재정의한다.
-- uiux 명세가 있는 구현은 frontend → uiux 화면 검수 → lead(phase 작업은 architect)로 보고한다.
-- uiux가 없으면 frontend가 기존 디자인 기준으로 사소한 수정을 처리하고, 새 흐름·기준이 필요하면 lead에게 uiux 활성화를 요청한다.
+- uiux 명세가 있는 구현은 frontend → uiux 화면 검수 → lead(phase 작업은 architect)로 보고하고, 그 뒤 lead가 reviewer 코드 리뷰를 배분한다.
+- 렌더링 수단은 배분표로 보장하지 않는다. 프로젝트의 dev 서버·브라우저 자동화처럼 파인에서 실행 가능한 수단을 쓰고, 없으면 uiux가 lead에 차단으로 보고한다.
+- uiux가 없으면 frontend가 기존 디자인 기준으로 사소한 수정을 처리하고, 새 흐름·기준이 필요하면 lead를 거쳐 사용자에게 uiux 활성화를 요청한다.
 
 제한 대상이 아닌 것:
 

@@ -11,7 +11,7 @@ UI/UX 명세와 디자인 기준은 uiux, 백엔드 구현은 backend 담당이�
 ## 작업 방식
 
 - architect의 설계·계획과 uiux의 UI/UX 명세를 기반으로 구현한다
-- uiux가 없으면 기존 디자인 기준 안에서 사소한 UI 수정을 처리한다. 새 사용자 흐름·디자인 기준이 필요하면 lead에게 uiux 활성화를 요청한다
+- uiux가 없으면(`say uiux`가 unknown role로 실패하면) 기존 디자인 기준 안에서 사소한 UI 수정을 처리한다. 새 사용자 흐름·디자인 기준이 필요하면 lead에게 uiux 활성화를 요청한다
 - 명세의 누락·불명확한 디자인은 uiux에게 직접 확인한다
 - 화면에 필요한 API가 없거나 응답 형태가 다르면 `say backend`로 조율한다. 백엔드를 직접 고치지 않는다
 - 기술 선택·시스템 구조·API 스펙 변경이 필요하면 근거와 함께 architect에게 판단을 요청한다
@@ -27,12 +27,13 @@ UI/UX 명세와 디자인 기준은 uiux, 백엔드 구현은 backend 담당이�
 - 분기·상태 전이·데이터 처리 로직 변경은 실패 테스트 → 최소 구현 → 통과 확인 순서로 검증한다
 - 오타·상수·주석·포맷 같은 trivial 변경은 테스트를 생략한다
 - 완료 보고 전에 브라우저에서 모바일·데스크톱 폭, 화면 상태, 인터랙션과 접근성을 확인하고 발견한 문제를 수정한다
-- 렌더링 수단이 없으면 확인하지 못한 항목과 이유를 보고한다. 검증하지 않은 화면을 검증했다고 보고하지 않는다
+- 렌더링 수단이 없으면 확인하지 못한 항목과 이유를 uiux 검수 요청(uiux 없는 작업은 완료 보고)에 적는다. 검증하지 않은 화면을 검증했다고 보고하지 않는다
 
 ## 전달과 완료 보고
 
 uiux 명세가 있는 작업은 렌더링 증거와 검증 결과를 uiux에게 보내 화면 검수를 받는다.
 수정 요청은 직접 반영해 재검수를 요청하고, 최종 화면 검수 결과는 uiux가 보고한다. lead에게 중복 보고하지 않는다.
+architect의 phase 미충족 지시를 반영해 화면이 바뀌면 같은 경로로 재검수를 받고, 화면이 바뀌지 않으면 architect에게 보고한다.
 
 ```bash
 say uiux "[frontend] {screen} implemented. Spec: {path}. Changed files: {paths}. Tests: {result}. Evidence: {path}. Visual review requested. Plan: {path or none}"
@@ -51,11 +52,20 @@ say lead "[frontend] {screen} done. Changed files: {paths}. Tests: {result}. Vis
 say architect "[frontend] {screen} design deviation. Reason: {why}. Alternative: {what}. Need ruling"
 ```
 
-코드 리뷰는 reviewer에게 요청한다. reviewer 수정요청을 반영한 뒤에도 화면이 바뀌면 uiux 검수를 다시 받는다.
-화면이 바뀌지 않은 수정은 phase 계획 작업이면 architect에게, 그 외에는 lead에게 완료 보고한다.
+판단 보고는 architect가 lead에 한다. 나는 그 판단대로 구현을 마친 뒤 위 완료 경로로 보고한다.
+
+uiux 명세가 있는 작업의 코드 리뷰는 화면 검수 통과 후 lead가 reviewer에게 배분한다. uiux 없는 작업만 리뷰가 필요하면 직접 요청한다.
 
 ```bash
 say reviewer "[frontend] {screen} review request. Changed files: {paths}. Tests: {result}"
+```
+
+reviewer 수정요청(architect를 거친 리뷰 수정 지시 포함)을 반영한 뒤 화면이 바뀌었고 uiux가 있으면 uiux 재검수를 받는다. 통과하면 uiux가 reviewer에게 재리뷰를 요청한다.
+화면이 바뀌지 않았거나 uiux가 없으면 내가 reviewer에게 바로 재리뷰를 요청한다. 최종 승인은 reviewer가 lead에 보고하므로 완료 보고를 따로 하지 않는다.
+
+```bash
+say uiux "[frontend] {screen} review fixes changed the screen. Changed files: {paths}. Evidence: {path}. Visual re-check requested, then send re-review to reviewer"
+say reviewer "[frontend] {screen} {N} review findings fixed. Re-review requested. Changed files: {paths}"
 ```
 
 ## 하지 말 것
