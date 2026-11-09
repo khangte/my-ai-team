@@ -54,17 +54,23 @@ Codex를 `workspace-write`로 제한하려면 `CODEX_FULL_ACCESS=0`으로 실행
 
 ## 팀 구성
 
-현재 기본 팀은 **lead·architect·developer·reviewer 4인**이며, developer는 Codex,
-나머지는 Claude를 사용합니다. researcher와 designer는 필요할 때 활성화할 수 있습니다.
+현재 기본 팀은 **lead·architect·frontend·backend·reviewer 5인**이며, frontend는 Codex,
+나머지는 Claude를 사용합니다. UI/UX 설계가 필요하면 uiux를 추가합니다.
+독립 researcher 역할은 두지 않고 기술 조사는 architect, UX·레퍼런스 조사는 uiux,
+구현용 API·라이브러리 조사는 frontend·backend가 담당합니다.
 
-| 역할 | 담당 |
-| --- | --- |
-| lead | 작업 배분·결과 수합·git 커밋 |
-| architect | 기획·설계 — 스펙·설계·구현 계획, 완료조건 판정·설계 이탈 승인 |
-| researcher | 웹 조사 |
-| designer | UI/UX 설계·프론트엔드 구현 |
-| developer | 백엔드 구현·API·DB·테스트·빌드 |
-| reviewer | 코드 리뷰·QA·커버리지 판정 |
+| 역할 | 한글 표시 이름 | 담당 |
+| --- | --- | --- |
+| lead | 팀장 | 작업 배분·결과 수합·git 커밋 |
+| architect | 설계 | 기획·설계 — 스펙·설계·구현 계획, 완료조건 판정·설계 이탈 승인 |
+| uiux (선택) | UI/UX | UX·레퍼런스 조사, UI/UX 명세, 구현 화면 검수 |
+| frontend | 프론트엔드 | 프론트엔드 구현·API 연동·반응형·브라우저 검증 |
+| backend | 백엔드 | 백엔드 구현·API·DB·테스트·빌드 |
+| reviewer | 리뷰어 | 코드 리뷰·QA·커버리지 판정 |
+
+화면 작업은 `architect → uiux 명세 → frontend 구현 → uiux 화면 검수`로 진행합니다.
+코드 품질은 reviewer가 별도로 검증합니다. uiux가 없는 경우 frontend는 기존 디자인 기준 안에서
+사소한 수정을 처리하고, 새 사용자 흐름·디자인 기준이 필요하면 uiux 활성화를 요청합니다.
 
 ### 프로젝트별 설정
 
@@ -76,8 +82,10 @@ Codex를 `workspace-write`로 제한하려면 `CODEX_FULL_ACCESS=0`으로 실행
 SESSION="team1"
 declare -a MEMBERS=(
     "lead|팀장|claude-sonnet-5-5|medium"
-    "architect|기획·설계|claude-sonnet-5-5|high"
-    "developer|백엔드|gpt-6.1-sol|medium"
+    "architect|설계|claude-sonnet-5-5|high"
+    "uiux|UI/UX|gpt-6.1-terra|medium"
+    "frontend|프론트엔드|gpt-6.1-terra|medium"
+    "backend|백엔드|claude-sonnet-5-5|medium"
     "reviewer|리뷰어|gpt-6.1-sol|medium"
 )
 ```
@@ -124,12 +132,12 @@ tmux kill-session -t team1                    # 종료
 메시지 본문은 영어로 간결하게 작성합니다.
 
 ```bash
-say lead "[developer] Implementation complete."
-say :0.0 "[developer] Tests passed."
+say lead "[backend] Implementation complete."
+say :0.0 "[backend] Tests passed."
 ```
 
 상대가 작업 중이면 메시지는 큐에 쌓였다가 유휴 시 전달됩니다.
-작업 중단이 필요할 때는 `SAY_NOWAIT=1 say developer "Stop the current task."`를 사용합니다.
+작업 중단이 필요할 때는 `SAY_NOWAIT=1 say backend "Stop the current task."`를 사용합니다.
 팀 밖 셸에서는 저장소의 `./bin/say team1:0.0 "..."`처럼 세션명까지 지정합니다.
 
 - 일반 작업은 lead에 완료 보고합니다.

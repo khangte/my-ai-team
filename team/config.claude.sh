@@ -16,7 +16,7 @@ declare -A CLAUDE_PLUGIN_MARKETPLACES=(
 declare -A CLAUDE_PLUGIN_ROLES=(
     ["superpowers@anthropic-plugin-directory"]=""
     ["serena@claude-plugins-official"]="*"
-    ["ponytail@ponytail"]="architect developer"
+    ["ponytail@ponytail"]="architect backend frontend"
     ["caveman@caveman"]="lead"
 )
 
@@ -24,7 +24,8 @@ declare -A CLAUDE_PLUGIN_ROLES=(
 declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=(
     [lead]="finishing-a-development-branch"
     [architect]="writing-plans"
-    [designer]=""
-    [developer]="systematic-debugging receiving-code-review"
+    [uiux]=""
+    [frontend]="systematic-debugging receiving-code-review"
+    [backend]="systematic-debugging receiving-code-review"
     [reviewer]=""
 )

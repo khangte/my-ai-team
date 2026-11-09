@@ -14,10 +14,10 @@ SESSION="team1"   # tmux 세션 이름 (필수, 프로젝트별로 변경 가능
 #
 declare -a MEMBERS=(
     "lead|팀장|claude-sonnet-5-5|high"
-    "architect|기획|gpt-6.1-sol|high"
-    "researcher|리서처|claude-haiku-5-5|medium"
-    "designer|UI|gpt-6.1-terra|medium"
-    "developer|백엔드|claude-sonnet-5-5|medium"
+    "architect|설계|gpt-6.1-sol|high"
+    "uiux|UI/UX|gpt-6.1-terra|medium"
+    "frontend|프론트엔드|claude-sonnet-5-5|medium"
+    "backend|백엔드|claude-sonnet-5-5|medium"
     "reviewer|리뷰어|gpt-6.1-sol|medium"
 )
 

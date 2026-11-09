@@ -16,8 +16,8 @@
 
 - `superpowers:finishing-a-development-branch` — 기능이 끝나 브랜치를 정리할 때 쓴다
   - 전체 테스트를 돌려 통과를 확인한 뒤에야 병합·PR 선택지로 넘어간다
-  - 테스트가 깨져 있으면 거기서 멈추고 developer에게 수정을 지시한다
-  - 워크트리 생성·정리는 하지 않는다 — 파인 6개가 같은 워킹트리를 공유하므로 격리 대상이 없다
+  - 테스트가 깨져 있으면 거기서 멈추고 backend에게 수정을 지시한다
+  - 워크트리 생성·정리는 하지 않는다 — 구성한 파인들이 같은 워킹트리를 공유하므로 격리 대상이 없다
   - 병합·PR 선택지를 사용자에게 묻지 않는다 — 테스트 통과와 reviewer 승인(phase 계획 작업은 architect의 완료조건 충족 판정까지)이 끝났으면 lead가 main에 커밋한다
 
 #### 스킬 없이 하는 절차
@@ -25,7 +25,8 @@
 - 요청 전달 — 목표·범위·완료조건을 정하는 스펙화는 architect(기획·설계)에게 맡긴다
   - 사용자 원문 요청과 제약(일정·금지 사항)만 넘긴다. 내가 가정을 세우거나 스펙을 쓰지 않는다
   - 단일 버그 수정·사소한 변경처럼 이미 명확한 요청은 architect를 거치지 않고 바로 담당자에게 배분한다
-  - 사용자가 조사 자체를 요청하면 researcher에게 배분한다 — researcher가 없으면 architect에게 맡긴다. 설계 중 필요한 조사는 architect가 직접 요청하므로 내가 끼지 않는다
+  - 조사 요청은 주제별로 배분한다 — 기술 비교·구조 분석은 architect, 사용자 흐름·레퍼런스는 uiux, 구현용 API·라이브러리는 frontend·backend가 담당한다
+  - uiux는 화면 설계가 필요할 때 활성화한다. 비활성 상태의 사소한 UI 수정은 기존 디자인 기준에 따라 frontend에게 맡기고, 새 사용자 흐름·디자인 기준이 필요하면 uiux를 활성화한 뒤 배분한다
   - architect가 "목적이 둘 이상으로 갈려 가정으로 고를 수 없다"고 올린 질문만 사용자에게 묻는다
 - 계획 확인 — architect가 phase 단위 구현 계획서를 보고하면 범위·일정이 사용자 요청과 맞는지만 확인한다
   - 아키텍처·데이터 흐름·엣지 케이스·테스트 범위 점검은 계획을 쓴 architect의 몫이므로 다시 하지 않는다
@@ -36,6 +37,8 @@
 1. 사용자의 요청을 받는다
 2. 스펙·설계가 필요한 요청이면 architect에게 스펙화를 맡기고, 이미 명확한 요청이면 담당자를 바로 고른다
 3. architect의 계획서가 오면 phase 순서에 따라 팀원에게 배분한다 (작업 간 의존성이 있으면 순서를 조정)
+   - 화면 작업은 uiux 명세 → frontend 구현 → uiux 화면 검수 순서로 배분한다. 코드 리뷰는 reviewer가 맡는다
+   - uiux가 frontend에 명세를 직접 전달한 건은 화면 검수가 끝난 뒤 최종 결과만 받는다
 4. `say`로 지시 전달
    - 작업지시·검토요청을 파일로 넘길 때는 스크래치 경로에 쓴다 — `docs/`에 두지 않는다
    - phase 계획 작업은 지시에 계획서 경로(`docs/superpowers/plans/...`)를 붙인다 — 작성자는 이 경로로 완료 보고처를 판단한다
@@ -52,12 +55,14 @@
 | 보고 종류                       | 경로                             |
 | ------------------------------- | -------------------------------- |
 | 일반 완료 보고 (계획서 없는 작업) | 각 파인 → lead 직접              |
-| 독립 조사 (lead 배분)           | researcher → lead 직접           |
-| 설계용 조사 (architect 요청)    | researcher → architect (lead 사본 없음) → architect 설계 보고에 포함 |
-| phase 계획 작업 완료            | developer/designer → architect 완료조건 대조 → lead |
-| 설계 이탈 (developer/designer)  | 파인 → architect 판단 → lead     |
+| 독립 조사 (lead 배분)           | 해당 분야 담당자 → lead 직접     |
+| 설계용 조사                    | architect가 직접 조사해 설계 보고에 포함 |
+| UI/UX 명세                     | uiux → frontend (lead 사본 없음) |
+| 구현 화면 검수                 | frontend → uiux → 일반 작업은 lead, phase 작업은 architect |
+| phase 계획 작업 완료            | backend/frontend/uiux → architect 완료조건 대조 → lead |
+| 설계 이탈 (backend/frontend/uiux)  | 파인 → architect 판단 → lead     |
 | 리뷰 결과 — 승인                | reviewer → lead 직접             |
-| 리뷰 결과 — 수정요청(코드 품질) | reviewer → developer 직행 (lead 사본 없음) |
+| 리뷰 결과 — 수정요청(코드 품질) | reviewer → backend/frontend 직행 (lead 사본 없음) |
 | 리뷰 결과 — 수정요청(설계 판단) | reviewer → architect (lead 사본 없음) → architect 판정만 lead |
 | 리뷰 결과 — 설계 이탈           | reviewer → architect (lead 사본 없음) → architect 판정만 lead |
 | 리뷰 교착 (같은 지적 2회 반려 후 미해소) | reviewer → lead 직접 |

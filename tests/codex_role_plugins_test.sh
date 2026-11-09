@@ -7,10 +7,12 @@ eval "$(sed -n '/^role_in() {$/,/^}$/p; /^codex_default_model_config() {$/,/^}$/
 test_dir="$(mktemp -d)"
 trap 'rm -rf "$test_dir"' EXIT
 
-write_codex_role_plugins developer "$test_dir/developer"
+write_codex_role_plugins backend "$test_dir/backend"
+write_codex_role_plugins frontend "$test_dir/frontend"
+write_codex_role_plugins uiux "$test_dir/uiux"
 write_codex_role_plugins reviewer "$test_dir/reviewer"
 CODEX_PLUGIN_ROLES['test@local']='*'
-CODEX_PLUGIN_ROLES['shared@local']='developer reviewer'
+CODEX_PLUGIN_ROLES['shared@local']='backend reviewer'
 write_codex_role_plugins reviewer "$test_dir/shared"
 CODEX_PLUGIN_ROLES['shared@local']=''
 write_codex_role_plugins reviewer "$test_dir/disabled"
@@ -22,7 +24,9 @@ import tomllib
 
 root = pathlib.Path(sys.argv[1])
 expected = {
-    'developer': {'engineering-suite-ponytail@openai-curated-remote', 'caveman@openai-curated-remote'},
+    'backend': {'engineering-suite-ponytail@openai-curated-remote', 'caveman@openai-curated-remote'},
+    'frontend': {'engineering-suite-ponytail@openai-curated-remote', 'caveman@openai-curated-remote'},
+    'uiux': {'product-design@openai-curated-remote', 'open-design@openai-curated-remote', 'caveman@openai-curated-remote'},
     'reviewer': {'caveman@openai-curated-remote'},
     'shared': {'caveman@openai-curated-remote', 'test@local', 'shared@local'},
     'disabled': {'caveman@openai-curated-remote', 'test@local'},

@@ -10,9 +10,9 @@
 # 원격 plugin list의 enabled 값은 이 역할별 설정을 반영하지 않는다.
 declare -A CODEX_PLUGIN_ROLES=(
     ["superpowers@openai-curated-remote"]=""
-    ["product-design@openai-curated-remote"]="designer"
-    ["open-design@openai-curated-remote"]="designer"
-    ["engineering-suite-ponytail@openai-curated-remote"]="architect developer designer"
+    ["product-design@openai-curated-remote"]="uiux"
+    ["open-design@openai-curated-remote"]="uiux"
+    ["engineering-suite-ponytail@openai-curated-remote"]="architect backend frontend"
     ["caveman@openai-curated-remote"]="*"
 )
 
@@ -20,9 +20,9 @@ declare -A CODEX_PLUGIN_ROLES=(
 declare -A CODEX_SKILL_SETS=(
     [lead]=""
     [architect]=""
-    [researcher]=""
-    [designer]=""
-    [developer]=""
+    [uiux]=""
+    [frontend]=""
+    [backend]=""
     [reviewer]=""
 )
 
@@ -30,7 +30,8 @@ declare -A CODEX_SKILL_SETS=(
 declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
     [lead]="finishing-a-development-branch"
     [architect]="writing-plans"
-    [designer]="systematic-debugging receiving-code-review"
-    [developer]="systematic-debugging receiving-code-review"
+    [uiux]=""
+    [frontend]="systematic-debugging receiving-code-review"
+    [backend]="systematic-debugging receiving-code-review"
     [reviewer]=""
 )

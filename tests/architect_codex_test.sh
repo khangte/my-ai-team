@@ -3,22 +3,22 @@ set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# 현재 팀 구성에서 developer는 Claude다. 배열 위치가 아니라 역할로 찾으므로
+# 현재 팀 구성에서 backend는 Claude다. 배열 위치가 아니라 역할로 찾으므로
 # config.sh에서 인원을 증감해도 이 계약은 유지된다.
 source "$repo_dir/team/config.sh"
-developer_index=""
+backend_index=""
 for ((member_index = 0; member_index < ${#MEMBER_NAMES[@]}; member_index++)); do
-    if [ "${MEMBER_NAMES[$member_index]}" = "developer" ]; then
-        developer_index="$member_index"
+    if [ "${MEMBER_NAMES[$member_index]}" = "backend" ]; then
+        backend_index="$member_index"
         break
     fi
 done
-test -n "$developer_index"
-test "${MEMBER_AGENTS[$developer_index]}" = "claude"
+test -n "$backend_index"
+test "${MEMBER_AGENTS[$backend_index]}" = "claude"
 
 # 모델·추론강도는 team/config.sh의 MEMBERS가 유일한 출처다.
-test -n "${SPEC_MEMBER_MODELS[$developer_index]}"
-test -n "${SPEC_MEMBER_REASONING_EFFORTS[$developer_index]}"
+test -n "${SPEC_MEMBER_MODELS[$backend_index]}"
+test -n "${SPEC_MEMBER_REASONING_EFFORTS[$backend_index]}"
 
 # config.codex.sh는 스킬·플러그인 배분표만 담당한다(모델은 선언하지 않는다).
 source "$repo_dir/team/config.codex.sh"
@@ -29,13 +29,26 @@ for role in "${!CODEX_SKILL_SETS[@]}"; do
 done
 test ! -d "$repo_dir/skills/codex"
 
-# developer에는 공식 Superpowers 플러그인의 디버깅·리뷰 수용 스킬만 선택 노출한다.
-test "${CODEX_SUPERPOWERS_SKILL_SETS[developer]}" = "systematic-debugging receiving-code-review"
-test "${CODEX_PLUGIN_ROLES[product-design@openai-curated-remote]}" = "designer"
+# backend에는 공식 Superpowers 플러그인의 디버깅·리뷰 수용 스킬만 선택 노출한다.
+test "${CODEX_SUPERPOWERS_SKILL_SETS[backend]}" = "systematic-debugging receiving-code-review"
+test "${CODEX_PLUGIN_ROLES[product-design@openai-curated-remote]}" = "uiux"
 test "${CODEX_SUPERPOWERS_SKILL_SETS[lead]}" = "finishing-a-development-branch"
 test "${CODEX_SUPERPOWERS_SKILL_SETS[architect]}" = "writing-plans"
-test "${CODEX_PLUGIN_ROLES[engineering-suite-ponytail@openai-curated-remote]}" = "architect developer designer"
+test "${CODEX_PLUGIN_ROLES[engineering-suite-ponytail@openai-curated-remote]}" = "architect backend frontend"
 test "${CODEX_PLUGIN_ROLES[caveman@openai-curated-remote]}" = "*"
+
+# 역할 분리 후 디자인 도구는 uiux, 구현 스킬은 frontend에 배정한다.
+test "${CODEX_PLUGIN_ROLES[open-design@openai-curated-remote]}" = "uiux"
+test -z "${CODEX_SUPERPOWERS_SKILL_SETS[uiux]}"
+test "${CODEX_SUPERPOWERS_SKILL_SETS[frontend]}" = "systematic-debugging receiving-code-review"
+source "$repo_dir/team/config.claude.sh"
+test "${CLAUDE_SUPERPOWERS_SKILL_SETS[frontend]}" = "systematic-debugging receiving-code-review"
+test "${CLAUDE_PLUGIN_ROLES[ponytail@ponytail]}" = "architect backend frontend"
+for role in "${MEMBER_NAMES[@]}"; do
+    test "$role" != "researcher"
+    test -s "$repo_dir/team/$role.md"
+done
+test -s "$repo_dir/team/uiux.md"
 
 # 런처가 파인별 CODEX_HOME과 세션 시작 정리 훅을 사용해야 한다.
 grep -qF 'export CODEX_HOME=$(shell_quote "$role_codex_home")' "$repo_dir/setup-team.sh"
