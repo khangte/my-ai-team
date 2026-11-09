@@ -44,6 +44,8 @@ test "${CODEX_SUPERPOWERS_SKILL_SETS[frontend]}" = "systematic-debugging receivi
 source "$repo_dir/team/config.claude.sh"
 test "${CLAUDE_SUPERPOWERS_SKILL_SETS[frontend]}" = "systematic-debugging receiving-code-review"
 test "${CLAUDE_PLUGIN_ROLES[ponytail@ponytail]}" = "architect backend frontend"
+test "${CLAUDE_PLUGIN_ROLES[playwright@claude-plugins-official]}" = "frontend uiux"
+test "$CODEX_PLAYWRIGHT_ROLES" = "frontend uiux"
 for role in "${MEMBER_NAMES[@]}"; do
     test "$role" != "researcher"
     test -s "$repo_dir/team/$role.md"

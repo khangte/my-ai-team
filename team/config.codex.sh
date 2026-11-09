@@ -16,6 +16,9 @@ declare -A CODEX_PLUGIN_ROLES=(
     ["caveman@openai-curated-remote"]="*"
 )
 
+# Playwright MCP를 켤 역할. 공식 카탈로그에 플러그인이 없어 역할별 config.toml에 MCP로 넣는다.
+CODEX_PLAYWRIGHT_ROLES="frontend uiux"
+
 # 역할 → standalone 스킬. .agents/skills/<name>·~/.codex/skills/<name>에서 찾아 링크한다.
 declare -A CODEX_SKILL_SETS=(
     [lead]=""

@@ -20,7 +20,7 @@ load_functions codex_default_model_config plugin_skill_set provider_plugin_neede
     prepare_codex_skill_sources codex_shared_plugin_cache link_codex_standalone_skills find_codex_skill_source write_codex_role_plugins answer_claude_dialog \
     wait_claude_ready wait_for_pane start_codex_in_pane team_owned_record team_owned_adopt_identical team_owned_clean \
     link_owned_skill json_escape say_state_exports stop_hook_cmd_for_role write_codex_role_agents shell_quote \
-    start_claude_in_pane role_in role_prompt_content merge_team_md
+    start_claude_in_pane role_in role_prompt_content merge_team_md ensure_playwright_browser
 
 test_dir="$(mktemp -d)"
 trap 'rm -rf "$test_dir"' EXIT
@@ -542,6 +542,51 @@ grep -qF "SAY_QUEUE_DIR='/state/o'\\''wner/queue'" <<< "$inner" || fail 'drain �
 log_has "CALL=say" && log_has "ARG=--drain-one" && log_has "ARG=s:0.1" || fail 'drain-one 명령이 특수문자 BIN_DIR에서 실패'
 [ ! -e "$test_dir/pwned" ] || fail '훅 명령에서 백틱이 평가됨'
 grep -qF "\$'" "$RUNTIME_DIR/dev.settings.json" && fail 'POSIX 셸에서 쓸 수 없는 $'"'"' 인용 사용' || true
+
+# Playwright 배정 역할의 settings에만 플러그인과 헤드리스 환경변수가 들어간다.
+(
+    CLAUDE_PLUGIN_ROLES=([playwright@claude-plugins-official]="frontend uiux")
+    CLAUDE_PLUGIN_MARKETPLACES=([claude-plugins-official]="anthropics/claude-plugins-official")
+    start_claude_in_pane s:0.2 claude-x frontend high || fail 'frontend Claude 기동 실패'
+    start_claude_in_pane s:0.3 claude-x backend high || fail 'backend Claude 기동 실패'
+    python3 -I - "$RUNTIME_DIR" <<'PY' || fail 'Playwright settings 주입 오류'
+import json, sys
+def settings(role):
+    return json.load(open(f"{sys.argv[1]}/{role}.settings.json"))
+key = "playwright@claude-plugins-official"
+assigned, other = settings("frontend"), settings("backend")
+assert assigned["env"]["PLAYWRIGHT_MCP_HEADLESS"] == "true"
+assert assigned["env"]["PLAYWRIGHT_MCP_BROWSER"] == "chromium"
+assert assigned["enabledPlugins"][key] is True
+assert not {"PLAYWRIGHT_MCP_HEADLESS", "PLAYWRIGHT_MCP_BROWSER"} & set(other["env"])
+assert key not in other.get("enabledPlugins", {})
+PY
+)
+
+# 브라우저 준비는 배정된 공급자 역할에서만 돌고, 설치가 실패해도 기동을 막지 않는다.
+(
+    npx() { printf '%s\n' "$*" >> "$test_dir/npx_calls"; return "${NPX_RC:-0}"; }
+    run_browser_step() {
+        # 사용법: run_browser_step <기대 npx 호출 수>
+        : > "$test_dir/npx_calls"
+        ensure_playwright_browser > "$test_dir/browser_out"
+        [ "$(wc -l < "$test_dir/npx_calls")" -eq "$1" ] || fail "브라우저 설치 호출 수 불일치 (기대 $1)"
+    }
+    CLAUDE_PLUGIN_ROLES=() CODEX_PLAYWRIGHT_ROLES=""
+    MEMBER_NAMES=(lead frontend) MEMBER_AGENTS=(claude claude)
+    run_browser_step 0
+    CLAUDE_PLUGIN_ROLES=([playwright@claude-plugins-official]="frontend")
+    run_browser_step 1
+    expect_in 'install-browser chrome-for-testing' "$(cat "$test_dir/npx_calls")"
+    # Claude 배분만 있는 역할이 Codex로 돌면 필요 없다.
+    MEMBER_AGENTS=(claude codex)
+    run_browser_step 0
+    CODEX_PLAYWRIGHT_ROLES="frontend"
+    run_browser_step 1
+    NPX_RC=1
+    run_browser_step 1
+    expect_in 'Playwright 브라우저 설치 실패' "$(cat "$test_dir/browser_out")"
+)
 
 # Codex: 실제 write_codex_role_agents와 hooks.json을 포함해 같은 검증
 printf 'Ask Codex to do anything\n' > "$screen_file"

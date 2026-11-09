@@ -36,5 +36,12 @@ for role, allowed in expected.items():
     assert config.pop('_default') == {'enabled': False}
     assert set(config) == allowed, (role, config)
     assert all(item == {'enabled': True} for item in config.values())
+for role, assigned in {'frontend': True, 'uiux': True, 'backend': False, 'reviewer': False}.items():
+    servers = tomllib.loads((root / role / 'config.toml').read_text()).get('mcp_servers', {})
+    assert ('playwright' in servers) == assigned, (role, servers)
+    if assigned:
+        assert servers['playwright']['command'] == 'npx'
+        assert servers['playwright']['args'] == ['-y', '@playwright/mcp@latest']
+        assert servers['playwright']['env'] == {'PLAYWRIGHT_MCP_HEADLESS': 'true', 'PLAYWRIGHT_MCP_BROWSER': 'chromium'}
 print('Codex 역할별 플러그인 설정 테스트 통과')
 PY

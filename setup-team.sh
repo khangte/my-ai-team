@@ -503,7 +503,12 @@ start_claude_in_pane() {
     local bypass_json="\"skipDangerousModePermissionPrompt\":true,"
 
     # 200K에서 세션을 유지한 채 압축하고 번들 스킬의 프롬프트 고정비를 줄인다.
-    local env_json="\"env\":{\"CLAUDE_CODE_DISABLE_1M_CONTEXT\":\"1\",\"CLAUDE_CODE_DISABLE_BUNDLED_SKILLS\":\"1\"},"
+    # 플러그인의 Playwright MCP 기본값은 시스템 Chrome 창을 요구하므로 헤드리스 Chromium을 지정한다.
+    local playwright_env=""
+    if [ -n "$role" ] && role_in "${CLAUDE_PLUGIN_ROLES[playwright@claude-plugins-official]:-}" "$role"; then
+        playwright_env=",\"PLAYWRIGHT_MCP_HEADLESS\":\"true\",\"PLAYWRIGHT_MCP_BROWSER\":\"chromium\""
+    fi
+    local env_json="\"env\":{\"CLAUDE_CODE_DISABLE_1M_CONTEXT\":\"1\",\"CLAUDE_CODE_DISABLE_BUNDLED_SKILLS\":\"1\"${playwright_env}},"
 
     # project 설정 소스가 제외한 전역 플러그인 설정을 역할별로 명시 주입한다.
     local plugins_json=""
@@ -856,6 +861,24 @@ install_claude_plugins() {
 }
 install_claude_plugins
 
+ensure_playwright_browser() {
+    # Playwright MCP를 쓰는 역할이 있으면 기동 전에 브라우저를 받는다. 이미 있으면 바로 끝난다.
+    local i needed=false
+    for ((i = 0; i < ${#MEMBER_NAMES[@]}; i++)); do
+        case "${MEMBER_AGENTS[$i]}" in
+            claude) role_in "${CLAUDE_PLUGIN_ROLES[playwright@claude-plugins-official]:-}" "${MEMBER_NAMES[$i]}" && needed=true ;;
+            codex)  role_in "${CODEX_PLAYWRIGHT_ROLES:-}" "${MEMBER_NAMES[$i]}" && needed=true ;;
+        esac
+    done
+    [ "$needed" = true ] || return 0
+    if npx -y @playwright/mcp@latest install-browser chrome-for-testing >/dev/null 2>&1; then
+        echo "  ✅  Playwright 브라우저 준비됨"
+    else
+        echo -e "${YELLOW}  ⚠️  Playwright 브라우저 설치 실패 (수동 확인: npx -y @playwright/mcp@latest install-browser chrome-for-testing)${NC}"
+    fi
+}
+ensure_playwright_browser
+
 # ── [3/7] Claude — 역할별 스킬 제한 ────────────────────────
 # 역할별 cwd에 필요한 스킬만 링크하고 project 설정 소스로 전역 스킬을 차단한다.
 # 제외되는 전역 훅·플러그인 설정은 실행 시 명시 주입한다.
@@ -915,6 +938,9 @@ write_codex_role_plugins() {
             role_in "${CODEX_PLUGIN_ROLES[$plugin]}" "$role" || continue
             printf '\n[plugins."%s"]\nenabled = true\n' "$plugin"
         done
+        if role_in "${CODEX_PLAYWRIGHT_ROLES:-}" "$role"; then
+            printf '\n[mcp_servers.playwright]\ncommand = "npx"\nargs = ["-y", "@playwright/mcp@latest"]\nenv = { PLAYWRIGHT_MCP_HEADLESS = "true", PLAYWRIGHT_MCP_BROWSER = "chromium" }\n'
+        fi
     } > "$role_home/config.toml"
 }
 

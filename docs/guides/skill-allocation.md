@@ -150,7 +150,9 @@ declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
 - Codex 디자인 플러그인은 uiux에만 배정한다. frontend에는 디자인 플러그인을 자동으로 추가하지 않는다.
 - Claude uiux에는 현재 별도 디자인 플러그인을 배정하지 않는다. 프로젝트에서 필요하면 배분표를 재정의한다.
 - uiux 명세가 있는 구현은 frontend → uiux 화면 검수 → lead(phase 작업은 architect)로 보고하고, 그 뒤 lead가 reviewer 코드 리뷰를 배분한다.
-- 렌더링 수단은 배분표로 보장하지 않는다. 프로젝트의 dev 서버·브라우저 자동화처럼 파인에서 실행 가능한 수단을 쓰고, 없으면 uiux가 lead에 차단으로 보고한다.
+- 렌더링 수단은 frontend·uiux에 배정한 Playwright MCP다. Claude는 `playwright@claude-plugins-official` 플러그인, Codex는 공식 카탈로그에 플러그인이 없어 `CODEX_PLAYWRIGHT_ROLES`로 역할별 `config.toml`에 MCP를 넣는다. 양쪽 모두 헤드리스 Chromium을 쓰고 `setup-team.sh`가 기동 시 브라우저를 설치한다.
+- Playwright MCP를 쓸 수 없거나 dev 서버를 띄울 수 없으면 uiux가 lead에 차단으로 보고한다.
+- `CODEX_FULL_ACCESS=0`으로 띄우면 승인 정책이 `never`가 되어 Codex 파인의 Playwright MCP 호출이 막힌다.
 - uiux가 없으면 frontend가 기존 디자인 기준으로 사소한 수정을 처리하고, 새 흐름·기준이 필요하면 lead를 거쳐 사용자에게 uiux 활성화를 요청한다.
 
 제한 대상이 아닌 것:
@@ -182,6 +184,7 @@ Codex의 플러그인 배분은 위 "Codex 파인 스킬" 절의 `CODEX_PLUGIN_R
 | --------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | caveman         | lead                       | 현재 Claude 배분표는 lead만 활성화한다. Codex는 전 역할에 배정한다           |
 | ponytail        | architect·backend·frontend                   | 설계의 불필요한 추상화와 구현의 과잉 복잡성을 줄인다      |
+| playwright      | frontend·uiux                 | 구현 화면 검증과 화면 검수에 필요한 렌더링 수단이다 |
 | serena          | 전 파인                       | 심볼 탐색을 전 역할에서 쓰도록 확대. 고정비가 가장 큼(MCP 툴 정의 30개)이라 줄일 때 첫 후보 |
 | superpowers     | 없음(`enabledPlugins` 미주입) | 앞의 "superpowers 스킬" 절에 따라 `[4/7]`이 스킬 디렉터리를 역할별로 직접 링크하므로 이미 걸려 있음. 여기서 또 켜면 스킬 14개가 통째로 들어와 선별이 무의미해짐  |
 

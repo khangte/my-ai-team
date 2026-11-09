@@ -16,6 +16,7 @@ declare -A CLAUDE_PLUGIN_MARKETPLACES=(
 declare -A CLAUDE_PLUGIN_ROLES=(
     ["superpowers@anthropic-plugin-directory"]=""
     ["serena@claude-plugins-official"]="*"
+    ["playwright@claude-plugins-official"]="frontend uiux"
     ["ponytail@ponytail"]="architect backend frontend"
     ["caveman@caveman"]="lead"
 )
