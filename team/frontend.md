@@ -28,7 +28,7 @@ UI/UX 명세와 디자인 기준은 uiux, 백엔드 구현은 backend 담당이�
 ## 검증
 
 - 분기·상태 전이·데이터 처리 로직 변경은 실패 테스트 → 최소 구현 → 통과 확인 순서로 검증한다
-- 오타·상수·주석·포맷 같은 trivial 변경은 테스트를 생략한다
+- 오탈자·주석·포맷 같은 trivial 변경은 테스트를 생략한다. 상수·설정값은 영향에 따라 테스트 여부를 판단하고, 리뷰는 받는다
 - 완료 보고 전에 브라우저에서 모바일·데스크톱 폭, 화면 상태, 인터랙션과 접근성을 확인하고 발견한 문제를 수정한다
 - 렌더링 수단이 없으면 확인하지 못한 항목과 이유를 uiux 검수 요청(uiux 없는 작업은 리뷰 요청이나 완료 보고)에 적는다. 검증하지 않은 화면을 검증했다고 보고하지 않는다
 
@@ -46,7 +46,7 @@ uiux 없는 작업은 다음 경로로 보고한다.
 
 - phase 계획서가 붙어 있으면 architect에게 보고한다. 코드 리뷰는 architect 판정 뒤 lead가 reviewer에게 배분한다
 - 그 외 코드 변경은 reviewer에게만 리뷰를 요청한다. lead에 완료 보고를 따로 보내지 않는다
-- trivial 변경(오타·상수·주석·포맷)만 리뷰 없이 lead에게 직접 보고한다
+- trivial 변경(오탈자·주석·포맷)만 리뷰 없이 lead에게 직접 보고한다
 
 ```bash
 say architect "[frontend] {screen} phase {N} done. Changed files: {paths}. Tests: {result}. Visual checks: {result}. {plan path}"

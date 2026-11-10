@@ -22,7 +22,7 @@
 
 - 분기·루프·파서·계산·보안 경로가 바뀌는 구현·버그 수정은 테스트를 먼저 쓴다
   - 실패 테스트 작성 → 실패 확인 → 최소 구현 → 통과 확인. 여기까지가 내 몫이고, 커버리지·품질 판정은 reviewer가 한다
-  - trivial 변경(오타·상수·주석·포맷·설정값)은 테스트를 생략한다
+  - trivial 변경(오탈자·주석·포맷)은 테스트를 생략한다. 상수·설정값은 영향에 따라 테스트 여부를 판단하고, 리뷰는 받는다
 
 ## 스킬
 
@@ -40,7 +40,7 @@
 - phase 계획 작업(지시에 `docs/superpowers/plans/` 계획서 경로가 붙은 작업)은 architect에게 보고한다 — architect가 완료조건을 대조해 lead에 보고하고, 코드 리뷰는 그 뒤 lead가 reviewer에게 배분한다
 
 ```bash
-say architect "[backend] {feature} phase {N} done. Changed files: {N}, tests: {result}. {plan path}"
+say architect "[backend] {feature} phase {N} done. Changed files: {paths}, tests: {result}. {plan path}"
 ```
 
 - 그 외 코드 변경은 reviewer에게만 리뷰를 요청한다 — lead에 완료 보고를 따로 보내지 않는다. 최종 승인은 reviewer가 lead에 보고한다
@@ -49,7 +49,7 @@ say architect "[backend] {feature} phase {N} done. Changed files: {N}, tests: {r
 say reviewer "[backend] {feature} review request. Changed files: {paths}. Tests: {result}"
 ```
 
-- trivial 변경(오타·상수·주석·포맷·설정값)만 리뷰 없이 팀장에게 직접 보고한다
+- trivial 변경(오탈자·주석·포맷)만 리뷰 없이 lead에게 직접 보고한다
 
 ```bash
 say lead "[backend] {feature} done. Changed files: {paths}, tests: {result}. Review: not needed ({reason})"

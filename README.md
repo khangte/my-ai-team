@@ -68,7 +68,8 @@ lead·frontend·backend는 Claude를 사용합니다. UI/UX 설계가 필요 없
 | backend | 백엔드 | 백엔드 구현·API·DB·테스트·빌드 |
 | reviewer | 리뷰어 | 코드 리뷰·QA·커버리지 판정 |
 
-화면 작업은 `architect → uiux 명세 → frontend 구현 → uiux 화면 검수 → reviewer 코드 리뷰 → lead 커밋`으로 진행합니다.
+lead는 단순 수정을 frontend·backend에, 스펙·설계가 필요한 요청을 architect에, UI/UX 디자인이 필요한 요청을 uiux에 배분합니다. architect가 올린 목적 분기·설계 대안은 lead가 선택합니다.
+화면 작업은 `uiux 명세 → frontend 구현 → uiux 화면 검수 → reviewer 코드 리뷰 → lead 커밋`으로 진행하고, 설계가 함께 필요하면 architect 계획이 먼저입니다.
 코드 변경은 trivial 변경을 빼고 reviewer의 승인 보고를 받은 뒤에만 lead가 커밋합니다.
 uiux가 없는 경우 frontend는 기존 디자인 기준 안에서 사소한 수정을 처리합니다.
 새 사용자 흐름·디자인 기준이 필요하면 lead가 사용자에게 uiux 활성화(`team/config.sh` 변경과 재기동)를 요청합니다.
