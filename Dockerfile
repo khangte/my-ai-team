@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     locales \
     fonts-noto-cjk \
     python3 \
+    ripgrep \
     && locale-gen ko_KR.UTF-8 \
     && update-locale LANG=ko_KR.UTF-8 \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \

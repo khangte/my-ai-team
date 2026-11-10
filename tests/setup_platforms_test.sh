@@ -16,7 +16,7 @@ real_git="$(command -v git)"   # 아래 스텁이 git을 가린다
 # 외부 도구 스텁: 설치돼 있는 것처럼 동작해 실제 설치가 일어나지 않게 한다.
 stub="$test_dir/stub"
 mkdir -p "$stub/bin"
-for c in tmux git curl python3 node claude rtk codex; do
+for c in tmux git curl python3 rg node claude rtk codex; do
     printf '#!/bin/bash\necho "%s 0.0.0"\n' "$c" > "$stub/bin/$c"
 done
 printf '#!/bin/bash\necho "ko_KR.utf8"\n' > "$stub/bin/locale"
@@ -85,7 +85,7 @@ for c in node npm claude rtk codex; do
 done
 chmod +x "$nvmbin"/*
 lean="$test_dir/lean"; mkdir -p "$lean"
-for c in tmux git curl python3 sudo; do printf '#!/bin/bash\nexit 0\n' > "$lean/$c"; done
+for c in tmux git curl python3 rg sudo; do printf '#!/bin/bash\nexit 0\n' > "$lean/$c"; done
 printf '#!/bin/bash\necho ko_KR.utf8\n' > "$lean/locale"; chmod +x "$lean"/*
 rm -f "$test_dir/npm.log"
 printf 'MEMBER_AGENTS=(claude codex)\n' > "$proj/team/config.sh"

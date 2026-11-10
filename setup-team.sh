@@ -702,6 +702,8 @@ NEED_FIRST_LOGIN=false
 MISSING=()
 command -v python3 &>/dev/null || MISSING+=("python3 (apt-get install -y python3)")
 command -v tmux &>/dev/null || MISSING+=("tmux (apt-get install -y tmux)")
+# 파일 검색 지침과 rtk rg가 실제 rg 실행 파일을 쓴다.
+command -v rg &>/dev/null || MISSING+=("rg (apt-get install -y ripgrep 또는 brew install ripgrep)")
 if [ -n "${USED_AGENTS[claude]:-}" ]; then
     command -v claude &>/dev/null || MISSING+=("claude (npm install -g @anthropic-ai/claude-code)")
     command -v rtk    &>/dev/null || MISSING+=("rtk (curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/tags/v0.43.0/install.sh | sh)")

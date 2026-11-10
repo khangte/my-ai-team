@@ -26,6 +26,8 @@ command -v git  &>/dev/null || MISSING_APT+=(git)
 command -v curl &>/dev/null || MISSING_APT+=(curl)
 # python3는 bin/log-hook(프롬프트·툴 로깅)이 쓴다.
 command -v python3 &>/dev/null || MISSING_APT+=(python3)
+# 파일 검색 지침과 rtk rg가 실제 rg 실행 파일을 쓴다.
+command -v rg &>/dev/null || MISSING_APT+=(ripgrep)
 # 한국어 locale이 없을 때만 locale 생성과 CJK 글꼴 설치를 함께 한다.
 NEED_LOCALE=false
 locale -a | grep -qi ko_KR.utf8 || { NEED_LOCALE=true; MISSING_APT+=(locales fonts-noto-cjk); }
@@ -38,7 +40,7 @@ if [ ${#MISSING_APT[@]} -gt 0 ]; then
         sudo update-locale LANG=ko_KR.UTF-8
     fi
 else
-    echo "  ✅ tmux/git/curl/locale 이미 설치됨"
+    echo "  ✅ tmux/git/curl/rg/locale 이미 설치됨"
 fi
 
 step "Node.js 확인..."

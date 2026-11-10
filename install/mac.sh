@@ -36,10 +36,12 @@ command -v curl    &>/dev/null || MISSING_BREW+=(curl)
 command -v node    &>/dev/null || MISSING_BREW+=(node)
 # python3는 bin/log-hook(프롬프트·툴 로깅)이 쓴다.
 command -v python3 &>/dev/null || MISSING_BREW+=(python)
+# 파일 검색 지침과 rtk rg가 실제 rg 실행 파일을 쓴다.
+command -v rg &>/dev/null || MISSING_BREW+=(ripgrep)
 if [ ${#MISSING_BREW[@]} -gt 0 ]; then
     brew install "${MISSING_BREW[@]}"
 else
-    echo "  ✅ tmux/git/curl/node/python3 이미 설치됨"
+    echo "  ✅ tmux/git/curl/node/python3/rg 이미 설치됨"
 fi
 
 step "셸 요건 확인 (bash 4+, GNU coreutils)..."
