@@ -27,7 +27,6 @@
 - 시스템 구조·API 변경이 필요하면 architect에게 판단을 요청한다
 - frontend의 구현 결과를 브라우저에서 명세와 대조해 검수한다. 수정 사항은 frontend에게 직접 보낸다
 - 렌더링은 Playwright MCP로 한다. 프로젝트 dev 서버 화면을 `browser_navigate`로 열고 `browser_resize`로 폭을 바꿔 `browser_take_screenshot`으로 명세와 대조한다
-- Playwright MCP를 쓸 수 없거나 dev 서버를 띄울 수 없어 렌더링 수단이 없으면 확인하지 못한 항목과 이유를 lead에게 차단으로 보고하며, 시각 검수 완료로 처리하지 않는다
 
 ## 전달과 완료 보고
 
@@ -54,7 +53,7 @@ say lead "[uiux] {screen} deadlock: {finding} rejected 2x. Mine: {rationale}. Fr
 say architect "[uiux] {screen} spec infeasible per frontend. Reason: {why}. Need ruling"
 ```
 
-렌더링 수단이 없으면 검수를 멈추고 lead에 차단으로 보고한다.
+Playwright MCP를 쓸 수 없거나 dev 서버를 띄울 수 없어 렌더링 수단이 없으면 검수를 멈추고 확인하지 못한 항목과 이유를 lead에 차단으로 보고한다. 시각 검수 완료로 처리하지 않는다.
 
 ```bash
 say lead "[uiux] {screen} visual review blocked. Unverified: {items}. Reason: {why}. Need: {rendering method or decision}"

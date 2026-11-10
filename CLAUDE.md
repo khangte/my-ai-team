@@ -1,43 +1,31 @@
 # CLAUDE.md
 
-## General
+## 언어·인코딩
 
-- Always write Korean (and other non-ASCII) strings in tool-call parameters as literal UTF-8; never as `\uXXXX` unicode escapes.
+- 도구 호출 인자의 한국어·비ASCII 문자열은 UTF-8 원문으로 쓴다. `\uXXXX`로 이스케이프하지 않는다.
+- 사용자 응답과 사람이 읽는 산출물은 한국어로 쓴다.
+- `say` 메시지 본문은 영어로 간결하게 쓴다. 경로·식별자는 원문을 유지한다.
 
-## Code Style
+## 팀 통신·보고
 
-- Add a brief docstring directly below every class or function declaration.
-- Write the docstring in Korean unless the content specifically requires English, such as code, queries, identifiers, commands, or technical syntax.
+아래 규칙은 ai-setup 팀의 역할을 부여받은 세션에 적용한다.
 
-## Language
+- pane 간 지시·질문·보고는 `say`로 전달한다.
+- 상대가 작업 중이면 메시지는 큐에 들어간다. 발신자는 전달을 기다리지 않는다.
+- 보고처와 다음 행동은 해당 역할 지침을 따른다.
+- 다음 담당자에게 넘긴 사실만으로 lead에 사본을 보내지 않는다.
+- 각 단계의 최종 담당자가 결과를 보고한다. 동일 결과의 중복 보고는 생략한다.
+- 차단, 사용자 결정 필요, 범위·일정·우선순위 변경은 종결 전에도 lead에 보고한다.
+- lead 외 팀원은 실제로 `say`를 실행하고, 종료 응답에는 실행한 명령 한 줄만 남긴다.
+- 원인 추적이 필요하면 `$PROJECT_DIR/.team-logs/{역할}.jsonl`을 확인한다.
 
-- `say` 메시지 본문은 항상 영어로, 핵심만 간결하게 쓴다 (인사·불필요한 설명 생략). 파일 경로·식별자는 원문 그대로 둔다.
-- 사용자에게 보이는 모든 텍스트(보고·질문·진행 알림)는 한국어로 쓴다.
-- 사람이 읽는 산출물(`docs/architect-review/` 판정 문서 등)은 한국어로 쓴다.
+## 변경 분류
 
-## Multi-Agent Team
+- trivial 변경은 동작에 영향을 주지 않는 오탈자·주석·포맷 변경이다.
+- 상수·설정값 변경은 영향에 따라 테스트·리뷰 필요 여부를 판단한다.
 
-- pane끼리는 `say`로만 소통한다
-- 상대가 작업 중이면 큐에 쌓였다가 유휴가 되면 자동 전송된다 (발신 pane은 대기하지 않음)
-  - 진행 중인 작업을 중단시켜야 하면 `SAY_NOWAIT=1`로 즉시 전송
-- 프롬프트·툴 로그는 `$PROJECT_DIR/.team-logs/{역할}.jsonl`. 원인 추적이 필요할 때 읽어라.
+## 파일 읽기
 
-### 보고 규칙 (모든 역할 공통)
-
-- **`say`를 실행해야 보고다.** 근거·상세는 `say`와 산출물에 담고, 응답은 실행한 `say` 한 줄로 끝낸다.
-- **다음 담당자에게 직접 전달한 건은 lead에 사본을 보내지 않는다**
-  - lead는 그 사안이 **종결될 때** 최종 결과만 받는다
-  - 예외: 사용자 승인이 필요하거나, 일정·범위·우선순위가 바뀌는 경우
-- **작업 단위가 끝날 때 lead에 한 번만 보고한다**
-  - "기록 완료", "갱신 확인", "재확인 완료" 같은 중간 상태는 다음 보고에 합쳐 보낸다
-  - 같은 사안을 여러 역할이 각자 lead에 보고하지 않는다 — 마지막 판정자만 보고한다
-
-### 파일 읽기 규칙
-
-- 같은 세션에서 이미 읽은 파일은 다시 읽지 않는다.
-- 300줄이 넘는 파일은 먼저 `rg -n`으로 관련 줄을 찾고 필요한 구간만 읽는다.
-
-## Commit
-
-- 커밋 메시지는 caveman-commit 스킬로 작성한다.
-- `type(scope):` 키워드만 영어로 쓰고, 요약·본문은 한글로 쓴다.
+- 변경 없는 동일 구간을 반복해서 읽지 않는다.
+- 파일 변경, 출력 잘림, 컨텍스트 압축으로 원문 확인이 필요하면 해당 구간을 다시 읽는다.
+- 300줄이 넘는 파일은 먼저 `rg -n`으로 관련 위치를 찾고 필요한 구간만 읽는다.

@@ -12,6 +12,7 @@ UI/UX 명세와 디자인 기준은 uiux, 백엔드 구현은 backend 담당이�
 ## 작업 방식
 
 - architect의 설계·계획과 uiux의 UI/UX 명세를 기반으로 구현한다
+- 비자명한 함수·클래스에는 목적·제약을 해당 언어의 문서 주석 형식으로 설명한다. 설명은 한국어로 쓴다
 - uiux가 없으면(`say uiux`가 unknown role로 실패하면) 기존 디자인 기준 안에서 사소한 UI 수정을 처리한다. 새 사용자 흐름·디자인 기준이 필요하면 lead에게 uiux 활성화를 요청한다
 - 명세의 누락·불명확한 디자인은 uiux에게 직접 확인한다
 - 화면에 필요한 API가 없거나 응답 형태가 다르면 `say backend`로 조율한다. 백엔드를 직접 고치지 않는다
@@ -44,7 +45,7 @@ say uiux "[frontend] {screen} implemented. Spec: {path}. Changed files: {paths}.
 uiux 없는 작업은 다음 경로로 보고한다.
 
 - phase 계획서가 붙어 있으면 architect에게 보고한다. 코드 리뷰는 architect 판정 뒤 lead가 reviewer에게 배분한다
-- 그 외 코드 변경은 reviewer에게만 리뷰를 요청한다. lead에 완료 보고를 따로 보내지 않는다. 최종 승인은 reviewer가 lead에 보고한다
+- 그 외 코드 변경은 reviewer에게만 리뷰를 요청한다. lead에 완료 보고를 따로 보내지 않는다
 - trivial 변경(오타·상수·주석·포맷)만 리뷰 없이 lead에게 직접 보고한다
 
 ```bash

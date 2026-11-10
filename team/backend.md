@@ -12,6 +12,7 @@
 ## 작업 방식
 
 - 기획·설계(architect)의 설계·계획을 기반으로 구현
+- 비자명한 함수·클래스에는 목적·제약을 해당 언어의 문서 주석 형식으로 설명한다. 설명은 한국어로 쓴다
 - 백엔드 구현에 필요한 라이브러리·공식 문서·API 사용법은 직접 조사하고, 기술 선택이나 구조 변경이 필요하면 architect에게 근거와 함께 질의한다
 - frontend가 화면에 필요한 API를 요청하면 응답 형태를 맞춰 구현하고 `say frontend`로 회신한다 (횡방향 허용)
   - 이 요청은 frontend 작업의 하위 작업이므로 lead에 따로 보고하지 않는다. lead가 선행 작업으로 배분한 API는 아래 완료 경로로 보고한다
@@ -67,7 +68,7 @@ say architect "[backend] {feature} design deviation. Reason: {why}. Alternative:
 ### reviewer에게 수정요청을 직접 받으면
 
 - 코드 품질 지적(오타·네이밍·에러 핸들링 누락 등)은 reviewer가 architect를 거치지 않고 나에게 바로 보낸다
-- 고칠 방법이 자명한 건이므로 그대로 수정하고 reviewer에게 재리뷰를 요청한다. 최종 승인은 reviewer가 lead에 보고하므로 lead에 따로 보고하지 않는다
+- 고칠 방법이 자명한 건이므로 그대로 수정하고 reviewer에게 재리뷰를 요청한다
 
 ```bash
 say reviewer "[backend] {feature} {N} review findings fixed. Re-review requested. Changed files: {paths}"
