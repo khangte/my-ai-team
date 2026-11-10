@@ -1,5 +1,10 @@
 # 역할별 스킬 사용 실측과 재배분
 
+- 상태: 2026-09-18~09-29 실측과 당시 재배분 결정 기록. developer·designer·researcher 및 gstack 설명은 당시 구성이다.
+- 후속 확인: 아래 ‘남은 일’은 당시 기록이며 이번 정리에서 완료 여부를 재검증하지 않았다. 현행 역할 경계는 [역할 지침](../../team/)과 [README](../../README.md#팀-구성)를 따른다.
+- 정리일: 2026-11-10. 이번 변경은 문서 분류·참조 정리이며 검증을 새로 수행하거나 체크박스를 갱신하지 않았다.
+- 본문의 역할명·경로·모델·CLI 버전·‘현재’는 기록 당시 기준이다. 현행 사용법은 [README](../../README.md), 배분은 [팀 설정](../../team/config.sh)과 공급자별 [Claude](../../team/config.claude.sh)·[Codex](../../team/config.codex.sh) 설정을 따른다.
+
 - 작성일: 2026-09-30
 - 대상: `team/config.claude.sh`, `team/config.codex.sh`, `team/*.md`, `setup-team.sh`
 - 근거 데이터: commerce-data-platform 팀 세션 원본(`~/.claude/projects/*--team-{역할}/`, 2026-09-18~09-29)
@@ -142,7 +147,7 @@ Codex 파인(designer·developer)은 `.team/{역할}/.claude/skills`와 `enabled
 옛 이름(`PLUGIN_ROLES`, `GSTACK_SKILL_SETS`, `CODEX_PLUGIN_SETS` 등)을 쓰는 프로젝트 오버라이드는
 조용히 기본값으로 떨어지므로, `setup-team.sh`가 로딩 직후 옛 이름을 감지해 경고한다.
 
-## 7. 남은 일
+## 7. 남은 일 (당시 기록·현재 상태 미확인)
 
 - `~/projects/docs-mcp`, `~/projects/log-etlm`의 `team/config.claude.sh`가 옛 이름을 쓴다(원래도
   폐기된 `MEMBER_MODELS`를 선언하는 낡은 파일이다). 새 이름으로 고치거나 지워야 오버라이드가 적용된다.

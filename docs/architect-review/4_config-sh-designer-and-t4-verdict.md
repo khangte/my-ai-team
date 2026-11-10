@@ -1,5 +1,10 @@
 # 판정 — `team/config.sh` designer 제거 건, T4 스파이크 후속
 
+- 상태: 당시 designer 제거·T4 보류 판정 보존. 아래 ‘갱신 불필요’는 당시 diff에 대한 판단이다.
+- 후속: 전역 규칙 정리 후보는 [5번](5_rule-chain-reduction-candidates.md), 당시 플러그인 배분 결정은 [7번](7_caveman-always-on-and-ponytail-scoping-spec.md).
+- 정리일: 2026-11-10. 이번 변경은 문서 분류·참조 정리이며 검증을 새로 수행하거나 체크박스를 갱신하지 않았다.
+- 본문의 역할명·경로·모델·CLI 버전·‘현재’는 기록 당시 기준이다. 현행 사용법은 [README](../../README.md), 배분은 [팀 설정](../../team/config.sh)과 공급자별 [Claude](../../team/config.claude.sh)·[Codex](../../team/config.codex.sh) 설정을 따른다.
+
 - 작성일: 2026-08-20
 
 - 요청: reviewer의 T1~T6 리뷰 결과(설계 이탈 의심 1건) + developer의 T4 스파이크 결과(`3_t4-claude-config-dir-spike.md`)

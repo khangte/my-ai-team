@@ -1,17 +1,41 @@
 # 토큰 비용 구조와 절감 장치
 
-- 작성일: 2026-08-20
+- 최초 작성일: 2026-08-20
+- 현행 설명 정리일: 2026-11-10
 
-파인 6개가 동시에 도는 구조라 토큰 비용은 단일 세션의 6배로 붙는다.
-이 문서는 **비용이 실제로 어디서 발생하는지**와 **`setup-team.sh`가 이미 넣어둔
-절감 장치가 무엇을 얼마나 줄이는지**를 실측 데이터 기준으로 정리한다.
+이 문서는 현재 저장소가 구성하는 절감 장치와 과거 실측을 구분한다.
+역할 수·모델·작업량이 다르므로 파인 수만으로 비용 배수를 계산하지 않는다.
 
-## 계기: "모델이 바뀌니 bash를 더 쓰는 것 같은데 비용이 늘지 않나"
+## 현행 설정과 확인 위치
+
+아래는 로컬 코드·설정을 대조한 설명이다. CLI·플러그인의 실제 주입량과 비용을 재측정한 결과는 아니다.
+프로젝트에 별도 설정이 있으면 저장소 기본값보다 우선한다.
+
+| 항목 | 현재 구성 | 원본 |
+| --- | --- | --- |
+| 팀·모델 | `MEMBERS`에서 역할·모델·effort 지정, 모델 접두사로 공급자 결정 | [team/config.sh](../../team/config.sh) |
+| Claude 스킬·플러그인 | 역할별 스킬 링크와 `--settings` 활성화 설정 구성 | [config.claude.sh](../../team/config.claude.sh) |
+| Codex 스킬·플러그인 | 역할별 `CODEX_HOME`과 스킬 링크로 구성 | [config.codex.sh](../../team/config.codex.sh) |
+| Claude 번들·컨텍스트 설정 | `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS=1`, `CLAUDE_CODE_DISABLE_1M_CONTEXT=1` 주입 | [setup-team.sh](../../setup-team.sh)의 `start_claude_in_pane` |
+| rtk | Claude의 Bash `PreToolUse`에 `rtk hook claude` 주입. Codex에는 동일 재작성 훅을 구성하지 않음 | [setup-team.sh](../../setup-team.sh) |
+| 중복 종료 신호 억제 | 보고 마커가 있으면 Stop의 미보고 신호 생략. lead는 자기 자신에게 종료 신호를 보내지 않음 | `stop_hook_cmd_for_role` |
+| 통신·출력 절약 | `say` 큐, 단계별 최종 담당자 보고, 동일 구간 반복 열람 제한 | [메시징 가이드](pane-messaging.md), [AGENTS.md](../../AGENTS.md), [CLAUDE.md](../../CLAUDE.md) |
+
+모델·플러그인 배분은 위 설정 파일을 기준으로 확인한다. 아래 과거 기록의 Opus·developer·designer·researcher와 gstack 배분은 현행 기본값이 아니다.
+현재 스킬 배분의 상세는 [스킬·플러그인 가이드](skill-allocation.md), 운영은 [README](../../README.md#운영)를 참고한다.
+
+## 과거 실측·설정 기록
+
+아래 절은 2026-08-06 집계와 2026-08-20 작성 당시의 설명·후속 변경 기록이다.
+스킬 개수·플러그인 비용·절감률·모델 배분은 해당 표본과 당시 환경에 한정한다.
+‘현재’, ‘이미 적용’ 등의 표현도 그 기록 시점의 상태를 가리킨다.
+
+### 계기: "모델이 바뀌니 bash를 더 쓰는 것 같은데 비용이 늘지 않나"
 
 결론부터: **호출 횟수는 늘지만, 그 증가분의 대부분은 원본이 작은 명령이라
 총량 타격이 작다.** 그리고 진짜 비용은 명령 출력이 아니라 입력 쪽에 있다.
 
-## 실측 — rtk 누적 집계
+### 실측 — rtk 누적 집계
 
 ```
 Total commands:    2,653
@@ -33,7 +57,7 @@ Tokens saved:      1.2M (65.0%)
 > 재현: `rtk gain`, `rtk gain --history`.
 > 위 수치는 2026-08-06 시점 스냅샷이며 누적치라 계속 증가한다.
 
-### 이 표에서 읽어야 할 것
+#### 이 표에서 읽어야 할 것
 
 **절약량과 호출 수는 상관이 없다.** `pytest tests/ -q`는 11번 돌고 709.6K를
 아꼈고, `grep`은 671번 돌고 209.8K를 아꼈다. 즉 **출력이 큰 소수의 명령**이
@@ -44,7 +68,7 @@ Tokens saved:      1.2M (65.0%)
 뜻이기도 하다. bash 호출이 늘어난 부분이 주로 이 저압축 명령이라면,
 절약률이 낮아도 총량에 주는 충격은 제한적이다.
 
-## 진짜 비용은 출력이 아니라 입력
+### 진짜 비용은 출력이 아니라 입력
 
 `Input 1.9M vs Output 663K` — 입력이 출력의 약 3배다.
 
@@ -58,9 +82,9 @@ Bash 호출 한 번의 비용은 그 명령의 결과 토큰이 아니라, **그
 2. **불필요한 턴 자체를 줄인다** (중복 신호 제거)
 3. **명령 출력을 압축한다** (rtk) ← 이미 65% 적용 중
 
-## 이미 적용된 절감 장치
+### 당시 적용한 절감 장치
 
-### 1. 역할별 스킬 제한 — 턴당 고정비
+#### 1. 역할별 스킬 제한 — 턴당 고정비
 
 `setup-team.sh` `[4/7]` 섹션.
 
@@ -73,7 +97,7 @@ gstack setup은 스킬 56개를 `~/.claude/skills/`에 전부 깐다. 그 frontm
 `~/.claude/skills`는 유저 전역이라 파인별로 다르게 만들 수 없다. 그래서
 파인마다 `.team/{역할}/.claude/skills`를 만들어 필요한 스킬만 링크하고,
 그 디렉터리를 cwd로 claude를 띄우면서 `--setting-sources project`로 전역
-스킬을 차단한다. 역할별 허용 목록은 README의 "역할별 스킬 제한" 표 참조.
+스킬을 차단한다. 당시 배분은 아래 기록을, 현행 배분은 [스킬·플러그인 가이드](skill-allocation.md)를 참조한다.
 
 **이 방식으로 줄지 않는 것**(실측 확인됨):
 
@@ -84,7 +108,7 @@ gstack setup은 스킬 56개를 `~/.claude/skills/`에 전부 깐다. 그 frontm
 즉 여기서 실제로 줄어드는 것은 **gstack 스킬 frontmatter와 플러그인·에이전트
 정의**다.
 
-#### 전역 규칙 차단은 `$PROJECT_DIR` 위치에 달려 있다
+##### 전역 규칙 차단은 `$PROJECT_DIR` 위치에 달려 있다
 
 마커를 심고 실측한 결과, `--setting-sources project`의 전역 규칙 차단은
 cwd가 홈 밖일 때만 성립한다.
@@ -108,7 +132,7 @@ cwd가 홈 밖일 때만 성립한다.
 프로젝트라고 해서 플래그를 뺄 수는 없다 — 실측상 플래그가 있으면 스킬
 11개, 없으면 232개가 실린다.
 
-### 2. Stop 훅 중복 신호 가드 — 불필요한 턴
+#### 2. Stop 훅 중복 신호 가드 — 불필요한 턴
 
 `setup-team.sh` `start_claude_in_pane()`, 마커 파일 `$HOME/.cache/team-say/{파인번호}`.
 
@@ -120,7 +144,7 @@ cwd가 홈 밖일 때만 성립한다.
 남기고, Stop 훅은 마커가 있으면 신호를 생략하며 마커를 소비(삭제)한다.
 보고 없이 끝난 응답에서는 마커가 없으므로 신호가 정상 발송된다.
 
-### 3. 파인 간 통신에 `say`를 쓰는 것 — 턴 수
+#### 3. 파인 간 통신에 `say`를 쓰는 것 — 턴 수
 
 `bin/say`. 선택의 근거가 비용에도 걸려 있어 여기 적는다.
 
@@ -161,18 +185,17 @@ tmux 타이핑 방식이라서 필요한 보정이고, 도구 호출인 `SendMes
 실패 유형 자체가 없다.
 
 따라서 현행 유지가 맞다 — 파인 간에는 `say`, `SendMessage`는 팀 밖 세션이
-특정 파인을 직접 찌를 때만. 두 방식의 기능 차이 전체는 README "팀 밖 세션에서
-파인 호출" 표 참조.
+특정 파인을 직접 찌를 때만. 두 방식의 기능 차이 전체는 [README의 패널 간 메시지](../../README.md#패널-간-메시지)를 참조한다.
 
-### 4. lead 모델 선택 — 컨텍스트 × 단가
+#### 4. lead 모델 선택 — 컨텍스트 × 단가
 
-`setup-team.sh` `MEMBER_MODELS` 배열.
+당시 모델 설정은 `MEMBER_MODELS` 배열이었다. 현재 원본은 [team/config.sh](../../team/config.sh)의 `MEMBERS`다.
 
 lead는 직접 작업하지 않고 배분·수합만 하지만, **모든 보고가 모이므로 컨텍스트가
 가장 빨리 불어나는 파인**이다. 비싼 모델 × 최장 컨텍스트 조합을 피해 Sonnet을
 쓰고, 깊은 판단이 필요한 architect만 Opus로 둔다.
 
-### 5. rtk 출력 압축
+#### 5. rtk 출력 압축
 
 `setup-team.sh` `[1/7]` 섹션이 `rtk init -g --auto-patch`로 훅을 등록한다.
 평범한 `git status`·`ls`·`cat`은 harness가 `rtk git status` 형태로 재작성하므로
@@ -183,7 +206,7 @@ lead는 직접 작업하지 않고 배분·수합만 하지만, **모든 보고�
 파인에 명시 주입**한다. lead도 예외가 아니다 — lead는 Stop 훅만 제외된다
 (종료 신호의 수신처가 lead 자신이라 무한 루프가 되기 때문).
 
-### 6. 역할별 플러그인 활성화 — 턴당 고정비
+#### 6. 역할별 플러그인 활성화 — 턴당 고정비
 
 `setup-team.sh` `[3/7]` 섹션의 `CLAUDE_PLUGIN_ROLES`, 활성화는 `start_claude_in_pane()`.
 
@@ -227,11 +250,11 @@ SessionStart 훅은 `node`로, `bin/log-hook`은 `python3`로 돈다. 이 스크
 (실측: lead 파인에서 재현). 원인은 PATH 보강이 rtk·claude·bun만 챙기고
 node·python3를 빠뜨린 것 — 지금은 nvm 최신 버전과 시스템 경로를 함께 넣는다.
 
-### 7. 멀티 에이전트 파인 토큰 최적화 T1-T6 (`f0320d8`)
+#### 7. 멀티 에이전트 파인 토큰 최적화 T1-T6 (`f0320d8`)
 
 researcher가 docs-mcp 실전 로그를 감사하고 architect가 재검증한 실행 작업 목록을
 developer가 구현, reviewer가 확인한 항목들이다. 근거 문서는
-`docs/architect-review/1~4`(커밋 대상 제외).
+[감사 결과](../architect-review/1_multi-agent-audit-verification.md)와 [실행 목록](../architect-review/2_token-optimization-tasks.md), [T4 실험](../architect-review/3_t4-claude-config-dir-spike.md), [후속 판정](../architect-review/4_config-sh-designer-and-t4-verdict.md)이다.
 
 - **200K 자동 compaction.** `CLAUDE_CODE_DISABLE_1M_CONTEXT`를 전 파인에 적용해
   1M 컨텍스트 대신 200K에서 자동 compaction되게 함. 실측상 200K 초과 턴이 전체
@@ -248,13 +271,24 @@ developer가 구현, reviewer가 확인한 항목들이다. 근거 문서는
 - **lead 직접 코드 열람 차단.** lead 파인에 `permissions.deny`로
   `Bash(tmux send-keys:*)`를 적용하고, `team/lead.md`에 직접 `git diff`·`grep`
   금지, `/clear` 주기적 지시 금지 문구를 추가. lead가 세션당 27.5k 토큰을 새로
-  청구하는 원인이 이 두 습관이었다(위 "하지 말 것" 항목 참조).
+  청구하는 원인이 이 두 습관이었다(당시 역할 지침의 금지 항목).
 - **보류.** caveman·ponytail 플러그인을 파인별로 켜고 끄는 건(T7)은 사용자
   개인 설정 판단 영역이라 이 작업에서는 보류했다. 이후 caveman은 전 파인
   상시 활성화로, ponytail은 developer로 스코핑됐다 — 위 "6. 역할별 플러그인
   활성화" 참조.
 
-## 남은 레버와 한계
+## 역할 지침에서 분리한 비용 근거
+
+2026-11-10 지침 정리 과정에서 lead·reviewer 문서의 비용 설명을 이 절로 옮겼다.
+아래 수치는 기존 문서의 과거 실측·당시 환경에 대한 기록이며, 이번 정리에서 재측정하지 않았다.
+
+- lead의 반복 화면 캡처는 불필요한 입력과 턴을 늘린다. ANSI escape·박스 테두리·스피너를 걸러 실제 텍스트만 보면 당시 기록에서는 출력이 대략 1/3로 줄었다.
+- lead가 코드 내용을 직접 읽으면 변경 판단을 맡은 architect·reviewer와 열람이 중복된다. 과거 실측에서 lead의 입력이 architect보다 커진 원인으로 기록됐다.
+- 주기적인 `/clear`는 세션을 초기화해 시스템 프롬프트·룰·스킬 목록의 캐시를 다시 생성하게 한다. 기존 기록의 27.5k 토큰과 200K 자동 압축은 당시 세션·설정에 대한 값이다. 역할 지침에는 주기적 `/clear` 금지와 작업 경계에서만 `/compact` 사용이라는 행동만 남긴다.
+- 판단이 자명한 코드 품질 지적을 architect에게 경유시키면 불필요한 판단 왕복이 생긴다. 기존 reviewer 지침은 이를 왕복 2회로 설명했다. 역할에는 작성자에게 직접 전달하는 분기만 남긴다.
+- reviewer의 불필요한 승인 사본은 작성자의 수신 턴과 미보고 종료 신호에 따른 lead의 추가 턴을 만들 수 있다. 다음 단계 진행에 승인이 필요한 수신자에게만 전달한다는 예외는 유지한다.
+
+## 과거 측정의 한계와 후속 확인
 
 **습관 하나**: Read/Grep 툴 대신 Bash로 `cat`/`grep`을 쓰는 것. rtk가 재작성해
 주긴 하지만 전용 툴 대비 이득이 없다. 다만 현재 구조에서 추가로 짜낼 여지는
@@ -266,8 +300,7 @@ developer가 구현, reviewer가 확인한 항목들이다. 근거 문서는
 
 ## 참고
 
-- 재현 명령: `rtk gain`, `rtk gain --history`, `rtk discover`
-- 관련 코드: `setup-team.sh` `[1/7]`, `[3/7]`(`CLAUDE_PLUGIN_ROLES`), `[4/7]`, `start_claude_in_pane()`, `bin/say`, `CLAUDE.md`, `team/lead.md`
-- 관련 문서: README "역할별 스킬 제한", "Stop 훅 — 보고 누락 방지", "팀 밖 세션에서 파인 호출",
-  [pane-messaging.md](pane-messaging.md)
-- 커밋: `f0320d8`(T1-T6), `6acb8b9`(caveman 상시·ponytail 스코핑)
+- 현행 운영: [README](../../README.md#운영)
+- 통신과 보고: [패널 메시징 가이드](pane-messaging.md)
+- 배분 근거: [스킬·플러그인 가이드](skill-allocation.md)
+- 과거 변경: `f0320d8`(T1-T6), `6acb8b9`(당시 caveman·ponytail 배분)

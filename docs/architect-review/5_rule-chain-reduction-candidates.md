@@ -1,5 +1,10 @@
 # 룰 체인 축소 후보 목록 (검토용 — 파일 미수정)
 
+- 상태: 당시 미적용 후보 목록. 적용 여부는 이 기록만으로 확인할 수 없다.
+- 관련: 선행 [T4 판정](4_config-sh-designer-and-t4-verdict.md), 현행 공통 지침은 [AGENTS.md](../../AGENTS.md)·[CLAUDE.md](../../CLAUDE.md).
+- 정리일: 2026-11-10. 이번 변경은 문서 분류·참조 정리이며 검증을 새로 수행하거나 체크박스를 갱신하지 않았다.
+- 본문의 역할명·경로·모델·CLI 버전·‘현재’는 기록 당시 기준이다. 현행 사용법은 [README](../../README.md), 배분은 [팀 설정](../../team/config.sh)과 공급자별 [Claude](../../team/config.claude.sh)·[Codex](../../team/config.codex.sh) 설정을 따른다.
+
 - 작성일: 2026-08-20
 
 - 근거: `docs/architect-review/1_multi-agent-audit-verification.md` B절 / `4_config-sh-designer-and-t4-verdict.md` 3항

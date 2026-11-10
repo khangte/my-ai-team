@@ -1,5 +1,10 @@
 # everything-claude-code 스킬 중복·추가 검토
 
+- 상태: 당시 검토·결정 기록. ecc 미추가 결정과 §4 편입 권고 기각을 보존한다.
+- 후속: [9번 사용 실측·재배분](9_skill-usage-audit-and-reallocation.md). 본문의 당시 스킬 배분표는 현행 설정표가 아니다.
+- 정리일: 2026-11-10. 이번 변경은 문서 분류·참조 정리이며 검증을 새로 수행하거나 체크박스를 갱신하지 않았다.
+- 본문의 역할명·경로·모델·CLI 버전·‘현재’는 기록 당시 기준이다. 현행 사용법은 [README](../../README.md), 배분은 [팀 설정](../../team/config.sh)과 공급자별 [Claude](../../team/config.claude.sh)·[Codex](../../team/config.codex.sh) 설정을 따른다.
+
 - 작성일: 2026-08-20
 
 `setup-team.sh`가 파인에 실어주는 스킬·플러그인과 이미 설치되어 있는

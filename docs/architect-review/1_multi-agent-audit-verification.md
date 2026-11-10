@@ -1,5 +1,10 @@
 # researcher 멀티 에이전트 감사 결과 재검증
 
+- 상태: 2026-08-20 감사·재검증 기록. 수치는 당시 로그 표본에 한정한다.
+- 후속: [실행 작업 목록](2_token-optimization-tasks.md), 현행 장치와 과거 실측의 구분은 [토큰 비용 가이드](../guides/token-cost.md).
+- 정리일: 2026-11-10. 이번 변경은 문서 분류·참조 정리이며 검증을 새로 수행하거나 체크박스를 갱신하지 않았다.
+- 본문의 역할명·경로·모델·CLI 버전·‘현재’는 기록 당시 기준이다. 현행 사용법은 [README](../../README.md), 배분은 [팀 설정](../../team/config.sh)과 공급자별 [Claude](../../team/config.claude.sh)·[Codex](../../team/config.codex.sh) 설정을 따른다.
+
 - 작성일: 2026-08-20
 
 - 대상: `/tmp/claude-1000/-home-kang-ai-setup--team-researcher/b6634db0-.../scratchpad/multi-agent-audit.md`

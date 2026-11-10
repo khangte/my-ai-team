@@ -109,7 +109,7 @@ declare -a MEMBERS=(
 | `team/{역할}.md` | 프로젝트 파일을 우선 사용하고, 없으면 저장소 기본 지침 사용 |
 | `team/config.claude.sh`·`team/config.codex.sh` | 역할별 스킬·플러그인 배분. 프로젝트 파일이 있으면 기본 배분표를 통째로 대체 |
 
-역할 지침은 Claude에 `--append-system-prompt`로 전달하고, Codex에는
+역할 지침은 Claude에 `--append-system-prompt-file`로 전달하고, Codex에는
 `.team/{역할}/AGENTS.md`로 생성합니다. 새 역할을 만들 때는 대응하는 지침 파일도 추가하세요.
 공급자별 배분표를 재정의할 때는 필요한 배열을 모두 선언해야 합니다.
 상세 배분은 [스킬·플러그인 가이드](docs/guides/skill-allocation.md)를 참고하세요.

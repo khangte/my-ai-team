@@ -1,5 +1,10 @@
 # caveman·ponytail 역할별 선별 제외 판정
 
+- 상태: 당시 권고안. caveman 전면 제외 권고는 채택되지 않았다.
+- 대체 결정: [7번 사용자 결정·구현 스펙](7_caveman-always-on-and-ponytail-scoping-spec.md). 이후 배분도 변경됐으므로 아래 권고 표를 현행 배분으로 사용하지 않는다.
+- 정리일: 2026-11-10. 이번 변경은 문서 분류·참조 정리이며 검증을 새로 수행하거나 체크박스를 갱신하지 않았다.
+- 본문의 역할명·경로·모델·CLI 버전·‘현재’는 기록 당시 기준이다. 현행 사용법은 [README](../../README.md), 배분은 [팀 설정](../../team/config.sh)과 공급자별 [Claude](../../team/config.claude.sh)·[Codex](../../team/config.codex.sh) 설정을 따른다.
+
 - 작성일: 2026-08-20
 
 - 작성: architect

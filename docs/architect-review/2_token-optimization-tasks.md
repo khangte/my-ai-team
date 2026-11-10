@@ -1,5 +1,10 @@
 # 토큰 최적화 실행 작업 목록
 
+- 상태: 당시 실행 계획·검증 절차 보존. 아래 T7 보류는 당시 상태다.
+- 후속: T4는 [실험 결과](3_t4-claude-config-dir-spike.md)와 [판정](4_config-sh-designer-and-t4-verdict.md), 플러그인 배분은 [권고](6_caveman-ponytail-role-scoping.md) 후 [사용자 결정](7_caveman-always-on-and-ponytail-scoping-spec.md)으로 이어졌다. 파일 읽기 규칙은 현행 [공통 지침](../../AGENTS.md)을 따른다.
+- 정리일: 2026-11-10. 이번 변경은 문서 분류·참조 정리이며 검증을 새로 수행하거나 체크박스를 갱신하지 않았다.
+- 본문의 역할명·경로·모델·CLI 버전·‘현재’는 기록 당시 기준이다. 현행 사용법은 [README](../../README.md), 배분은 [팀 설정](../../team/config.sh)과 공급자별 [Claude](../../team/config.claude.sh)·[Codex](../../team/config.codex.sh) 설정을 따른다.
+
 - 작성일: 2026-08-20
 
 - 근거 문서: `docs/architect-review/1_multi-agent-audit-verification.md`

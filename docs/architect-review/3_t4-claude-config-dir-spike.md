@@ -1,5 +1,10 @@
 # T4 스파이크 결과 — `CLAUDE_CONFIG_DIR`로 파인 룰 체인 격리 가능한가
 
+- 상태: 당시 환경의 T4 실험 결과. 설정 격리 실험을 현행 CLI 전체에 대한 결론으로 일반화하지 않는다.
+- 후속: [4번 판정](4_config-sh-designer-and-t4-verdict.md)의 T4 보류·전역 규칙 정리 검토와 [5번 후보 목록](5_rule-chain-reduction-candidates.md).
+- 정리일: 2026-11-10. 이번 변경은 문서 분류·참조 정리이며 검증을 새로 수행하거나 체크박스를 갱신하지 않았다.
+- 본문의 역할명·경로·모델·CLI 버전·‘현재’는 기록 당시 기준이다. 현행 사용법은 [README](../../README.md), 배분은 [팀 설정](../../team/config.sh)과 공급자별 [Claude](../../team/config.claude.sh)·[Codex](../../team/config.codex.sh) 설정을 따른다.
+
 - 작성일: 2026-08-20
 
 - 근거: `docs/architect-review/2_token-optimization-tasks.md` T4
