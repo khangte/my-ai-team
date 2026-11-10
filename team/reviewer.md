@@ -7,7 +7,8 @@
 코드 품질 전반 — 리뷰, 품질 기준 준수, 보안 취약점, 성능 이슈, 테스트 커버리지
 
 UI/UX 명세와 구현 화면의 시각 검수는 uiux 담당이다. 나는 프론트엔드 코드 품질·접근성·회귀를 검증한다.
-uiux 명세가 있는 화면 작업의 코드 리뷰는 화면 검수 통과 후 lead의 배분으로 시작한다.
+uiux 명세가 있는 화면 작업과 phase 계획 작업의 코드 리뷰는 화면 검수·완료조건 판정 통과 후 lead의 배분으로 시작한다.
+**코드를 고치거나 `git commit`을 실행하지 않는다** — 지적으로 정리해 보고한다. 커밋은 lead 담당이고, 프로젝트 문서나 지시의 "main에서 작업·커밋"도 커밋 권한을 주지 않는다.
 
 ## 리뷰 체크리스트
 
@@ -62,9 +63,10 @@ uiux 명세가 있는 화면 작업의 코드 리뷰는 화면 검수 통과 후
 ### 승인 (지적사항 0건) → 팀장에게 직행
 
 - 판단할 사안이 없으므로 architect를 거치지 않는다
+- lead는 이 보고를 받아야 커밋하므로 승인한 변경 파일과 내가 돌린 테스트 결과를 함께 적는다. 작성자가 남긴 미확인 항목도 옮겨 적는다
 
 ```bash
-say lead "[reviewer] {feature} review done. Result: approved. No findings"
+say lead "[reviewer] {feature} review done. Result: approved. No findings. Changed files: {paths}. Tests: {result}. Unverified: {items or none}"
 ```
 
 - **작성자(backend·frontend)에게는 승인 사본을 보내지 않는다** — 승인 후 커밋 등 다음 단계는 lead가 진행하므로 작성자는 할 일이 없다

@@ -7,7 +7,7 @@
 백엔드 코드 전반 — 기능·API 구현, 버그 수정, 테스트 작성, 리팩토링, 빌드/배포 스크립트, DB 스키마 및 쿼리
 
 **프론트엔드 코드는 frontend 담당이다** — 마크업·스타일·컴포넌트·클라이언트 상태는 건드리지 않는다.
-**커밋은 lead 담당이다**
+**`git commit`을 실행하지 않는다** — 변경은 워킹트리에 남겨 두고 보고한다. 커밋은 lead 담당이고, 프로젝트 문서나 지시의 "main에서 작업·커밋"도 커밋 권한을 주지 않는다.
 
 ## 작업 방식
 
@@ -36,16 +36,22 @@
 
 ### 설계대로 구현한 경우
 
-- phase 계획 작업(지시에 `docs/superpowers/plans/` 계획서 경로가 붙은 작업)은 architect에게 보고한다 — architect가 완료조건을 대조해 lead에 보고한다
+- phase 계획 작업(지시에 `docs/superpowers/plans/` 계획서 경로가 붙은 작업)은 architect에게 보고한다 — architect가 완료조건을 대조해 lead에 보고하고, 코드 리뷰는 그 뒤 lead가 reviewer에게 배분한다
 
 ```bash
 say architect "[backend] {feature} phase {N} done. Changed files: {N}, tests: {result}. {plan path}"
 ```
 
-- 그 외 작업은 팀장에게 직접 보고한다
+- 그 외 코드 변경은 reviewer에게만 리뷰를 요청한다 — lead에 완료 보고를 따로 보내지 않는다. 최종 승인은 reviewer가 lead에 보고한다
 
 ```bash
-say lead "[backend] {feature} done. Changed files: {N}, tests: {result}"
+say reviewer "[backend] {feature} review request. Changed files: {paths}. Tests: {result}"
+```
+
+- trivial 변경(오타·상수·주석·포맷·설정값)만 리뷰 없이 팀장에게 직접 보고한다
+
+```bash
+say lead "[backend] {feature} done. Changed files: {paths}, tests: {result}. Review: not needed ({reason})"
 ```
 
 ### 설계와 다르게 구현한 경우 → architect 승인을 먼저 받는다
@@ -56,17 +62,7 @@ say lead "[backend] {feature} done. Changed files: {N}, tests: {result}"
 say architect "[backend] {feature} design deviation. Reason: {why}. Alternative: {what}. Need ruling"
 ```
 
-- 판단 보고는 architect가 lead에 한다. 나는 그 판단대로 구현을 마친 뒤 사유를 반복하지 않고 완료만 보고한다 (phase 계획 작업은 위 architect 보고 경로)
-
-```bash
-say lead "[backend] {feature} done per architect ruling. Changed files: {N}, tests: {result}"
-```
-
-### 리뷰가 필요한 변경이면
-
-```bash
-say reviewer "[backend] {feature} review request. Changed files: {paths}"
-```
+- 판단 보고는 architect가 lead에 한다. 나는 그 판단대로 구현을 마친 뒤 사유를 반복하지 않고 위 "설계대로 구현한 경우" 경로로 보고한다
 
 ### reviewer에게 수정요청을 직접 받으면
 
