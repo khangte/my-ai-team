@@ -295,8 +295,9 @@ stop_hook_cmd_for_role() {
         STOP_HOOK_CMD="rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}"); ${drain_cmd}"
     else
         # 보고 마커는 턴마다 소비한다. Codex에는 별도 턴 시작 초기화 훅이 없다.
+        # 에이전트(훅의 $PPID)에 백그라운드 셸 자식이 남아 있으면 작업 중이므로 신호를 생략한다. 완료 후 다음 턴 종료 때 다시 판정된다.
         local marker="$REPORT_STATE_DIR/${state_key}"
-        STOP_HOOK_CMD="rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}"); if [ -f $(shell_quote "$marker") ]; then rm -f $(shell_quote "$marker"); else $(shell_quote "$BIN_DIR/say") $(shell_quote "${SESSION}:lead") $(shell_quote "[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요"); fi; ${drain_cmd}"
+        STOP_HOOK_CMD="rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}"); if [ -f $(shell_quote "$marker") ]; then rm -f $(shell_quote "$marker"); elif pgrep -P \$PPID -x 'bash|sh|zsh' | grep -vqx \$\$; then :; else $(shell_quote "$BIN_DIR/say") $(shell_quote "${SESSION}:lead") $(shell_quote "[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요"); fi; ${drain_cmd}"
     fi
 }
 
