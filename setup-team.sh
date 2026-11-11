@@ -1179,16 +1179,16 @@ tmux set-option -t "$SESSION" main-pane-width '55%'
 tmux select-layout -t "$SESSION:0" main-vertical
 
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
-    display_name="${MEMBER_DISPLAY_NAMES[$pane]}"
-    tmux select-pane -t "$SESSION:0.$pane" -T "${display_name^^}"
+    tmux select-pane -t "$SESSION:0.$pane" -T "${MEMBER_NAMES[$pane]}"
     tmux set-option -p -t "$SESSION:0.$pane" @role "${MEMBER_NAMES[$pane]}"
     # pane_title은 에이전트 CLI의 OSC 제목 변경 대상이다. 테두리에 보일
     # 이름은 별도 pane 옵션으로 보관해야 CLI 제목과 경합하지 않는다.
-    tmux set-option -p -t "$SESSION:0.$pane" @display_name "${display_name^^}"
+    tmux set-option -p -t "$SESSION:0.$pane" @display_name "${MEMBER_NAMES[$pane]}"
+    tmux set-option -p -t "$SESSION:0.$pane" @model_info "${SPEC_MEMBER_MODELS[$pane]:-기본} ${SPEC_MEMBER_REASONING_EFFORTS[$pane]:-기본}"
 done
 
 tmux set-option -t "$SESSION" pane-border-status top
-tmux set-option -t "$SESSION" pane-border-format " #{@display_name} "
+tmux set-option -t "$SESSION" pane-border-format " #{@display_name} · #{@model_info} "
 tmux set-option -t "$SESSION" set-titles on
 tmux set-option -t "$SESSION" set-titles-string "#{@display_name}"
 tmux set-option -t "$SESSION" allow-rename off

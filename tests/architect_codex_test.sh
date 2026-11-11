@@ -60,8 +60,8 @@ grep -qF 'CODEX_HOME="$role_home" codex plugin add' "$repo_dir/setup-team.sh"
 
 # pane의 역할 주소와 표시 제목은 분리한다. @role은 say 주소이고, 제목은 표시이름이다.
 grep -qF 'tmux set-option -p -t "$SESSION:0.$pane" @role "${MEMBER_NAMES[$pane]}"' "$repo_dir/setup-team.sh"
-grep -qF 'tmux set-option -p -t "$SESSION:0.$pane" @display_name "${display_name^^}"' "$repo_dir/setup-team.sh"
-grep -qF 'tmux set-option -t "$SESSION" pane-border-format " #{@display_name} "' "$repo_dir/setup-team.sh"
+grep -qF 'tmux set-option -p -t "$SESSION:0.$pane" @display_name "${MEMBER_NAMES[$pane]}"' "$repo_dir/setup-team.sh"
+grep -qF 'tmux set-option -t "$SESSION" pane-border-format " #{@display_name} · #{@model_info} "' "$repo_dir/setup-team.sh"
 ! grep -qF 'tmux set-option -t "$SESSION" pane-border-format " #{pane_title} "' "$repo_dir/setup-team.sh"
 grep -qF 'tmux set-option -t "$SESSION" set-titles on' "$repo_dir/setup-team.sh"
 grep -qF 'tmux set-option -t "$SESSION" set-titles-string "#{@display_name}"' "$repo_dir/setup-team.sh"

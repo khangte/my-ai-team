@@ -8,7 +8,7 @@ SESSION="team1"   # tmux 세션 이름 (필수, 프로젝트별로 변경 가능
 # "role|표시이름|model|effort" — 배열 순서가 곧 파인 배치 순서다.
 # 네 필드 모두 필수다. 비어 있거나 형식이 틀리면 경고를 출력하고 실행을 멈춘다.
 #   - role: say 주소·파일명·디렉토리명에 쓰이는 직무 키.
-#   - 표시이름: tmux pane 제목에만 반영(say 주소는 role 그대로).
+#   - 표시이름: 현재 미사용(pane 테두리는 role 영문명을 표시한다).
 #   - model: 전체 모델 ID. 공급자는 접두사로 정한다(claude-* → claude, gpt-* → codex).
 #   - effort: low/medium/high/xhigh/max.
 #
