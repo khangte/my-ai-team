@@ -410,8 +410,7 @@ role_prompt_content() {
 start_claude_in_pane() {
     # 역할별 지침·훅·플러그인을 적용해 Claude를 시작한다.
     local pane="$1" model="${2:-}" role="${3:-}" reasoning_effort="${4:-}"
-    local effort_arg="" model_arg=""
-    [ -z "$model" ] || model_arg="--model $(shell_quote "$model")"
+    local effort_arg="" model_arg="--model $(shell_quote "$model")"
     [ -z "$reasoning_effort" ] || effort_arg="--effort $(shell_quote "$reasoning_effort")"
     local claude_bin; claude_bin="$(command -v claude)"
     local pane_id="${pane##*:}"   # "team1:0.4" → "0.4". busy 마커·say 큐 키와 형식을 맞춘다.
@@ -578,8 +577,7 @@ start_codex_in_pane() {
     local role_codex_home="$work_dir/.codex-home"
     write_codex_role_agents "$role" "$work_dir" "$pane_id" "$state_key" || true
 
-    local model_arg=""
-    [ -z "$model" ] || model_arg="--model $(shell_quote "$model")"
+    local model_arg="--model $(shell_quote "$model")"
 
     local reasoning_arg=""
     [ -z "$reasoning_effort" ] || reasoning_arg="-c $(shell_quote "model_reasoning_effort=\"$reasoning_effort\"")"
@@ -1142,7 +1140,7 @@ for ((pane = 0; pane < PANE_COUNT; pane++)); do
     # pane_title은 에이전트 CLI의 OSC 제목 변경 대상이다. 테두리에 보일
     # 이름은 별도 pane 옵션으로 보관해야 CLI 제목과 경합하지 않는다.
     tmux set-option -p -t "$SESSION:0.$pane" @display_name "${MEMBER_NAMES[$pane]}"
-    tmux set-option -p -t "$SESSION:0.$pane" @model_info "${SPEC_MEMBER_MODELS[$pane]:-기본} ${SPEC_MEMBER_REASONING_EFFORTS[$pane]:-기본}"
+    tmux set-option -p -t "$SESSION:0.$pane" @model_info "${SPEC_MEMBER_MODELS[$pane]} ${SPEC_MEMBER_REASONING_EFFORTS[$pane]:-effort 비어 있음}"
 done
 
 tmux set-option -t "$SESSION" pane-border-status top
@@ -1205,7 +1203,7 @@ done
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
     [ -n "${start_rcs[$pane]:-}" ] ||
         { wait "${start_pids[$pane]}" && start_rcs[$pane]=0 || start_rcs[$pane]=$?; }
-    echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}, ${MEMBER_AGENTS[$pane]} · ${SPEC_MEMBER_MODELS[$pane]:-기본} · ${SPEC_MEMBER_REASONING_EFFORTS[$pane]:-기본}): "
+    echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}, ${MEMBER_AGENTS[$pane]} · ${SPEC_MEMBER_MODELS[$pane]} · ${SPEC_MEMBER_REASONING_EFFORTS[$pane]:-effort 비어 있음}): "
     if [ "${start_rcs[$pane]}" -eq 0 ]; then
         echo -e "${GREEN}✅ 실행 완료${NC}"
     else

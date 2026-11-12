@@ -82,11 +82,11 @@ cmd="$(sent model-a high)"
 [[ "$cmd" == *"--model 'model-a'"* && "$cmd" == *'model_reasoning_effort="high"'* ]] || fail '명시 값이 인자로 전달되지 않음'
 cmd="$(sent model-b medium)"
 [[ "$cmd" == *"--model 'model-b'"* && "$cmd" != *"model-a"* && "$cmd" == *'model_reasoning_effort="medium"'* ]] || fail '재실행 모델 A→B 변경 미반영'
-cmd="$(sent '' '')"
-[[ "$cmd" != *"--model"* && "$cmd" != *"model_reasoning_effort"* ]] || fail '명시→빈칸인데 이전 인자가 남음'
+cmd="$(sent model-b '')"
+[[ "$cmd" == *"--model 'model-b'"* && "$cmd" != *"model_reasoning_effort"* ]] || fail 'effort 명시→빈칸인데 이전 인자가 남음'
 write_base $'model = "user-default"\nmodel_reasoning_effort = "low"\n'
 write_codex_role_plugins developer "$role_home"
-[ "$(toml_get "$role_home/config.toml" model)" = '"user-default"' ] || fail '빈칸일 때 사용자 기본 모델이 쓰이지 않음'
+[ "$(toml_get "$role_home/config.toml" model_reasoning_effort)" = '"low"' ] || fail 'effort 빈칸일 때 사용자 기본 effort가 쓰이지 않음'
 
 # ── 2. tmux 창·파인 번호: 사용자 설정이 1부터여도 팀 세션은 0부터 ──────
 unset -f tmux

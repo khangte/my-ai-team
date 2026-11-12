@@ -75,8 +75,8 @@ load_team_members() {
             *) echo "❌ MEMBERS 모델 오류: '$model' (claude-* 또는 gpt-* 전체 모델 ID 필요: $file:$n)" >&2; return 2 ;;
         esac
         case "$effort" in
-            low|medium|high|xhigh|max) ;;
-            *) echo "❌ MEMBERS effort 오류: '$effort' (low/medium/high/xhigh/max 중 하나 필요: $file:$n)" >&2; return 2 ;;
+            ""|low|medium|high|xhigh|max) ;;   # 빈 값은 CLI 기본 effort
+            *) echo "❌ MEMBERS effort 오류: '$effort' (low/medium/high/xhigh/max 중 하나 또는 빈 값: $file:$n)" >&2; return 2 ;;
         esac
         MEMBER_NAMES+=("$role")
         MEMBER_DISPLAY_NAMES+=("$display")

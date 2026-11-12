@@ -39,12 +39,12 @@ expect_setup_stops() {
 
 expect "lead|팀장|claude-sonnet-5-5|high" "claude/claude-sonnet-5-5/high"
 expect "lead|팀장|gpt-6.1-sol|medium" "codex/gpt-6.1-sol/medium"
+expect "lead|팀장|claude-sonnet-5-5|" "claude/claude-sonnet-5-5/"   # effort 빈 값 허용
 
 expect_rejected "lead|팀장|sonnet|high"
 expect_rejected "lead|팀장|claude|high"                     # 모델 ID 없이 공급자만
 expect_rejected "lead|팀장|codex|medium"
 expect_rejected "lead|팀장||medium"
-expect_rejected "lead|팀장|claude-sonnet-5-5|"
 expect_rejected "lead||claude-sonnet-5-5|high"
 expect_rejected "|팀장|claude-sonnet-5-5|high"
 expect_rejected "lead|팀장|claude-sonnet-5-5"               # 필드 부족
