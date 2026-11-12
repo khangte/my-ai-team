@@ -4,8 +4,9 @@ set -euo pipefail
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # 현재 팀 구성에서 backend는 Claude다. 배열 위치가 아니라 역할로 찾으므로
-# config.sh에서 인원을 증감해도 이 계약은 유지된다.
-source "$repo_dir/team/config.sh"
+# members.conf에서 인원을 증감해도 이 계약은 유지된다.
+source "$repo_dir/lib/setup-common.sh"
+load_team_members "$repo_dir/team/members.conf"
 backend_index=""
 for ((member_index = 0; member_index < ${#MEMBER_NAMES[@]}; member_index++)); do
     if [ "${MEMBER_NAMES[$member_index]}" = "backend" ]; then
@@ -16,7 +17,7 @@ done
 test -n "$backend_index"
 test "${MEMBER_AGENTS[$backend_index]}" = "claude"
 
-# 모델·추론강도는 team/config.sh의 MEMBERS가 유일한 출처다.
+# 모델·추론강도는 team/members.conf가 유일한 출처다.
 test -n "${SPEC_MEMBER_MODELS[$backend_index]}"
 test -n "${SPEC_MEMBER_REASONING_EFFORTS[$backend_index]}"
 

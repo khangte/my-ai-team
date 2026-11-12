@@ -50,6 +50,7 @@ RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/tags/v0.43.0/in
 COPY --chown=user:user setup-team.sh /opt/ai-setup/setup-team.sh
 COPY --chown=user:user team /opt/ai-setup/team
 COPY --chown=user:user bin /opt/ai-setup/bin
+COPY --chown=user:user lib /opt/ai-setup/lib
 COPY --chown=user:user CLAUDE.md AGENTS.md /opt/ai-setup/
 
 CMD ["bash"]

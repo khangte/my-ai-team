@@ -1,7 +1,7 @@
 #!/bin/bash
 # WSL에 팀 의존성을 사용자 기본 경로로 설치한다.
 # 사용: ./install/wsl.sh [프로젝트_경로]
-# 저장소·프로젝트의 team/config.sh를 읽고 실제 배정된 공급자를 설치한다.
+# 저장소·프로젝트의 team/members.conf를 읽고 실제 배정된 공급자를 설치한다.
 
 set -e
 

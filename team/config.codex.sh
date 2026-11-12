@@ -1,7 +1,7 @@
 # team/config.codex.sh — Codex 역할별 플러그인·스킬 배분
 
 # 대상 프로젝트에 같은 파일을 두면 이 파일 대신 그것만 쓴다(병합하지 않음).
-# 모델은 config.sh의 MEMBERS에서 정하고 새 역할의 스킬·플러그인은 여기 배정한다.
+# 모델은 members.conf에서 정하고 새 역할의 스킬·플러그인은 여기 배정한다.
 
 # 마켓플레이스는 선언하지 않는다 — 내장 원격 카탈로그 openai-curated-remote를 쓴다.
 

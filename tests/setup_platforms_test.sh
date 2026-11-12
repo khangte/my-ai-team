@@ -29,6 +29,12 @@ chmod +x "$stub"/bin/* "$gnubin"/*
 export PATH="$stub/bin:$PATH"
 
 proj="$test_dir/proj"; mkdir -p "$proj/team"
+write_members() {
+    # 첫 인자 경로에 SESSION과 모델별 멤버 줄을 가진 members.conf를 쓴다.
+    local f="$1" i=0 m; shift
+    printf 'SESSION=t\n' > "$f"
+    for m in "$@"; do i=$((i + 1)); printf 'r%s|x|%s|low\n' "$i" "$m" >> "$f"; done
+}
 
 # ── 1. 이름·잔여 참조 ───────────────────────────────────────────
 for f in install/wsl.sh install/mac.sh lib/setup-common.sh; do bash -n "$repo_dir/$f"; done
@@ -36,20 +42,23 @@ for f in install/wsl.sh install/mac.sh lib/setup-common.sh; do bash -n "$repo_di
 ! "$real_git" -C "$repo_dir" grep -n 'setup-native' -- . ':!tests/' >/dev/null || fail 'setup-native 참조가 남아 있음'
 
 # ── 2. WSL: 에이전트 선택·혼합 팀 ───────────────────────────────
-printf 'MEMBER_AGENTS=(claude codex)\n' > "$proj/team/config.sh"   # 저장소 config 대신 고정 입력을 사용
+write_members "$proj/team/members.conf" claude-x gpt-x   # 저장소 members.conf 대신 고정 입력을 사용
 out="$("$repo_dir/install/wsl.sh" "$proj")"       # 혼합 팀
 grep -q '설치 대상 공급자: claude codex' <<< "$out" || fail '혼합 팀이 둘 다 설치 대상이 아님'
-printf 'MEMBER_AGENTS=(codex codex)\n' > "$proj/team/config.sh"   # 프로젝트 config가 저장소 것을 덮어씀
+write_members "$proj/team/members.conf" gpt-x gpt-x     # 프로젝트 members.conf가 저장소 것을 대체
 out="$("$repo_dir/install/wsl.sh" "$proj")"
 grep -q '설치 대상 공급자: codex' <<< "$out" && ! grep -q 'claude CLI' <<< "$out" || fail '프로젝트 config(codex)가 반영되지 않음'
-printf 'MEMBER_AGENTS=("" "")\n' > "$proj/team/config.sh"          # 빈 값은 기본값 없이 중단
+write_members "$proj/team/members.conf" "" ""            # 빈 모델은 기본값 없이 중단
 "$repo_dir/install/wsl.sh" "$proj" >/dev/null 2>&1 && fail '빈 MEMBER_AGENTS를 통과시킴'
-printf 'MEMBER_NAMES=() MEMBER_AGENTS=()\n' > "$proj/team/config.sh"
+write_members "$proj/team/members.conf"
 "$repo_dir/install/wsl.sh" "$proj" >/dev/null 2>&1 && fail '팀 구성 없음을 통과시킴'
-printf 'MEMBER_AGENTS=(gemini)\n' > "$proj/team/config.sh"
-"$repo_dir/install/wsl.sh" "$proj" >/dev/null 2>&1 && fail '잘못된 MEMBER_AGENTS를 통과시킴'
-"$repo_dir/install/wsl.sh" --agent foo "$proj" >/dev/null 2>&1 && fail '제거된 --agent를 통과시킴'
+write_members "$proj/team/members.conf" gemini-x
+"$repo_dir/install/wsl.sh" "$proj" >/dev/null 2>&1 && fail '잘못된 모델 접두사를 통과시킴'
+rm "$proj/team/members.conf"; printf 'SESSION=t\n' > "$proj/team/config.sh"   # 옛 config.sh만 있으면 이전 안내 후 중단
+err="$("$repo_dir/install/wsl.sh" "$proj" 2>&1)" && fail '옛 config.sh를 통과시킴'
+grep -q 'members.conf로 옮기세요' <<< "$err" || fail "옛 config.sh 이전 안내 누락: $err"
 rm "$proj/team/config.sh"
+"$repo_dir/install/wsl.sh" --agent foo "$proj" >/dev/null 2>&1 && fail '제거된 --agent를 통과시킴'
 
 # 값 없는 옵션, 재실행(멱등), 공백 경로(프로젝트·저장소 모두)
 for bad in "--agent" "--agent="; do
@@ -58,7 +67,7 @@ for bad in "--agent" "--agent="; do
 done
 "$repo_dir/install/wsl.sh" "$proj" extra >/dev/null 2>&1 && fail '프로젝트 경로 2개를 통과시킴'
 "$repo_dir/install/wsl.sh" "$test_dir/없는 경로" >/dev/null 2>&1 && fail '없는 프로젝트 경로를 통과시킴'
-sp="$test_dir/공백 프로젝트 dir"; mkdir -p "$sp/team"; printf 'MEMBER_AGENTS=(codex)\n' > "$sp/team/config.sh"
+sp="$test_dir/공백 프로젝트 dir"; mkdir -p "$sp/team"; write_members "$sp/team/members.conf" gpt-x
 first="$("$repo_dir/install/wsl.sh" "$sp")"; second="$("$repo_dir/install/wsl.sh" "$sp")"
 [ "$first" = "$second" ] || fail '재실행 결과가 다름'
 grep -q "setup-team.sh $sp" <<< "$first" || fail '공백 프로젝트 경로가 안내에 보존되지 않음'
@@ -88,7 +97,7 @@ lean="$test_dir/lean"; mkdir -p "$lean"
 for c in tmux git curl python3 rg sudo; do printf '#!/bin/bash\nexit 0\n' > "$lean/$c"; done
 printf '#!/bin/bash\necho ko_KR.utf8\n' > "$lean/locale"; chmod +x "$lean"/*
 rm -f "$test_dir/npm.log"
-printf 'MEMBER_AGENTS=(claude codex)\n' > "$proj/team/config.sh"
+write_members "$proj/team/members.conf" claude-x gpt-x
 out="$(HOME="$nvmhome" PATH="/mnt/c/Program Files/nodejs:$lean:/usr/bin:/bin" "$repo_dir/install/wsl.sh" "$proj")"
 grep -q 'nvm-codex' <<< "$out" && grep -q 'nvm-claude' <<< "$out" && grep -q 'nvm-node' <<< "$out" || fail 'NVM의 node/claude/codex를 쓰지 않음'
 [ ! -e "$test_dir/npm.log" ] || fail '이미 NVM에 있는 CLI를 재설치함'
@@ -106,7 +115,7 @@ printf '#!/bin/bash\necho ko_KR.utf8\n' > "$lean/locale"
 }
 export SETUP_ALLOW_NON_DARWIN=1
 "$repo_dir/install/mac.sh" --agent >/dev/null 2>&1 && fail 'mac: 제거된 --agent를 통과시킴'
-printf 'MEMBER_AGENTS=(claude codex)\n' > "$proj/team/config.sh"
+write_members "$proj/team/members.conf" claude-x gpt-x
 out="$("$repo_dir/install/mac.sh" "$proj")"
 grep -q '설치 대상 공급자: claude codex' <<< "$out" || fail 'mac 혼합 팀 판독 실패'
 grep -q "$stub/bin/bash $repo_dir/setup-team.sh $proj" <<< "$out" || fail 'Homebrew bash 실행 안내 누락'
@@ -128,7 +137,7 @@ mv "$gnubin.off" "$gnubin"
 rm "$stub/bin/brew"
 out="$("$repo_dir/install/mac.sh" "$proj" 2>&1)" && fail 'brew 없이 성공으로 끝남'
 grep -q 'Homebrew가 없습니다' <<< "$out" || fail 'Homebrew 안내 누락'
-rm -f "$proj/team/config.sh"
+rm -f "$proj/team/members.conf"
 
 # ── 3b. 런타임 가드: 파인·훅이 bash 3.2로 뜨지 않게 한다 ─────────
 for f in setup-team.sh bin/say; do
@@ -203,6 +212,8 @@ PATH="$dstub:$PATH" "$repo_dir/install/docker.sh" "$test_dir/my proj.x" >/dev/nu
 grep -qE -- '--name claude-env-my_proj\.x-[0-9]+ ' "$test_dir/docker.log" || fail "컨테이너 이름 오류: $(cat "$test_dir/docker.log")"
 grep -q -- '-e SAY_BUSY_DIR=/tmp/team-runtime/team-busy' "$test_dir/docker.log" && grep -q -- '-e SAY_QUEUE_DIR=/tmp/team-runtime/team-say-queue' "$test_dir/docker.log" || fail '컨테이너별 전용 상태 경로(SAY_*) 누락'
 # 이름이 같은 다른 경로의 프로젝트는 서로 다른 컨테이너 이름을 받는다.
+# 이미지 안 setup-team.sh가 source하는 lib/setup-common.sh가 복사돼야 한다.
+grep -q '^COPY .* lib /opt/ai-setup/lib$' "$repo_dir/Dockerfile" || fail 'Dockerfile이 lib/를 복사하지 않음'
 mkdir -p "$test_dir/other/my proj.x"; : > "$test_dir/docker.log"
 PATH="$dstub:$PATH" "$repo_dir/install/docker.sh" "$test_dir/other/my proj.x" >/dev/null 2>&1 || fail 'docker.sh(두 번째)가 실패함'
 [ "$(grep -o -- '--name [^ ]*' "$test_dir/docker.log")" != '--name claude-env-my_proj.x-'"$(printf '%s' "$test_dir/my proj.x" | cksum | cut -d' ' -f1)" ] || fail '다른 경로가 같은 컨테이너 이름을 받음'

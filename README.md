@@ -55,7 +55,7 @@ Codex를 `workspace-write`로 제한하려면 `CODEX_FULL_ACCESS=0`으로 실행
 ## 팀 구성
 
 현재 기본 팀은 **lead·architect·uiux·frontend·backend·reviewer 6인**이며, architect·uiux·reviewer는 Codex,
-lead·frontend·backend는 Claude를 사용합니다. UI/UX 설계가 필요 없는 프로젝트는 `team/config.sh`에서 uiux를 뺄 수 있습니다.
+lead·frontend·backend는 Claude를 사용합니다. UI/UX 설계가 필요 없는 프로젝트는 `team/members.conf`에서 uiux를 뺄 수 있습니다.
 독립 researcher 역할은 두지 않고 기술 조사는 architect, UX·레퍼런스 조사는 uiux,
 구현용 API·라이브러리 조사는 frontend·backend가 담당합니다.
 
@@ -72,27 +72,27 @@ lead는 단순 수정을 frontend·backend에, 스펙·설계가 필요한 요�
 화면 작업은 `uiux 명세 → frontend 구현 → uiux 화면 검수 → reviewer 코드 리뷰 → lead 커밋`으로 진행하고, 설계가 함께 필요하면 architect 계획이 먼저입니다.
 코드 변경은 trivial 변경을 빼고 reviewer의 승인 보고를 받은 뒤에만 lead가 커밋합니다.
 uiux가 없는 경우 frontend는 기존 디자인 기준 안에서 사소한 수정을 처리합니다.
-새 사용자 흐름·디자인 기준이 필요하면 lead가 사용자에게 uiux 활성화(`team/config.sh` 변경과 재기동)를 요청합니다.
+새 사용자 흐름·디자인 기준이 필요하면 lead가 사용자에게 uiux 활성화(`team/members.conf` 변경과 재기동)를 요청합니다.
 
 ### 프로젝트별 설정
 
-대상 프로젝트의 `team/config.sh`로 기본 구성을 덮어씁니다.
-저장소의 [team/config.sh](team/config.sh)를 복사해 수정할 수 있습니다.
+대상 프로젝트에 `team/members.conf`가 있으면 저장소 기본값 대신 그 파일만 읽습니다.
+저장소의 [team/members.conf](team/members.conf)를 복사해 수정할 수 있습니다.
+파싱 로직은 `lib/setup-common.sh`에 있으므로 로직이 바뀌어도 프로젝트 파일을 다시 복사할 필요가 없습니다.
 
-```bash
-# /path/to/project/team/config.sh
-SESSION="team1"
-declare -a MEMBERS=(
-    "lead|팀장|claude-sonnet-5-5|medium"
-    "architect|설계|claude-sonnet-5-5|high"
-    "uiux|UI/UX|gpt-6.1-terra|medium"
-    "frontend|프론트엔드|gpt-6.1-terra|medium"
-    "backend|백엔드|claude-sonnet-5-5|medium"
-    "reviewer|리뷰어|gpt-6.1-sol|medium"
-)
+```text
+# /path/to/project/team/members.conf
+SESSION=team1
+lead|팀장|claude-sonnet-5-5|medium
+architect|설계|claude-sonnet-5-5|high
+uiux|UI/UX|gpt-6.1-terra|medium
+frontend|프론트엔드|gpt-6.1-terra|medium
+backend|백엔드|claude-sonnet-5-5|medium
+reviewer|리뷰어|gpt-6.1-sol|medium
 ```
 
-항목 형식은 `role|표시이름|model|effort`이며, 배열 순서대로 패널이 배치됩니다.
+멤버 줄 형식은 `role|표시이름|model|effort`이며, 줄 순서대로 패널이 배치됩니다. 빈 줄과 `#` 주석은 무시합니다.
+옛 `team/config.sh`만 있는 프로젝트는 실행을 멈추고 `members.conf`로 옮기라고 안내합니다.
 네 필드와 `SESSION`은 모두 필수이고, 비어 있거나 형식이 틀리면 경고를 출력하고 실행을 멈춥니다.
 역할을 추가하거나 제거해 인원을 조절합니다.
 

@@ -1,5 +1,6 @@
 #!/bin/bash
 # install/wsl.sh·install/mac.sh·install/windows.sh·install/docker.sh가 공유하는 인자 파싱과 팀 구성 판독.
+# setup-team.sh도 team/members.conf 파서(load_team_members) 때문에 이 파일을 source한다.
 # bash 3.2(macOS 기본)에서도 동작해야 하므로 연관 배열·mapfile을 쓰지 않는다.
 
 GREEN='\033[0;32m'
@@ -28,25 +29,81 @@ setup_parse_args() {
     done
 }
 
+# team/members.conf 파서. setup-team.sh·테스트도 이 파일을 source해 쓴다.
+team_members_file() {
+    # 프로젝트 members.conf가 있으면 그것을, 없으면 저장소 기본값 경로를 출력한다. 옛 config.sh만 있으면 실패한다.
+    local repo_dir="$1" project_dir="$2"
+    if [ -f "$project_dir/team/members.conf" ]; then
+        printf '%s\n' "$project_dir/team/members.conf"
+    elif [ -f "$project_dir/team/config.sh" ]; then
+        echo "❌ $project_dir/team/config.sh는 더 이상 읽지 않습니다. SESSION과 MEMBERS를 $project_dir/team/members.conf로 옮기세요 (형식: $repo_dir/team/members.conf)." >&2
+        return 2
+    else
+        printf '%s\n' "$repo_dir/team/members.conf"
+    fi
+}
+
+load_team_members() {
+    # members.conf를 읽어 SESSION과 멤버 배열을 채운다. 형식 오류면 경고 후 2를 반환한다.
+    local file="$1" line role display model effort agent n=0
+    [ -f "$file" ] || { echo "❌ 팀 구성 파일이 없습니다: $file" >&2; return 2; }
+    SESSION=""
+    MEMBER_NAMES=()
+    MEMBER_DISPLAY_NAMES=()
+    MEMBER_AGENTS=()
+    SPEC_MEMBER_MODELS=()
+    SPEC_MEMBER_REASONING_EFFORTS=()
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        n=$((n + 1))
+        line="${line%$'\r'}"   # Windows에서 편집한 CRLF 파일
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        case "$line" in
+            ''|'#'*) continue ;;
+            SESSION=*) SESSION="${line#SESSION=}"; continue ;;
+        esac
+        IFS='|' read -r role display model effort <<< "$line"
+        if [ "${line//[^|]/}" != "|||" ] || [ -z "$role" ] || [ -z "$display" ]; then
+            echo "❌ MEMBERS 형식 오류: '$line' (필수 형식 role|표시이름|model|effort, $file:$n 확인)" >&2
+            return 2
+        fi
+        # shortcut: 접두사 두 개만 인식, 새 모델 계열이 나오면 여기에 추가한다.
+        case "$model" in
+            claude-*) agent="claude" ;;
+            gpt-*)    agent="codex" ;;
+            *) echo "❌ MEMBERS 모델 오류: '$model' (claude-* 또는 gpt-* 전체 모델 ID 필요: $file:$n)" >&2; return 2 ;;
+        esac
+        case "$effort" in
+            low|medium|high|xhigh|max) ;;
+            *) echo "❌ MEMBERS effort 오류: '$effort' (low/medium/high/xhigh/max 중 하나 필요: $file:$n)" >&2; return 2 ;;
+        esac
+        MEMBER_NAMES+=("$role")
+        MEMBER_DISPLAY_NAMES+=("$display")
+        MEMBER_AGENTS+=("$agent")
+        SPEC_MEMBER_MODELS+=("$model")
+        SPEC_MEMBER_REASONING_EFFORTS+=("$effort")
+    done < "$file"
+}
+
 setup_load_team() {
-    # team/config.sh(저장소 → 프로젝트 순)를 읽어 NEED_CLAUDE·NEED_CODEX를 정한다. SCRIPT_DIR이 필요하다.
+    # team/members.conf(프로젝트 파일 우선)를 읽어 NEED_CLAUDE·NEED_CODEX를 정한다. SCRIPT_DIR이 필요하다.
     local project_path="${PROJECT_ARG:-${PROJECT_DIR:-$(pwd)}}" a
     PROJECT_DIR="$(cd "$project_path" 2>/dev/null && pwd -P)" \
         || { echo "프로젝트 경로를 찾을 수 없습니다: $project_path" >&2; exit 2; }
 
-    MEMBER_NAMES=()
-    MEMBER_AGENTS=()
-    [ -f "$SCRIPT_DIR/team/config.sh" ] && source "$SCRIPT_DIR/team/config.sh"
-    [ -f "$PROJECT_DIR/team/config.sh" ] && source "$PROJECT_DIR/team/config.sh"
+    local members_file
+    members_file="$(team_members_file "$SCRIPT_DIR" "$PROJECT_DIR")" || exit 2
+    load_team_members "$members_file" || exit 2
 
     NEED_CLAUDE=false
     NEED_CODEX=false
-    [ "${#MEMBER_AGENTS[@]}" -gt 0 ] || { echo "팀 구성이 없습니다. team/config.sh의 MEMBERS를 확인하세요." >&2; exit 2; }
+    [ "${#MEMBER_AGENTS[@]}" -gt 0 ] || { echo "팀 구성이 없습니다. $members_file에 멤버 줄을 추가하세요." >&2; exit 2; }
     for a in "${MEMBER_AGENTS[@]}"; do
         case "$a" in
             claude) NEED_CLAUDE=true ;;
             codex)  NEED_CODEX=true ;;
-            *) echo "지원하지 않는 에이전트: '$a' (team/config.sh의 MEMBER_AGENTS 확인)" >&2; exit 2 ;;
+            *) echo "지원하지 않는 에이전트: '$a' ($members_file 확인)" >&2; exit 2 ;;
         esac
     done
 }

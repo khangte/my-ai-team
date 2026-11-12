@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# team/config.sh의 MEMBERS 4필드 파싱 계약을 검증한다.
+# team/members.conf 4필드 파싱 계약(lib/setup-common.sh)을 검증한다.
 set -u
 
 repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,9 +8,9 @@ trap 'rm -rf "$test_dir"' EXIT
 failed=0
 
 parse_lead() {
-    # lead 항목을 인자로 교체한 config를 읽어 agent/model/effort를 출력한다.
-    sed "s#^    \"lead|.*#    \"$1\"#" "$repo_dir/team/config.sh" > "$test_dir/config.sh"
-    bash -c 'source "$1" && echo "${MEMBER_AGENTS[0]}/${SPEC_MEMBER_MODELS[0]}/${SPEC_MEMBER_REASONING_EFFORTS[0]}"' _ "$test_dir/config.sh"
+    # lead 줄을 인자로 교체한 members.conf를 읽어 agent/model/effort를 출력한다.
+    awk -v r="$1" '/^lead\|/ { print r; next } { print }' "$repo_dir/team/members.conf" > "$test_dir/members.conf"
+    bash -c 'source "$1/lib/setup-common.sh" && load_team_members "$2" && echo "${MEMBER_AGENTS[0]}/${SPEC_MEMBER_MODELS[0]}/${SPEC_MEMBER_REASONING_EFFORTS[0]}"' _ "$repo_dir" "$test_dir/members.conf"
 }
 
 expect() {
@@ -28,10 +28,11 @@ expect_rejected() {
 }
 
 expect_setup_stops() {
-    # 프로젝트 config 내용으로 setup-team.sh를 돌려 기대 경고와 함께 멈추는지 검사한다.
+    # 프로젝트 team/ 파일($1) 내용($2)으로 setup-team.sh를 돌려 기대 경고($3)와 함께 멈추는지 검사한다.
     local project="$test_dir/project" out
-    mkdir -p "$project/team"
-    printf '%s\n' "$1" > "$project/team/config.sh"
+    rm -rf "$project"; mkdir -p "$project/team"
+    printf '%s\n' "$2" > "$project/team/$1"
+    shift
     out="$(bash "$repo_dir/setup-team.sh" "$project" 2>&1)" && { echo "FAIL: setup-team이 멈추지 않음: $1"; failed=1; }
     grep -qF "$2" <<< "$out" || { echo "FAIL: 경고 '$2' 없음: $out"; failed=1; }
 }
@@ -52,13 +53,13 @@ expect_rejected "lead|팀장|claude-sonnet-5-5|fast"
 expect_rejected "lead|팀장|claude|claude-sonnet-5-5|high"   # 옛 5필드
 expect_rejected "lead|팀장|claude||medium"                  # 옛 5필드, 모델 비움
 
-filled='MEMBER_NAMES=(lead) MEMBER_DISPLAY_NAMES=(팀장) MEMBER_AGENTS=(claude) SPEC_MEMBER_MODELS=(claude-sonnet-5-5) SPEC_MEMBER_REASONING_EFFORTS=(high)'
-expect_setup_stops "SESSION=''"$'\n'"$filled" 'SESSION이 비어'
-expect_setup_stops "$filled SPEC_MEMBER_MODELS=('')" '비어 있는 값'
-expect_setup_stops "$filled SPEC_MEMBER_REASONING_EFFORTS=('')" '비어 있는 값'
-expect_setup_stops "$filled MEMBER_DISPLAY_NAMES=('')" '비어 있는 값'
-expect_setup_stops "$filled MEMBER_AGENTS=('')" '지원하지 않는 에이전트'
-expect_setup_stops 'MEMBER_NAMES=()' '팀 구성이 없습니다'
+expect "  lead|팀장|claude-sonnet-5-5|high  "$'\r' "claude/claude-sonnet-5-5/high"   # 앞뒤 공백·CRLF
+
+lead='lead|팀장|claude-sonnet-5-5|high'
+expect_setup_stops members.conf "$lead" 'SESSION이 비어'
+expect_setup_stops members.conf 'SESSION=s' '팀 구성이 없습니다'
+expect_setup_stops members.conf "SESSION=s"$'\n'"$lead"$'\n'"$lead" '중복된 역할'
+expect_setup_stops config.sh 'SESSION="s"' 'members.conf로 옮기세요'
 
 [ "$failed" -eq 0 ] && echo "PASS: config_members_test"
 exit "$failed"
