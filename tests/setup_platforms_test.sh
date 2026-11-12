@@ -33,7 +33,7 @@ write_members() {
     # 첫 인자 경로에 SESSION과 모델별 멤버 줄을 가진 members.conf를 쓴다.
     local f="$1" i=0 m; shift
     printf 'SESSION=t\n' > "$f"
-    for m in "$@"; do i=$((i + 1)); printf 'r%s|x|%s|low\n' "$i" "$m" >> "$f"; done
+    for m in "$@"; do i=$((i + 1)); printf 'r%s|%s|low\n' "$i" "$m" >> "$f"; done
 }
 
 # ── 1. 이름·잔여 참조 ───────────────────────────────────────────
@@ -149,7 +149,7 @@ fakebrew="$test_dir/brew prefix"; mkdir -p "$fakebrew/bin" "$fakebrew/opt/coreut
 ln -s /bin/bash "$fakebrew/bin/bash"
 for c in sort timeout realpath; do printf '#!/bin/bash\nexit 0\n' > "$fakebrew/opt/coreutils/libexec/gnubin/$c"; done
 chmod +x "$fakebrew"/opt/coreutils/libexec/gnubin/*
-sed -n '/^# ── PATH 보강/,/^GREEN=/p' "$repo_dir/setup-team.sh" | sed '$d' > "$test_dir/path-block.sh"
+sed -n '/^# ── PATH 보강/,/^SCRIPT_DIR=/p' "$repo_dir/setup-team.sh" | sed '$d' > "$test_dir/path-block.sh"
 # 우선순위 조정은 macOS(uname=Darwin)에서만 일어난다: Linux/WSL에서는 PATH 앞에 아무것도 붙지 않는다.
 linux_bash="$(env -i HOME="$test_dir" HOMEBREW_PREFIX="$fakebrew" PATH=/usr/bin:/bin /bin/bash -c 'source "$1"; command -v bash' _ "$test_dir/path-block.sh")"
 [ "$linux_bash" != "$fakebrew/bin/bash" ] || fail 'Linux에서 Homebrew PATH가 앞에 붙음'

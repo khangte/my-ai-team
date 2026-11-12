@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# team/members.conf 4필드 파싱 계약(lib/setup-common.sh)을 검증한다.
+# team/members.conf 3필드 파싱 계약(lib/setup-common.sh)을 검증한다.
 set -u
 
 repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
@@ -37,25 +37,23 @@ expect_setup_stops() {
     grep -qF "$2" <<< "$out" || { echo "FAIL: 경고 '$2' 없음: $out"; failed=1; }
 }
 
-expect "lead|팀장|claude-sonnet-5-5|high" "claude/claude-sonnet-5-5/high"
-expect "lead|팀장|gpt-6.1-sol|medium" "codex/gpt-6.1-sol/medium"
-expect "lead|팀장|claude-sonnet-5-5|" "claude/claude-sonnet-5-5/"   # effort 빈 값 허용
+expect "lead|claude-sonnet-5-5|high" "claude/claude-sonnet-5-5/high"
+expect "lead|gpt-6.1-sol|medium" "codex/gpt-6.1-sol/medium"
+expect "lead|claude-sonnet-5-5|" "claude/claude-sonnet-5-5/"   # effort 빈 값 허용
 
-expect_rejected "lead|팀장|sonnet|high"
-expect_rejected "lead|팀장|claude|high"                     # 모델 ID 없이 공급자만
-expect_rejected "lead|팀장|codex|medium"
-expect_rejected "lead|팀장||medium"
-expect_rejected "lead||claude-sonnet-5-5|high"
-expect_rejected "|팀장|claude-sonnet-5-5|high"
-expect_rejected "lead|팀장|claude-sonnet-5-5"               # 필드 부족
-expect_rejected "lead|팀장|claude-sonnet-5-5|high|"         # 필드 초과
-expect_rejected "lead|팀장|claude-sonnet-5-5|fast"
-expect_rejected "lead|팀장|claude|claude-sonnet-5-5|high"   # 옛 5필드
-expect_rejected "lead|팀장|claude||medium"                  # 옛 5필드, 모델 비움
+expect_rejected "lead|sonnet|high"
+expect_rejected "lead|claude|high"                     # 모델 ID 없이 공급자만
+expect_rejected "lead|codex|medium"
+expect_rejected "lead||medium"
+expect_rejected "|claude-sonnet-5-5|high"               # role 비움
+expect_rejected "lead|팀장|claude-sonnet-5-5|high"       # 옛 4필드(표시이름)
+expect_rejected "lead|claude-sonnet-5-5"               # 필드 부족
+expect_rejected "lead|claude-sonnet-5-5|high|"         # 필드 초과
+expect_rejected "lead|claude-sonnet-5-5|fast"
 
-expect "  lead|팀장|claude-sonnet-5-5|high  "$'\r' "claude/claude-sonnet-5-5/high"   # 앞뒤 공백·CRLF
+expect "  lead|claude-sonnet-5-5|high  "$'\r' "claude/claude-sonnet-5-5/high"   # 앞뒤 공백·CRLF
 
-lead='lead|팀장|claude-sonnet-5-5|high'
+lead='lead|claude-sonnet-5-5|high'
 expect_setup_stops members.conf "$lead" 'SESSION이 비어'
 expect_setup_stops members.conf 'SESSION=s' '팀 구성이 없습니다'
 expect_setup_stops members.conf "SESSION=s"$'\n'"$lead"$'\n'"$lead" '중복된 역할'

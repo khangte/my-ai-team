@@ -24,54 +24,6 @@ PATH="$BREW_FIRST$PATH"   # 아래 sort -V가 GNU 판을 쓰도록 먼저 반영
 NVM_BIN=$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)
 export PATH="$BREW_FIRST$HOME/.local/bin:${NVM_BIN:+$NVM_BIN:}/usr/local/bin:/usr/bin:/bin:$PATH"
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-# say·훅이 공유하는 상태 경로. 공용 /tmp 대신 사용자 전용 경로를 쓰고 SAY_* 환경변수로 덮어쓸 수 있다.
-STATE_ROOT="$HOME/.cache"
-BUSY_STATE_DIR="${SAY_BUSY_DIR:-$STATE_ROOT/team-busy}"
-REPORT_STATE_DIR="${SAY_REPORT_DIR:-$STATE_ROOT/team-say}"
-QUEUE_STATE_DIR="${SAY_QUEUE_DIR:-$STATE_ROOT/team-say-queue}"
-
-PROJECT_ARG=""
-
-usage() {
-    # 사용법을 출력한다.
-    cat <<'EOF'
-사용법: ./setup-team.sh [프로젝트_경로]
-
-옵션:
-    -h, --help         이 도움말 표시
-
-환경변수:
-    PROJECT_DIR        프로젝트 경로 (인자가 없을 때 사용)
-EOF
-}
-
-while [ $# -gt 0 ]; do
-    case "$1" in
-        -h|--help)
-            usage
-            exit 0
-            ;;
-        -*)
-            echo -e "${RED}❌ 알 수 없는 옵션: $1${NC}" >&2
-            usage >&2
-            exit 2
-            ;;
-        *)
-            [ -z "$PROJECT_ARG" ] || { echo -e "${RED}❌ 프로젝트 경로는 하나만 지정할 수 있습니다.${NC}" >&2; exit 2; }
-            PROJECT_ARG="$1"
-            shift
-            ;;
-    esac
-done
-
-PROJECT_DIR="${PROJECT_ARG:-${PROJECT_DIR:-$(pwd)}}"
-PROJECT_DIR="$(realpath "$PROJECT_DIR")"
-
 # team/{role}.md 지침 파일 위치. 이 스크립트(ai-setup 리포) 기준이므로 PROJECT_DIR과 무관하다.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEAM_DIR="$SCRIPT_DIR/team"
@@ -79,10 +31,24 @@ BIN_DIR="$SCRIPT_DIR/bin"   # say·log-hook — 오버라이드 대상이 아닌
 # 파인·run-shell·세션 환경에 그대로 넘길 PATH. 기존 tmux 서버의 최소 PATH에 의존하지 않게 한다.
 TEAM_PATH="$BIN_DIR:${NVM_BIN:+$NVM_BIN:}$PATH"
 
+# 인자 파싱·members.conf 파서·GREEN/YELLOW/NC를 설치 스크립트와 공유한다.
+source "$SCRIPT_DIR/lib/setup-common.sh"
+RED='\033[0;31m'
+
+# say·훅이 공유하는 상태 경로. 공용 /tmp 대신 사용자 전용 경로를 쓰고 SAY_* 환경변수로 덮어쓸 수 있다.
+STATE_ROOT="$HOME/.cache"
+BUSY_STATE_DIR="${SAY_BUSY_DIR:-$STATE_ROOT/team-busy}"
+REPORT_STATE_DIR="${SAY_REPORT_DIR:-$STATE_ROOT/team-say}"
+QUEUE_STATE_DIR="${SAY_QUEUE_DIR:-$STATE_ROOT/team-say-queue}"
+
+SETUP_NAME="setup-team.sh"
+setup_parse_args "$@"
+PROJECT_DIR="${PROJECT_ARG:-${PROJECT_DIR:-$(pwd)}}"
+PROJECT_DIR="$(realpath "$PROJECT_DIR")"
+
 # ── 팀 멤버 정보 ───────────────────────────────────────────
 # 프로젝트 team/members.conf가 있으면 저장소 기본값 대신 그 파일만 읽는다(병합하지 않는다).
 # 공급자별 배분표는 프로젝트 파일이 있으면 기본값 대신 사용한다.
-source "$SCRIPT_DIR/lib/setup-common.sh"   # load_team_members
 members_file="$(team_members_file "$SCRIPT_DIR" "$PROJECT_DIR")" || exit 2
 [ "$members_file" = "$TEAM_DIR/members.conf" ] \
     || echo -e "${YELLOW}team/members.conf 발견 → 프로젝트별 팀 구성 사용: $members_file${NC}"
@@ -120,12 +86,6 @@ for agent in "${!USED_AGENTS[@]}"; do
     else
         echo -e "${YELLOW}team/config.${agent}.sh 발견 → 공급자별 구성 사용: $project_provider_config${NC}"
         source "$project_provider_config"
-        for legacy in PLUGIN_MARKETPLACES PLUGIN_ROLES GSTACK_SKILL_SETS SUPERPOWERS_SKILL_SETS \
-                      FRONTEND_DESIGN_SKILL_SETS CODEX_PLUGIN_SETS CODEX_PLUGIN_SKILL_SETS; do
-            if declare -p "$legacy" >/dev/null 2>&1; then
-                echo -e "${YELLOW}  ⚠️  $project_provider_config: 옛 이름 $legacy 는 무시됩니다 (현재 이름은 이 저장소의 team/config.${agent}.sh 참고)${NC}" >&2
-            fi
-        done
     fi
 done
 
@@ -418,7 +378,7 @@ start_claude_in_pane() {
 
     # 역할별 cwd와 설정 소스로 전역 스킬을 차단한다.
     local work_dir="$PROJECT_DIR" skills_arg=""
-    if [ -n "$role" ] && [ -d "$TEAM_SKILLS_ROOT/$role/.claude/skills" ]; then
+    if [ -d "$TEAM_SKILLS_ROOT/$role/.claude/skills" ]; then
         work_dir="$TEAM_SKILLS_ROOT/$role"
         skills_arg="--setting-sources project"
     fi
@@ -427,12 +387,12 @@ start_claude_in_pane() {
     local role_file="$PROJECT_DIR/team/${role}.md"
     [ -f "$role_file" ] || role_file="$TEAM_DIR/${role}.md"
     local system_prompt_arg=""
-    if [ -n "$role" ] && [ -f "$role_file" ]; then
+    if [ -f "$role_file" ]; then
         # tmux 명령 길이 제한을 피하고 재시작 후에도 읽도록 지침을 파일로 전달한다.
         local prompt_file="$RUNTIME_DIR/${role}.prompt.md"
         role_prompt_content "$role_file" "$role" "$work_dir" > "$prompt_file"
         system_prompt_arg="--append-system-prompt-file $(shell_quote "$prompt_file")"
-    elif [ -n "$role" ]; then
+    else
         echo -e "${RED}⚠️  team/${role}.md 없음 → 이 파인은 역할 지침 없이 실행됩니다 (MEMBER_NAMES 오타 확인)${NC}" >&2
     fi
 
@@ -440,7 +400,7 @@ start_claude_in_pane() {
     # project 설정 소스가 제외한 rtk 훅을 다시 주입하고 로깅은 별도 matcher로 둔다.
     # 셸 인용 후 JSON 이스케이프를 적용한다.
     local log_cmd log_cmd_json
-    log_cmd="$(shell_quote "$BIN_DIR/log-hook") $(shell_quote "${role:-unknown}") $(shell_quote "$PROJECT_DIR")"
+    log_cmd="$(shell_quote "$BIN_DIR/log-hook") $(shell_quote "$role") $(shell_quote "$PROJECT_DIR")"
     log_cmd_json="$(json_escape "$log_cmd")"
     local pretooluse_json="\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"rtk hook claude\"}]},{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]}]"
 
@@ -463,45 +423,39 @@ start_claude_in_pane() {
     # 200K에서 세션을 유지한 채 압축하고 번들 스킬의 프롬프트 고정비를 줄인다.
     # 플러그인의 Playwright MCP 기본값은 시스템 Chrome 창을 요구하므로 헤드리스 Chromium을 지정한다.
     local playwright_env=""
-    if [ -n "$role" ] && role_in "${CLAUDE_PLUGIN_ROLES[playwright@claude-plugins-official]:-}" "$role"; then
+    if role_in "${CLAUDE_PLUGIN_ROLES[playwright@claude-plugins-official]:-}" "$role"; then
         playwright_env=",\"PLAYWRIGHT_MCP_HEADLESS\":\"true\",\"PLAYWRIGHT_MCP_BROWSER\":\"chromium\""
     fi
     local env_json="\"env\":{\"CLAUDE_CODE_DISABLE_1M_CONTEXT\":\"1\",\"CLAUDE_CODE_DISABLE_BUNDLED_SKILLS\":\"1\"${playwright_env}},"
 
     # project 설정 소스가 제외한 전역 플러그인 설정을 역할별로 명시 주입한다.
-    local plugins_json=""
-    if [ -n "$role" ]; then
-        local enabled_entries=() marketplace_entries=() seen_marketplaces=" "
-        for plugin in "${!CLAUDE_PLUGIN_ROLES[@]}"; do
-            role_in "${CLAUDE_PLUGIN_ROLES[$plugin]}" "$role" || continue
-            enabled_entries+=("\"${plugin}\":true")
-            # 출처도 전달해야 해당 마켓플레이스의 플러그인을 찾는다.
-            local mp="${plugin##*@}"
-            if [[ "$seen_marketplaces" != *" $mp "* ]]; then
-                marketplace_entries+=("\"${mp}\":{\"source\":{\"source\":\"github\",\"repo\":\"${CLAUDE_PLUGIN_MARKETPLACES[$mp]}\"}}")
-                seen_marketplaces+="$mp "
-            fi
-        done
-        if [ ${#enabled_entries[@]} -gt 0 ]; then
-            # IFS 변경을 서브셸에 가둔다. local IFS는 함수 끝까지 남는다.
-            plugins_json="\"enabledPlugins\":{$(IFS=,; echo "${enabled_entries[*]}")},\"extraKnownMarketplaces\":{$(IFS=,; echo "${marketplace_entries[*]}")},"
+    local plugins_json="" enabled_entries=() marketplace_entries=() seen_marketplaces=" "
+    for plugin in "${!CLAUDE_PLUGIN_ROLES[@]}"; do
+        role_in "${CLAUDE_PLUGIN_ROLES[$plugin]}" "$role" || continue
+        enabled_entries+=("\"${plugin}\":true")
+        # 출처도 전달해야 해당 마켓플레이스의 플러그인을 찾는다.
+        local mp="${plugin##*@}"
+        if [[ "$seen_marketplaces" != *" $mp "* ]]; then
+            marketplace_entries+=("\"${mp}\":{\"source\":{\"source\":\"github\",\"repo\":\"${CLAUDE_PLUGIN_MARKETPLACES[$mp]}\"}}")
+            seen_marketplaces+="$mp "
         fi
+    done
+    if [ ${#enabled_entries[@]} -gt 0 ]; then
+        # IFS 변경을 서브셸에 가둔다. local IFS는 함수 끝까지 남는다.
+        plugins_json="\"enabledPlugins\":{$(IFS=,; echo "${enabled_entries[*]}")},\"extraKnownMarketplaces\":{$(IFS=,; echo "${marketplace_entries[*]}")},"
     fi
 
     # 공통 Stop 명령을 JSON 문자열로 직렬화한다.
     stop_hook_cmd_for_role "$role" "$pane_id" "$state_key"
     local stop_hook_cmd_json; stop_hook_cmd_json="$(json_escape "$STOP_HOOK_CMD")"
 
-    local settings_arg=""
-    if [ -n "$role" ]; then
-        # lead의 자기 보고 루프는 Stop 명령에서 막고, 지침만으로 막히지 않는
-        # 직접 tmux 전송은 권한 설정으로 차단한다.
-        local deny_json=""
-        [ "$role" != "lead" ] || deny_json="\"permissions\":{\"deny\":[\"Bash(tmux send-keys:*)\"]},"
-        local settings_file="$RUNTIME_DIR/${role}.settings.json"
-        printf '%s' "{${plugins_json}${deny_json}${env_json}${bypass_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${stop_hook_cmd_json}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}" > "$settings_file"
-        settings_arg="--settings $(shell_quote "$settings_file")"
-    fi
+    # lead의 자기 보고 루프는 Stop 명령에서 막고, 지침만으로 막히지 않는
+    # 직접 tmux 전송은 권한 설정으로 차단한다.
+    local deny_json=""
+    [ "$role" != "lead" ] || deny_json="\"permissions\":{\"deny\":[\"Bash(tmux send-keys:*)\"]},"
+    local settings_file="$RUNTIME_DIR/${role}.settings.json"
+    printf '%s' "{${plugins_json}${deny_json}${env_json}${bypass_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${stop_hook_cmd_json}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}" > "$settings_file"
+    local settings_arg="--settings $(shell_quote "$settings_file")"
 
     # 부모 Claude 세션 감지를 해제하고 say 실행 경로를 추가한다.
     tmux send-keys -t "$pane" \
@@ -521,7 +475,7 @@ write_codex_role_agents() {
     local role_file="$PROJECT_DIR/team/${role}.md"
     [ -f "$role_file" ] || role_file="$TEAM_DIR/${role}.md"
 
-    if [ -z "$role" ] || [ ! -f "$role_file" ]; then
+    if [ ! -f "$role_file" ]; then
         echo -e "${RED}⚠️  team/${role}.md 없음 → Codex 역할 지침을 만들지 않습니다 (MEMBER_NAMES 오타 확인)${NC}" >&2
         return 1
     fi
@@ -544,7 +498,7 @@ write_codex_role_agents() {
     local hook_cmd_json; hook_cmd_json="$(json_escape "$STOP_HOOK_CMD")"
     local session_start_cmd_json; session_start_cmd_json="$(json_escape "rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}")")"
     local log_cmd_json
-    log_cmd_json="$(json_escape "$(shell_quote "$BIN_DIR/log-hook") $(shell_quote "${role:-unknown}") $(shell_quote "$PROJECT_DIR") --quiet")"
+    log_cmd_json="$(json_escape "$(shell_quote "$BIN_DIR/log-hook") $(shell_quote "$role") $(shell_quote "$PROJECT_DIR") --quiet")"
     local log_hook_json="[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]}]"
     # 보고 마커는 턴마다 비운다. Codex busy 마커는 say가 관리한다.
     local report_clear_json; report_clear_json="$(json_escape "rm -f $(shell_quote "$REPORT_STATE_DIR/${state_key}")")"
@@ -571,7 +525,7 @@ start_codex_in_pane() {
     local state_key; state_key="$(pane_state_key "$pane")"
 
     local work_dir="$PROJECT_DIR"
-    if [ -n "$role" ] && [ -d "$TEAM_SKILLS_ROOT/$role" ]; then
+    if [ -d "$TEAM_SKILLS_ROOT/$role" ]; then
         work_dir="$TEAM_SKILLS_ROOT/$role"
     fi
     local role_codex_home="$work_dir/.codex-home"
@@ -1129,24 +1083,21 @@ for ((i = 0; i < PANE_COUNT - 1; i++)); do
 done
 
 # 균등 배치 후 main-vertical로 전환해야 좁은 파인이 생기지 않는다.
-tmux select-layout -t "$SESSION:0" even-horizontal
 # main-pane-width는 레이아웃 계산 전에 설정한다.
 tmux set-option -t "$SESSION" main-pane-width '55%'
 tmux select-layout -t "$SESSION:0" main-vertical
 
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
     tmux select-pane -t "$SESSION:0.$pane" -T "${MEMBER_NAMES[$pane]}"
+    # pane_title은 에이전트 CLI의 OSC 제목 변경 대상이므로 테두리·창 제목은 @role 옵션으로 표시한다.
     tmux set-option -p -t "$SESSION:0.$pane" @role "${MEMBER_NAMES[$pane]}"
-    # pane_title은 에이전트 CLI의 OSC 제목 변경 대상이다. 테두리에 보일
-    # 이름은 별도 pane 옵션으로 보관해야 CLI 제목과 경합하지 않는다.
-    tmux set-option -p -t "$SESSION:0.$pane" @display_name "${MEMBER_NAMES[$pane]}"
     tmux set-option -p -t "$SESSION:0.$pane" @model_info "${SPEC_MEMBER_MODELS[$pane]} ${SPEC_MEMBER_REASONING_EFFORTS[$pane]:-effort 비어 있음}"
 done
 
 tmux set-option -t "$SESSION" pane-border-status top
-tmux set-option -t "$SESSION" pane-border-format " #{@display_name} · #{@model_info} "
+tmux set-option -t "$SESSION" pane-border-format " #{@role} · #{@model_info} "
 tmux set-option -t "$SESSION" set-titles on
-tmux set-option -t "$SESSION" set-titles-string "#{@display_name}"
+tmux set-option -t "$SESSION" set-titles-string "#{@role}"
 tmux set-option -t "$SESSION" allow-rename off
 tmux set-option -t "$SESSION" mouse on
 

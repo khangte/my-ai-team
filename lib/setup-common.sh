@@ -45,11 +45,10 @@ team_members_file() {
 
 load_team_members() {
     # members.conf를 읽어 SESSION과 멤버 배열을 채운다. 형식 오류면 경고 후 2를 반환한다.
-    local file="$1" line role display model effort agent n=0
+    local file="$1" line role model effort agent n=0
     [ -f "$file" ] || { echo "❌ 팀 구성 파일이 없습니다: $file" >&2; return 2; }
     SESSION=""
     MEMBER_NAMES=()
-    MEMBER_DISPLAY_NAMES=()
     MEMBER_AGENTS=()
     SPEC_MEMBER_MODELS=()
     SPEC_MEMBER_REASONING_EFFORTS=()
@@ -63,9 +62,9 @@ load_team_members() {
             ''|'#'*) continue ;;
             SESSION=*) SESSION="${line#SESSION=}"; continue ;;
         esac
-        IFS='|' read -r role display model effort <<< "$line"
-        if [ "${line//[^|]/}" != "|||" ] || [ -z "$role" ] || [ -z "$display" ]; then
-            echo "❌ MEMBERS 형식 오류: '$line' (필수 형식 role|표시이름|model|effort, $file:$n 확인)" >&2
+        IFS='|' read -r role model effort <<< "$line"
+        if [ "${line//[^|]/}" != "||" ] || [ -z "$role" ]; then
+            echo "❌ MEMBERS 형식 오류: '$line' (필수 형식 role|model|effort, $file:$n 확인)" >&2
             return 2
         fi
         # shortcut: 접두사 두 개만 인식, 새 모델 계열이 나오면 여기에 추가한다.
@@ -79,7 +78,6 @@ load_team_members() {
             *) echo "❌ MEMBERS effort 오류: '$effort' (low/medium/high/xhigh/max 중 하나 또는 빈 값: $file:$n)" >&2; return 2 ;;
         esac
         MEMBER_NAMES+=("$role")
-        MEMBER_DISPLAY_NAMES+=("$display")
         MEMBER_AGENTS+=("$agent")
         SPEC_MEMBER_MODELS+=("$model")
         SPEC_MEMBER_REASONING_EFFORTS+=("$effort")

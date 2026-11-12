@@ -83,21 +83,21 @@ uiux가 없는 경우 frontend는 기존 디자인 기준 안에서 사소한 �
 ```text
 # /path/to/project/team/members.conf
 SESSION=team1
-lead|팀장|claude-sonnet-5-5|medium
-architect|설계|claude-sonnet-5-5|high
-uiux|UI/UX|gpt-6.1-terra|medium
-frontend|프론트엔드|gpt-6.1-terra|medium
-backend|백엔드|claude-sonnet-5-5|medium
-reviewer|리뷰어|gpt-6.1-sol|medium
+lead|claude-sonnet-5-5|medium
+architect|claude-sonnet-5-5|high
+uiux|gpt-6.1-terra|medium
+frontend|gpt-6.1-terra|medium
+backend|claude-sonnet-5-5|medium
+reviewer|gpt-6.1-sol|medium
 ```
 
-멤버 줄 형식은 `role|표시이름|model|effort`이며, 줄 순서대로 패널이 배치됩니다. 빈 줄과 `#` 주석은 무시합니다.
+멤버 줄 형식은 `role|model|effort`이며, 줄 순서대로 패널이 배치됩니다. 빈 줄과 `#` 주석은 무시합니다.
 옛 `team/config.sh`만 있는 프로젝트는 실행을 멈추고 `members.conf`로 옮기라고 안내합니다.
-`effort`를 뺀 세 필드와 `SESSION`은 필수이고, 비어 있거나 형식이 틀리면 경고를 출력하고 실행을 멈춥니다.
+`role`·`model`과 `SESSION`은 필수이고, 비어 있거나 형식이 틀리면 경고를 출력하고 실행을 멈춥니다.
 역할을 추가하거나 제거해 인원을 조절합니다.
 
 - `model`: 전체 모델 ID를 씁니다. 접두사로 공급자를 정합니다(`claude-*`는 Claude, `gpt-*`는 Codex).
-- `effort`: `low`·`medium`·`high`·`xhigh`·`max` 중 모델이 지원하는 값을 지정합니다. 비우면(`lead|팀장|claude-sonnet-5-5|`) CLI 기본값을 쓰고, 파인 테두리에는 `effort 비어 있음`으로 표시합니다.
+- `effort`: `low`·`medium`·`high`·`xhigh`·`max` 중 모델이 지원하는 값을 지정합니다. 비우면(`lead|claude-sonnet-5-5|`) CLI 기본값을 쓰고, 파인 테두리에는 `effort 비어 있음`으로 표시합니다.
 
 팀 전체를 Codex로 실행하려면 각 역할의 `model`을 `gpt-*`로 지정하세요.
 설치 스크립트도 같은 팀 구성을 읽어 필요한 공급자의 CLI를 설치합니다.
