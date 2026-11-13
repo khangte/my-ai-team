@@ -1083,8 +1083,6 @@ for ((i = 0; i < PANE_COUNT - 1; i++)); do
 done
 
 # 균등 배치 후 main-vertical로 전환해야 좁은 파인이 생기지 않는다.
-# main-pane-width는 레이아웃 계산 전에 설정한다.
-tmux set-option -t "$SESSION" main-pane-width '55%'
 tmux select-layout -t "$SESSION:0" main-vertical
 
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
