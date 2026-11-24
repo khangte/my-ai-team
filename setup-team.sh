@@ -1114,6 +1114,29 @@ echo -e "${GREEN}  ✅ Codex 역할별 런타임 디렉터리 준비 완료${NC}
 
 fi
 
+# ── 공통 (Claude·Codex) — Chromium 시스템 라이브러리 ──────
+ensure_chromium_deps() {
+    # Playwright MCP·gstack이 받은 Chromium이 시스템 라이브러리(libnss3 등) 부족으로 뜨지 않으면
+    # 파인 기동 전에 공식 install-deps로 설치한다. 내부에서 sudo를 쓰므로 터미널에서 비밀번호를 물을 수 있다.
+    local bin missing=""
+    command -v apt-get >/dev/null && command -v ldd >/dev/null || return 0
+    # ponytail: 기본 캐시 배치만 본다. PLAYWRIGHT_BROWSERS_PATH=0·GSTACK_CHROMIUM_PATH 같은 비기본 위치는 수동 설치 안내로 대신한다.
+    for bin in "${PLAYWRIGHT_BROWSERS_PATH:-${XDG_CACHE_HOME:-$HOME/.cache}/ms-playwright}"/chromium*/chrome*/chrome*; do
+        [ -f "$bin" ] && [ -x "$bin" ] || continue
+        missing="$(ldd "$bin" 2>/dev/null | awk '/not found/ { print $1 }' | sort -u | tr '\n' ' ')"
+        [ -z "$missing" ] || break
+    done
+    [ -n "$missing" ] || return 0
+    step "공통 — Chromium 시스템 라이브러리 설치 (누락: ${missing% })..."
+    if [ -t 0 ] && npx -y playwright install-deps chromium; then
+        echo -e "  ${GREEN}✅ Chromium 시스템 라이브러리 설치 완료${NC}"
+    else
+        echo -e "${YELLOW}  ⚠️  설치하지 못했습니다. 브라우저 스킬(Playwright MCP, gstack qa-only·design-review·diagram)이 동작하지 않습니다.${NC}" >&2
+        echo -e "${YELLOW}     수동 설치: npx -y playwright install-deps chromium${NC}" >&2
+    fi
+}
+ensure_chromium_deps
+
 # ── 공통 (Claude·Codex) — TMUX 세션 & 레이아웃 구성 ───────
 step "공통 (Claude·Codex) — TMUX 세션 & 레이아웃 구성..."
 
