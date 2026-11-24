@@ -15,6 +15,9 @@ case "$1" in
         case "$format" in
             '#{session_name}:#{window_index}.#{pane_index}') printf '%s\n' 'demo:0.1' ;;
             '#{session_id}:#{pane_id}') printf '%s\n' "${FAKE_TMUX_STATE:-\$7:%11}" ;;
+            '#{pane_dead}') printf '%s\n' "${FAKE_PANE_DEAD:-0}" ;;
+            '#{@project}') printf '%s\n' "${FAKE_PROJECT:-}" ;;
+            '#{@role}') printf '%s\n' "${FAKE_ROLE:-}" ;;
         esac
         ;;
     capture-pane)
@@ -199,12 +202,17 @@ done
 printf '%s\n' 'permanent queued failure' 'permanent queued failure' > "$test_dir/queue/demo_0_1"
 for expected_count in 3 6; do
     FAKE_CAPTURE_SCREEN='› permanent queued failure' FAKE_TMUX_STATE='$7:%19' \
+        FAKE_PROJECT="$test_dir" FAKE_ROLE=architect \
         timeout 15s "$repo_dir/bin/say" --drain-one demo:0.1
     test "$(grep -c -- '-l -- permanent queued failure' "$test_dir/tmux.log")" -eq "$expected_count"
     test "$(grep -c 'permanent queued failure' "$test_dir/queue/dropped.log")" -eq "$((expected_count / 3))"
 done
 test ! -s "$test_dir/queue/demo_0_1"
 test ! -e "$test_dir/queue/demo_0_1.lock"
+journal="$test_dir/queue/failures.jsonl"
+summary="$(python3 "$repo_dir/lib/team-failures.py" summary "$journal" "$test_dir" demo)"
+[[ "$summary" == $'architect\t2\t'* ]]
+[[ -z "$(python3 "$repo_dir/lib/team-failures.py" summary "$journal" "$test_dir/other" demo)" ]]
 
 # 백그라운드 watcher도 상한에서 종료하고 stderr와 무관하게 폐기 로그를 보존한다.
 printf '%s\n' 'background queued failure' > "$test_dir/queue/demo_0_1"
@@ -258,3 +266,32 @@ rm -rf "$xdg/.cache"
 grep -q 'recreated state dir message' "$test_dir/tmux.log" && test -d "$xdg/.cache/team-busy" || { echo '상태 디렉터리 재생성 실패'; exit 1; }
 
 echo 'say tests passed'
+
+# 오래된 busy 마커라도 현재 스피너가 동작 중이면 Stop의 drain은 큐를 보존한다.
+printf '%s\n' 'long-running turn message' > "$SAY_QUEUE_DIR/demo_0_1"
+touch -d '31 minutes ago' "$SAY_BUSY_DIR/_7__33"
+FAKE_CAPTURE_SCREEN='(1860s · working)' FAKE_TMUX_STATE='$7:%33' \
+    timeout 5s "$repo_dir/bin/say" --drain-one demo:0.1
+test -s "$SAY_QUEUE_DIR/demo_0_1"
+! grep -q 'long-running turn message' "$FAKE_TMUX_LOG"
+
+# 시작 훅으로 확인한 턴은 화면에 스피너가 없어도 시간이 지났다는 이유로 유휴가 되지 않는다.
+printf '%s\n' 'hook-owned turn message' > "$SAY_QUEUE_DIR/demo_0_1"
+printf '%s\n' hook > "$SAY_BUSY_DIR/_7__34"
+touch -d '2 minutes ago' "$SAY_BUSY_DIR/_7__34"
+FAKE_CAPTURE_SCREEN='working without a spinner' FAKE_TMUX_STATE='$7:%34' \
+    timeout 5s "$repo_dir/bin/say" --drain-one demo:0.1
+test -s "$SAY_QUEUE_DIR/demo_0_1"
+if grep -q 'hook-owned turn message' "$FAKE_TMUX_LOG"; then exit 1; fi
+
+# 종료 훅이 누락된 인터럽트는 기존 화면 신호로 복구한다.
+FAKE_CAPTURE_SCREEN='Interrupted by user' FAKE_TMUX_STATE='$7:%34' \
+    timeout 5s "$repo_dir/bin/say" --drain-one demo:0.1
+test ! -s "$SAY_QUEUE_DIR/demo_0_1"
+grep -q 'hook-owned turn message' "$FAKE_TMUX_LOG"
+
+# 강제 종료된 파인에는 전송하지 않으며 재기동에서 처리할 수 있도록 큐를 남긴다.
+printf '%s\n' 'preserve after pane exit' > "$SAY_QUEUE_DIR/demo_0_1"
+FAKE_PANE_DEAD=1 FAKE_TMUX_STATE='$7:%34' timeout 5s "$repo_dir/bin/say" --drain-one demo:0.1
+test "$(cat "$SAY_QUEUE_DIR/demo_0_1")" = 'preserve after pane exit'
+if grep -q 'preserve after pane exit' "$FAKE_TMUX_LOG"; then exit 1; fi

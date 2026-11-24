@@ -86,21 +86,19 @@ is_busy() {
     local marker="$BUSY_DIR/${state_key}" age screen
     if [ -f "$marker" ]; then
         age=$(( $(date +%s) - $(stat -c %Y "$marker" 2>/dev/null || stat -f %m "$marker" 2>/dev/null || echo 0) ))
-        # 스피너가 멈춘 크래시까지 회수하는 최후 상한이다.
-        if [ "$age" -ge "$HARD_CAP" ]; then
-            rm -f "$marker"
-            return 1
-        fi
         # 경과시간 스피너는 Claude·Codex 공통의 실제 작업 신호다.
         screen="$(tmux capture-pane -t "$pane" -p 2>/dev/null | grep -v '^[[:space:]]*$' | tail -15)"
         printf '%s\n' "$screen" | grep -qE '\([0-9]+s( |·|$)' && return 0
-        # 흔한 인터럽트는 즉시 회수하고, 문구가 없거나 달라도 아래 유예 후 회수한다.
-        if pane_interrupted "$screen" || [ "$age" -ge "$STARTUP_GRACE" ]; then
+        if pane_interrupted "$screen"; then
             rm -f "$marker"
             return 1
         fi
-        # 마커를 찍은 직후에는 스피너가 아직 렌더되지 않을 수 있다.
-        return 0
+        # 시작 훅으로 확인한 턴은 스피너가 사라져도 계속 작업 중으로 본다.
+        if grep -qx hook "$marker" || [ "$age" -lt "$STARTUP_GRACE" ]; then
+            return 0
+        fi
+        rm -f "$marker"
+        return 1
     fi
     if [ -d "$BUSY_DIR" ]; then
         return 1
@@ -127,10 +125,10 @@ STATE_ROOT="$HOME/.cache"
 BUSY_DIR="${SAY_BUSY_DIR:-$STATE_ROOT/team-busy}"
 REPORT_DIR="${SAY_REPORT_DIR:-$STATE_ROOT/team-say}"
 STARTUP_GRACE=45
-HARD_CAP=1800
+QUEUE_DELAY_SECONDS=1800
 
 deliver() {
-    # 입력 제출을 검증하고 busy를 직접 표시한다. Codex에는 턴 시작 훅이 없다.
+    # 입력 제출을 검증하고 busy를 직접 표시한다. 턴 시작 훅이 돌기 전 다른 발신자의 끼어들기를 막는다.
     mkdir -p -m 700 "$BUSY_DIR" && touch "$BUSY_DIR/${state_key}"
     # -l: 메시지를 리터럴로 보내 "Enter" 같은 단어가 키 이름으로 해석되지 않게 한다.
     if ! tmux send-keys -t "$pane" -l -- "$msg"; then
@@ -222,8 +220,16 @@ queue_unlock() {
     rmdir "$queue_file.oplock" 2>/dev/null || true
 }
 
+pane_available() {
+    # 확인된 파인이 종료 또는 교체됐으면 논리 주소에 남은 큐를 보존한다.
+    if [[ "$resolved_state" =~ ^\$[0-9]+:%[0-9]+$ ]]; then
+        [ "$(tmux display-message -p -t "$pane" '#{session_id}:#{pane_id}' 2>/dev/null)" = "$resolved_state" ] &&
+            [ "$(tmux display-message -p -t "$pane" '#{pane_dead}' 2>/dev/null)" != 1 ]
+    fi
+}
+
 target_busy=false
-if [ -z "${SAY_NOWAIT:-}" ] && is_busy; then
+if ! pane_available || { [ -z "${SAY_NOWAIT:-}" ] && is_busy; }; then
     target_busy=true
 fi
 
@@ -264,6 +270,20 @@ elif [ ! -s "$queue_file" ]; then
 fi
 
 # watcher는 파인당 하나만 유지한다. --drain-one은 Stop 훅에서 한 건만 처리한다.
+record_failure() {
+    local project role
+    project="$(tmux display-message -p -t "$pane" '#{@project}' 2>/dev/null)" || return 0
+    role="$(tmux display-message -p -t "$pane" '#{@role}' 2>/dev/null)" || return 0
+    [ -n "$project" ] && [ -n "$role" ] && [ -n "$resolved_pane" ] || return 0
+    python3 "$(dirname "${BASH_SOURCE[0]}")/../lib/team-failures.py" record \
+        "$QUEUE_DIR/failures.jsonl" "$project" "${resolved_pane%%:*}" "$role" "$msg" || true
+}
+
+release_watcher() {
+    rm -f "$lock_file/owner" "$queue_file.delayed"
+    rmdir "$lock_file" 2>/dev/null || true
+}
+
 process_queue() {
     # 항목별 전송 횟수를 제한하고 실패 상한에 도달한 항목은 기록 후 제거한다.
     if mkdir "$lock_file" 2>/dev/null; then
@@ -271,30 +291,39 @@ process_queue() {
         watcher_pid="$BASHPID"
         watcher_started="$(process_start_time "$watcher_pid")"
         printf '%s %s\n' "$watcher_pid" "$watcher_started" > "$lock_file/owner"
-        trap 'rm -f "$lock_file/owner"; rmdir "$lock_file" 2>/dev/null' EXIT
+        trap release_watcher EXIT
         # 빈 큐 확인·삭제도 같은 락에서 처리해 동시 append가 유실되지 않도록 한다.
         while true; do
             # 큐가 비면 대상 턴 종료를 기다리지 않고 watcher를 정리한다.
             queue_lock
             if [ ! -s "$queue_file" ]; then
                 rm -f "$queue_file"
+                release_watcher
+                trap - EXIT
                 queue_unlock
-                break
+                return 0
             fi
             queue_unlock
 
-            # 상태 판정 오류가 무한 대기로 이어지지 않도록 상한을 둔다.
-            waited=0
-            while is_busy && [ "$waited" -lt 600 ]; do
+            local wait_started=$SECONDS
+            while pane_available && is_busy; do
+                [ "$drain_once" = false ] || return 0
+                if [ "$((SECONDS - wait_started))" -ge "$QUEUE_DELAY_SECONDS" ]; then
+                    : > "$queue_file.delayed"
+                fi
                 sleep 3
-                waited=$((waited + 1))
             done
+            rm -f "$queue_file.delayed"
+
+            pane_available || return 0
 
             queue_lock
             if [ ! -s "$queue_file" ]; then
                 rm -f "$queue_file"
+                release_watcher
+                trap - EXIT
                 queue_unlock
-                break
+                return 0
             fi
             # 전송 성공 후에만 첫 항목을 지운다. 동시 append는 큐 끝에만 추가된다.
             msg="$(head -n 1 "$queue_file")"
@@ -311,6 +340,7 @@ process_queue() {
                     # watcher의 stderr는 폐기되므로 별도 파일에도 기록한다.
                     printf '%s say: dropped pane=%s attempts=%s message=%s\n' \
                         "$(date -Is)" "$pane" "$delivery_attempts" "$msg" >> "$QUEUE_DIR/dropped.log"
+                    record_failure
                     echo "say: WARNING - '$pane' 전송 ${delivery_attempts}회 실패, 큐 항목 제거: $msg" >&2
                 fi
             fi

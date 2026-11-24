@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+usage() {
+    echo '사용법: team doctor [프로젝트_경로] | team status [--watch] [프로젝트_경로]'
+    echo '        team failures [프로젝트_경로] | team retry <실패_ID> [프로젝트_경로]'
+}
+
+case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+    doctor|status|failures|retry) action="$1"; shift ;;
+    *) usage >&2; exit 2 ;;
+esac
+
+if [ "$action" = retry ]; then
+    failure_id="${1:-}"
+    [[ "$failure_id" =~ ^[0-9a-f]{16}$ ]] || { usage >&2; exit 2; }
+    shift
+fi
+
+watch=false
+if [ "$action" = status ] && [ "${1:-}" = --watch ]; then
+    watch=true
+    shift
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$SCRIPT_DIR/lib/setup-common.sh"
+SETUP_NAME="bin/team $action"
+setup_parse_args "$@"
+if [ -z "${PROJECT_ARG:-${PROJECT_DIR:-}}" ] && [ -n "${TMUX_PANE:-}" ]; then
+    PROJECT_ARG="$(tmux display-message -p -t "$TMUX_PANE" '#{@project}' 2>/dev/null || true)"
+fi
+setup_load_team
+if [ -z "$SESSION" ]; then
+    echo 'SESSION이 비어 있습니다. team/members.conf를 확인하세요.' >&2
+    exit 2
+fi
+duplicates="$(printf '%s\n' "${MEMBER_NAMES[@]}" | sort | uniq -d)"
+if [ -n "$duplicates" ]; then
+    printf '중복된 역할을 확인하세요.\n%s\n' "$duplicates" >&2
+    exit 2
+fi
+
+find_session() {
+    local id name
+    target=""
+    while IFS='|' read -r id name; do
+        if [ "$name" = "$SESSION" ]; then
+            target="$id"
+            return 0
+        fi
+    done < <(tmux list-sessions -F '#{session_id}|#{session_name}' 2>/dev/null)
+    return 1
+}
+failures=0
+check_tool() {
+    if command -v "$1" >/dev/null; then
+        printf '정상  %s\n' "$1"
+    else
+        printf '실패  %s 설치 또는 PATH 확인\n' "$1"
+        failures=1
+        return 1
+    fi
+}
+
+check_auth() {
+    local provider="$1" hint="$2"
+    shift 2
+    if "$provider" "$@" >/dev/null 2>&1; then
+        printf '정상  %s 인증\n' "$provider"
+    else
+        printf '실패  %s 인증 확인. %s\n' "$provider" "$hint"
+        failures=1
+    fi
+}
+
+state_directory() {
+    local entry
+    entry="$(tmux show-environment -t "$target" "$1" 2>/dev/null || true)"
+    case "$entry" in
+        "$1="*) printf '%s\n' "${entry#*=}" ;;
+        *) printf '%s\n' "$2" ;;
+    esac
+}
+
+load_session() {
+    local project
+    if ! find_session; then
+        echo "세션 '$SESSION'이 실행 중이 아닙니다."
+        return 1
+    fi
+    project="$(tmux show-options -qv -t "$target" @project)" || return 1
+    if [ "$project" != "$PROJECT_DIR" ]; then
+        printf '세션 %s의 프로젝트 경로가 다릅니다. 현재 세션 경로 %s\n' "$SESSION" "${project:-미등록}" >&2
+        return 1
+    fi
+    queue_dir="$(state_directory SAY_QUEUE_DIR "${SAY_QUEUE_DIR:-$HOME/.cache/team-say-queue}")"
+}
+failure_journal() {
+    python3 "$SCRIPT_DIR/lib/team-failures.py" "$1" "$queue_dir/failures.jsonl" "$PROJECT_DIR" "$SESSION" "${@:2}"
+}
+
+show_status() {
+    local panes pane role model dead startup key busy_key state queue count i hook delay
+    local queue_dir busy_dir runtime_dir summary failed_role failed_count failed_at
+    load_session || return 1
+    summary="$(failure_journal summary)" || return 1
+    busy_dir="$(state_directory SAY_BUSY_DIR "${SAY_BUSY_DIR:-$HOME/.cache/team-busy}")"
+    runtime_dir="$(tmux show-options -qv -t "$target" @team_runtime_dir)" || return 1
+    panes="$(tmux list-panes -s -t "$target" -F '#{pane_id}|#{@role}|#{@model_info}|#{pane_dead}|#{@team_start_state}|#{session_name}:#{window_index}.#{pane_index}|#{session_id}:#{pane_id}')" || return 1
+    printf '세션 %s · %s\n' "$SESSION" "$PROJECT_DIR"
+    local result=0
+    for i in "${!MEMBER_NAMES[@]}"; do
+        local found=false
+        while IFS='|' read -r pane role model dead startup key busy_key; do
+            [ "$role" = "${MEMBER_NAMES[$i]}" ] || continue
+            found=true
+            if [ "$dead" = 1 ]; then
+                state='종료'
+                result=1
+            else
+                case "$startup" in
+                    ready)
+                        state='준비 완료'
+                        [ ! -f "$busy_dir/${busy_key//[^0-9A-Za-z]/_}" ] || state='작업 표시 있음'
+                        ;;
+                    failed) state='기동 실패'; result=1 ;;
+                    starting) state='기동 중' ;;
+                    *) state='준비 여부 미확인' ;;
+                esac
+            fi
+            queue="$queue_dir/${key//[^0-9A-Za-z]/_}"
+            hook='시작 훅 미확인'
+            [ ! -f "$busy_dir/${busy_key//[^0-9A-Za-z]/_}.submit-observed" ] || hook='시작 훅 관측됨'
+            count=0
+            # 큐 파일은 전달 중 삭제될 수 있다.
+            if [ -f "$queue" ]; then
+                count="$(wc -l 2>/dev/null < "$queue")" || count=0
+            fi
+            delay=""
+            if [ "$count" -gt 0 ] && [ -f "$queue.delayed" ]; then
+                delay=' (전송 지연)'
+            fi
+            printf '%s · %s · %s · 대기 %d건%s · %s\n' "$role" "$model" "$state" "$count" "$delay" "$hook"
+            while IFS=$'\t' read -r failed_role failed_count failed_at; do
+                [ "$failed_role" = "$role" ] || continue
+                printf '  전송 실패 %d건 · 최근 %s\n' "$failed_count" "$failed_at"
+                break
+            done <<< "$summary"
+            if [ "$startup" = failed ] && [ -n "$runtime_dir" ]; then
+                printf '  기동 로그 %s/pane-start-%s.log\n' "$runtime_dir" "$i"
+            fi
+            break
+        done <<< "$panes"
+        if [ "$found" = false ]; then
+            printf '%s · %s · 파인 없음\n' "${MEMBER_NAMES[$i]}" "${SPEC_MEMBER_MODELS[$i]}"
+            result=1
+        fi
+    done
+    return "$result"
+}
+
+if [ "$action" = doctor ]; then
+    printf '정상  팀 설정 · %s\n' "$SESSION"
+    check_tool python3 || true
+    check_tool rg || true
+    check_tool timeout || true
+    check_tool realpath || true
+    if [ "$NEED_CLAUDE" = true ]; then
+        if check_tool claude; then check_auth claude 'Claude에서 /login 실행' auth status; fi
+        check_tool rtk || true
+    fi
+    if [ "$NEED_CODEX" = true ] && check_tool codex; then
+        check_auth codex 'codex login 실행' login status
+    fi
+    if check_tool tmux; then
+        if find_session; then
+            show_status || failures=1
+        else
+            printf '안내  세션 %s 시작 전 · %s/setup-team.sh\n' "$SESSION" "$SCRIPT_DIR"
+        fi
+    fi
+    exit "$failures"
+fi
+
+command -v tmux >/dev/null || { echo 'tmux를 설치하거나 PATH를 확인하세요.' >&2; exit 1; }
+if [ "$action" = failures ] || [ "$action" = retry ]; then
+    load_session
+    if [ "$action" = failures ]; then
+        failure_journal list
+        exit
+    fi
+    entry="$(failure_journal get "$failure_id")"
+    role="${entry%%$'\n'*}"
+    message="${entry#*$'\n'}"
+    panes="$(tmux list-panes -t "$target:0" -F '#{pane_index}|#{@role}|#{pane_dead}')"
+    pane_index=""
+    while IFS='|' read -r index pane_role dead; do
+        if [ "$pane_role" = "$role" ] && [ "$dead" = 0 ]; then
+            pane_index="$index"
+            break
+        fi
+    done <<< "$panes"
+    if [ -z "$pane_index" ]; then
+        echo "재시도 대상 역할의 파인을 사용할 수 없습니다. $role" >&2
+        exit 1
+    fi
+    export SAY_QUEUE_DIR="$queue_dir"
+    export SAY_BUSY_DIR="$(state_directory SAY_BUSY_DIR "${SAY_BUSY_DIR:-$HOME/.cache/team-busy}")"
+    export SAY_REPORT_DIR="$(state_directory SAY_REPORT_DIR "${SAY_REPORT_DIR:-$HOME/.cache/team-say}")"
+    exec "$SCRIPT_DIR/bin/say" "$SESSION:0.$pane_index" "$message"
+fi
+
+if [ "$watch" = false ]; then
+    show_status
+else
+    while true; do
+        [ ! -t 1 ] || printf '\033[H\033[J'
+        show_status || true
+        sleep 2
+    done
+fi

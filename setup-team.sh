@@ -217,7 +217,7 @@ stop_hook_cmd_for_role() {
     if [ "$role" = "lead" ]; then
         STOP_HOOK_CMD="rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}"); ${drain_cmd}"
     else
-        # 보고 마커는 턴마다 소비한다. Codex에는 별도 턴 시작 초기화 훅이 없다.
+        # 보고 마커는 턴마다 소비한다.
         # 에이전트(훅의 $PPID)에 백그라운드 셸 자식이 남아 있으면 작업 중이므로 신호를 생략한다. 완료 후 다음 턴 종료 때 다시 판정된다.
         local marker="$REPORT_STATE_DIR/${state_key}"
         STOP_HOOK_CMD="rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}"); if [ -f $(shell_quote "$marker") ]; then rm -f $(shell_quote "$marker"); elif pgrep -P \$PPID -x 'bash|sh|zsh' | grep -vqx \$\$; then :; else $(shell_quote "$BIN_DIR/say") $(shell_quote "${SESSION}:lead") $(shell_quote "[${role}] (자동) 파인 :${pane_id} 응답 종료 — 미보고 시 확인 필요"); fi; ${drain_cmd}"
@@ -400,7 +400,7 @@ start_claude_in_pane() {
     local log_cmd busy_start busy_clear
     log_cmd="$(shell_quote "$BIN_DIR/log-hook") $(shell_quote "$role") $(shell_quote "$PROJECT_DIR")"
     # 턴 시작에 busy 마커를 만들고 이전 보고 마커를 비운다.
-    busy_start="mkdir -p $(shell_quote "$BUSY_STATE_DIR") && touch $(shell_quote "$BUSY_STATE_DIR/${state_key}") && rm -f $(shell_quote "$REPORT_STATE_DIR/${state_key}")"
+    busy_start="mkdir -p $(shell_quote "$BUSY_STATE_DIR") && printf '%s\n' hook > $(shell_quote "$BUSY_STATE_DIR/${state_key}") && touch $(shell_quote "$BUSY_STATE_DIR/${state_key}.submit-observed") && rm -f $(shell_quote "$REPORT_STATE_DIR/${state_key}")"
     # /clear·/compact는 Stop 훅 없이 끝날 수 있으므로 SessionStart에서도 마커를 지운다.
     busy_clear="rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}")"
     stop_hook_cmd_for_role "$role" "$pane_id" "$state_key"
@@ -508,10 +508,10 @@ write_codex_role_agents() {
     stop_hook_cmd_for_role "$role" "$pane_id" "$state_key"
     local log_cmd hooks_json
     log_cmd="$(shell_quote "$BIN_DIR/log-hook") $(shell_quote "$role") $(shell_quote "$PROJECT_DIR") --quiet"
-    # 보고 마커는 턴마다 비운다. Codex busy 마커는 say가 관리한다. 직렬화는 python3 json에 맡긴다.
+    # 턴 시작에 busy 마커를 만들고 보고 마커를 비운다(Claude와 동일). 직접 입력한 턴도 busy로 잡힌다. 직렬화는 python3 json에 맡긴다.
     hooks_json="$(HOOKS_LOG_CMD="$log_cmd" HOOKS_STOP_CMD="$STOP_HOOK_CMD" \
         HOOKS_BUSY_CLEAR="rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}")" \
-        HOOKS_REPORT_CLEAR="rm -f $(shell_quote "$REPORT_STATE_DIR/${state_key}")" \
+        HOOKS_BUSY_START="mkdir -p $(shell_quote "$BUSY_STATE_DIR") && printf '%s\n' hook > $(shell_quote "$BUSY_STATE_DIR/${state_key}") && touch $(shell_quote "$BUSY_STATE_DIR/${state_key}.submit-observed") && rm -f $(shell_quote "$REPORT_STATE_DIR/${state_key}")" \
         python3 -I - <<'PY'
 import json
 import os
@@ -527,7 +527,7 @@ env = os.environ
 log = hook(env["HOOKS_LOG_CMD"])
 hooks = {
     "SessionStart": [hook(env["HOOKS_BUSY_CLEAR"], "startup|resume|clear|compact")],
-    "UserPromptSubmit": [log, hook(env["HOOKS_REPORT_CLEAR"])],
+    "UserPromptSubmit": [log, hook(env["HOOKS_BUSY_START"])],
     "PreToolUse": [log],
     "Stop": [hook(env["HOOKS_STOP_CMD"])],
     }
@@ -1050,6 +1050,7 @@ create_team_session() {
     fi
 }
 create_team_session
+tmux set-option -t "$SESSION" @team_runtime_dir "$RUNTIME_DIR"
 
 for ((i = 0; i < PANE_COUNT - 1; i++)); do
     tmux split-window -t "$SESSION:0.$i" -h
@@ -1064,6 +1065,7 @@ for ((pane = 0; pane < PANE_COUNT; pane++)); do
     tmux select-pane -t "$SESSION:0.$pane" -T "${MEMBER_NAMES[$pane]}"
     # pane_title은 에이전트 CLI의 OSC 제목 변경 대상이므로 테두리·창 제목은 @role 옵션으로 표시한다.
     tmux set-option -p -t "$SESSION:0.$pane" @role "${MEMBER_NAMES[$pane]}"
+    tmux set-option -p -t "$SESSION:0.$pane" @team_start_state starting
     tmux set-option -p -t "$SESSION:0.$pane" @model_info "${SPEC_MEMBER_MODELS[$pane]} ${SPEC_MEMBER_REASONING_EFFORTS[$pane]:-effort 비어 있음}"
 done
 
@@ -1112,8 +1114,10 @@ for ((pane = 0; pane < PANE_COUNT; pane++)); do
     wait "${start_pids[$pane]}" && start_rcs[$pane]=0 || start_rcs[$pane]=$?
     echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}, ${MEMBER_AGENTS[$pane]} · ${SPEC_MEMBER_MODELS[$pane]} · ${SPEC_MEMBER_REASONING_EFFORTS[$pane]:-effort 비어 있음}): "
     if [ "${start_rcs[$pane]}" -eq 0 ]; then
+        tmux set-option -p -t "$SESSION:0.$pane" @team_start_state ready || true
         echo -e "${GREEN}✅ 실행 완료${NC}"
     else
+        tmux set-option -p -t "$SESSION:0.$pane" @team_start_state failed || true
         echo -e "${RED}❌ 실행 실패 (종료 코드 ${start_rcs[$pane]})${NC}"
         failed_panes+=("${MEMBER_NAMES[$pane]}")
     fi

@@ -507,8 +507,6 @@ d = json.load(open(sys.argv[1]))["hooks"]
 def cmds(ev):
     return " ".join(h["command"] for g in d.get(ev, []) for h in g["hooks"] if "command" in h)
 need = {"UserPromptSubmit": ["o'\\''wner/busy", "o'\\''wner/say"], "SessionStart": ["o'\\''wner/busy"], "Stop": ["o'\\''wner/busy", "o'\\''wner/say"]}
-if sys.argv[2] == "codex":  # Codex는 턴 시작 busy 표시가 없고 보고 마커만 지운다
-    need["UserPromptSubmit"] = ["o'\\''wner/say"]
 for ev, subs in need.items():
     c = cmds(ev)
     assert c, ev + " 없음"
