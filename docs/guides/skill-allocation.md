@@ -18,15 +18,17 @@
 | --------- | ------------------------------------------------- | -------------------------------------------------------------------------- |
 | lead      | `spec` `plan-eng-review`                          | `finishing-a-development-branch`                                           |
 | architect | `diagram`                                         | `writing-plans`                                                            |
-| uiux      | `design-review` `design-html`  | -                                                                          |
-| frontend  | `qa-only`                                         | `systematic-debugging` `receiving-code-review` |
-| backend   | `health`                                          | `systematic-debugging` `receiving-code-review` |
+| uiux      | `design-review` `design-html` `plan-design-review` | -                                                                          |
+| frontend  | `qa-only`                                         | `systematic-debugging` `receiving-code-review` `verification-before-completion` |
+| backend   | `health`                                          | `systematic-debugging` `receiving-code-review` `verification-before-completion` |
 | reviewer  | `review`                                          | -                                                                          |
 
 - 설치: gstack을 배정받은 Claude 역할이 있으면 공식 위치 `~/.claude/skills/gstack`에 공식 `./setup --host claude`로 설치한다.
   이미 설치돼 있으면 건드리지 않고, 갱신은 gstack 자체 업데이트(`/gstack-upgrade`)에 맡긴다. 설치에는 bun이 필요하다.
 - 공식 setup은 전역 `~/.claude/skills/`에 스킬을 펼치고 `~/.claude/settings.json`에 훅을 등록하지만,
   팀 파인은 `--setting-sources project`로 실행하므로 둘 다 로드되지 않는다. 파인에는 원본 스킬 디렉터리 링크만 들어간다.
+- `plan-design-review`는 uiux가 구현 전 계획의 화면·흐름을 점검하는 데 쓴다. 대화형 질문은 lead를 거친다.
+- `verification-before-completion`은 frontend·backend가 검증 출력 없이 완료를 보고하지 않도록 넣었다.
 
 - `spec`·`plan-eng-review`는 사용자에게 직접 묻는 대화형 스킬이라, 사용자와 대화하는 유일한 파인인 lead에 둔다
   (모호한 요청 → lead `spec` → architect `writing-plans` → lead `plan-eng-review` → backend)
@@ -96,8 +98,8 @@ Codex 파인의 플러그인·스킬은 `team/config.codex.sh`가 따로 정한�
 | 전체      | `caveman@openai-curated-remote` (플러그인)                                      |
 | lead      | `superpowers`의 `finishing-a-development-branch` (스킬 링크)                    |
 | architect | `superpowers`의 `writing-plans` (스킬 링크)                                     |
-| backend | `superpowers`의 `systematic-debugging` `receiving-code-review` (스킬 링크), `engineering-suite-ponytail@openai-curated-remote` (플러그인) |
-| frontend  | `superpowers`의 `systematic-debugging` `receiving-code-review` (스킬 링크), `engineering-suite-ponytail@openai-curated-remote` (플러그인) |
+| backend | `superpowers`의 `systematic-debugging` `receiving-code-review` `verification-before-completion` (스킬 링크), `engineering-suite-ponytail@openai-curated-remote` (플러그인) |
+| frontend  | `superpowers`의 `systematic-debugging` `receiving-code-review` `verification-before-completion` (스킬 링크), `engineering-suite-ponytail@openai-curated-remote` (플러그인) |
 | architect | `engineering-suite-ponytail@openai-curated-remote` (플러그인) |
 | uiux | `product-design@openai-curated-remote`·`open-design@openai-curated-remote` (디자인·화면 검수 플러그인) |
 
@@ -113,7 +115,7 @@ Codex 역할에 `CODEX_GSTACK_SKILL_SETS` 배정이 있으면 공식 `./setup --
 | --- | --- |
 | lead | `spec`, `plan-eng-review` |
 | architect | `diagram` |
-| uiux | `design-review`, `design-html` |
+| uiux | `design-review`, `design-html`, `plan-design-review` |
 | frontend | `qa-only` |
 | backend | `health` |
 | reviewer | `review` |

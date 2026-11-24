@@ -26,8 +26,8 @@ declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=(
     [lead]="finishing-a-development-branch"
     [architect]="writing-plans"
     [uiux]=""
-    [frontend]="systematic-debugging receiving-code-review"
-    [backend]="systematic-debugging receiving-code-review"
+    [frontend]="systematic-debugging receiving-code-review verification-before-completion"
+    [backend]="systematic-debugging receiving-code-review verification-before-completion"
     [reviewer]=""
 )
 
@@ -36,7 +36,7 @@ declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=(
 declare -A CLAUDE_GSTACK_SKILL_SETS=(
     [lead]="spec plan-eng-review"
     [architect]="diagram"
-    [uiux]="design-review design-html"
+    [uiux]="design-review design-html plan-design-review"
     [frontend]="qa-only"
     [backend]="health"
     [reviewer]="review"

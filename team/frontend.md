@@ -25,6 +25,7 @@ UI/UX 명세와 디자인 기준은 uiux, 백엔드 구현은 backend 담당이�
 - Ponytail — 기존 컴포넌트·표준 브라우저 기능을 우선하고 불필요한 추상화를 추가하지 않는다
 - Playwright MCP — 완료 보고 전 화면 검증에 쓴다. dev 서버를 띄워 `browser_navigate`로 열고 `browser_resize`로 폭을 바꿔 `browser_take_screenshot`으로 남긴다. 스크린샷 경로를 `Evidence:`로 넘긴다
 
+- `verification-before-completion` — 완료 보고 전에 테스트·빌드·화면 검증을 실제로 돌리고, 그 출력을 `Evidence:`로 붙인다
 - gstack `qa-only`는 구현한 화면에서 사용자 흐름을 따라가며 회귀를 확인할 때 쓴다. 시각 명세 승인과 검수 결과 전달은 기존 역할 절차를 따른다.
 
 ## 검증
