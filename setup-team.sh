@@ -118,7 +118,8 @@ wait_claude_ready() {
                 sleep 0.5
             fi
             tmux send-keys -t "$pane" Enter
-        elif grep -q "bypass permissions on\|? for shortcuts" <<< "$screen"; then
+        elif grep -q "bypass permissions on\|? for shortcuts\|Try \"" <<< "$screen"; then
+            # 꼬리 상태줄은 9줄 pane에서 잘리므로 입력창 플레이스홀더(Try "...")도 준비로 본다.
             return 0
         fi
         sleep 1; waited=$((waited + 1))
@@ -166,7 +167,7 @@ provider_plugin_needed() {
 claude_plugin_dir() {
     # 사용법: claude_plugin_dir <plugin@marketplace>
     # 설치 명세에 있고 plugin.json이 실제로 있는 설치 경로를 출력한다. 없으면 1.
-    # 빈 캐시 디렉터리나 다른 마켓플레이스의 동명 플러그인은 설치로 보지 않는다.
+    # 빈 캐시 디렉터리는 설치로 보지 않는다. 같은 이름이라도 명세에 있는 설치본만 쓴다.
     python3 -I - "$HOME/.claude/plugins/installed_plugins.json" "$1" <<'PY'
 import json
 import os
@@ -174,14 +175,20 @@ import sys
 
 try:
     with open(sys.argv[1]) as f:
-        entries = json.load(f)["plugins"].get(sys.argv[2], [])
+        plugins = json.load(f)["plugins"]
 except (OSError, ValueError, KeyError):
     sys.exit(1)
-for entry in entries:
-    path = entry.get("installPath", "")
-    if os.path.isfile(os.path.join(path, ".claude-plugin", "plugin.json")):
-        print(path)
-        sys.exit(0)
+key = sys.argv[2]
+name = key.split("@")[0]
+# CLI 버전에 따라 같은 플러그인이 다른 마켓플레이스 키로 등록된다(예: superpowers).
+# 요청한 키를 먼저 보고, 없으면 같은 이름의 다른 키에서 찾는다.
+candidates = [key] + sorted(k for k in plugins if k != key and k.split("@")[0] == name)
+for candidate in candidates:
+    for entry in plugins.get(candidate, []):
+        path = entry.get("installPath", "")
+        if os.path.isfile(os.path.join(path, ".claude-plugin", "plugin.json")):
+            print(path)
+            sys.exit(0)
 sys.exit(1)
 PY
 }

@@ -39,7 +39,7 @@ data["plugins"][key] = [{"scope": "user", "installPath": install}]
 json.dump(data, open(path, "w"))
 PY
 }
-# ponytail은 설치돼 있고, superpowers는 다른 마켓플레이스에만 있다(빈 캐시 디렉터리 포함).
+# ponytail은 설치돼 있고, superpowers는 같은 이름의 다른 마켓플레이스 키로만 명세에 있다(빈 캐시 디렉터리 포함).
 make_claude_install ponytail@ponytail "$plugins_dir/cache/ponytail/ponytail/1"
 make_claude_install superpowers@anthropic-plugin-directory "$plugins_dir/cache/anthropic-plugin-directory/superpowers/1"
 mkdir -p "$plugins_dir/cache/claude-plugins-official/superpowers"
@@ -66,8 +66,17 @@ output="$(install_claude_plugins)"
 expect_in "ℹ️  ponytail@ponytail 이미 설치됨" "$output"
 expect_in "✅  serena@claude-plugins-official 새로 설치됨" "$output"
 expect_in "✅  caveman@caveman 새로 설치됨" "$output"
-# 다른 마켓플레이스의 동명 superpowers와 빈 캐시는 설치로 오인하지 않는다.
-expect_in "✅  superpowers@claude-plugins-official 새로 설치됨" "$output"
+# 설치 명세의 키가 마켓플레이스만 달라도(CLI 버전차) 같은 플러그인으로 인정한다.
+expect_in "ℹ️  superpowers@claude-plugins-official 이미 설치됨" "$output"
+[ "$(claude_plugin_dir superpowers@claude-plugins-official)" = "$plugins_dir/cache/anthropic-plugin-directory/superpowers/1" ] \
+    || fail '동명 다른 마켓플레이스 키의 설치본을 못 찾음'
+# 명세에 없는 캐시 디렉터리나 plugin.json 없는 설치 경로는 설치로 보지 않는다.
+! claude_plugin_dir serena@claude-plugins-official >/dev/null || fail '명세 없는 캐시를 설치로 오인'
+cp "$plugins_dir/installed_plugins.json" "$test_dir/manifest.bak"
+make_claude_install broken@local "$plugins_dir/cache/local/broken/1"
+rm "$plugins_dir/cache/local/broken/1/.claude-plugin/plugin.json"
+! claude_plugin_dir broken@local >/dev/null || fail 'plugin.json 없는 설치 경로를 설치로 오인'
+cp "$test_dir/manifest.bak" "$plugins_dir/installed_plugins.json"
 calls="$(cat "$test_dir/claude_calls")"
 expect_in "claude plugin install serena@claude-plugins-official" "$calls"
 expect_not_in "install ponytail@ponytail" "$calls"
@@ -409,6 +418,12 @@ after_enter='  ? for shortcuts'
 wait_claude_ready pane 5 || fail '외부 import 대화상자 처리 실패'
 grep -q 'Down' "$keys_file" || fail '외부 import 대화상자에서 Down 누락'
 unset after_enter
+
+: > "$keys_file"
+# 9줄 pane처럼 꼬리 상태줄이 잘리고 입력창만 보이는 화면
+printf '  Claude Code v2.1.331\n  ───\n ❯ Try "fix typecheck errors"\n  ───\n' > "$screen_file"
+wait_claude_ready pane 5 || fail '꼬리 상태줄이 잘린 준비 화면에서 실패'
+[ ! -s "$keys_file" ] || fail '준비 화면에 불필요한 키 입력'
 
 printf 'loading...\n' > "$screen_file"
 ! wait_claude_ready pane 3 || fail 'Claude 시간 초과가 성공 처리됨'
