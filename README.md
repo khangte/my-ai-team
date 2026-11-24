@@ -98,6 +98,15 @@ reviewer|gpt-6.1-sol|medium
 - `model`: 전체 모델 ID를 씁니다. 접두사로 공급자를 정합니다(`claude-*`는 Claude, `gpt-*`는 Codex).
 - `effort`: `low`·`medium`·`high`·`xhigh`·`max` 중 모델이 지원하는 값을 지정합니다. 비우면(`lead|claude-sonnet-5-5|`) CLI 기본값을 쓰고, 파인 테두리에는 `effort 비어 있음`으로 표시합니다.
 
+작은 백엔드 수정에는 아래 세 역할로 팀을 시작할 수 있습니다. 프론트엔드 수정이라면 `backend` 줄을 기본 구성의 `frontend` 줄로 바꿉니다.
+
+```text
+SESSION=team-small
+lead|claude-sonnet-5-5|medium
+backend|claude-sonnet-5-5|medium
+reviewer|gpt-6.1-sol|medium
+```
+
 팀 전체를 Codex로 실행하려면 각 역할의 `model`을 `gpt-*`로 지정하세요.
 설치 스크립트도 같은 팀 구성을 읽어 필요한 공급자의 CLI를 설치합니다.
 
