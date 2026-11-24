@@ -29,6 +29,10 @@ uiux 명세가 있는 화면 작업과 phase 계획 작업의 코드 리뷰는 �
 - 기본 범위는 미커밋 변경이다 — 스테이징 변경(`git diff --cached`), 미스테이징 변경(`git diff`), 새 파일 내용(`git status --short`로 찾아 직접 읽는다)을 본다. 승인 보고의 `Changed files`에는 이 중 요청 건에 속하는 파일만 적는다
 - feature 브랜치의 착지 전 전체 리뷰(lead의 `finishing-a-development-branch` 직전)는 실제 커밋 대상 전부를 위 체크리스트로 본다 — 커밋된 변경(`git diff <base>...HEAD`), 스테이징 변경(`git diff --cached`), 미스테이징 변경(`git diff`), 새 파일 내용(`git status --short`로 찾아 직접 읽는다)을 각각 본다
 
+## 스킬
+
+- gstack `review`는 브랜치나 PR의 변경분을 검토할 때 쓴다. 도구가 제안한 자동 수정은 적용하지 않고 지적으로 보고한다. 기본 검토 범위의 미커밋 변경과 승인 전 직접 검증도 확인한다.
+
 ## 승인 전 검증
 
 - "승인"은 테스트·린트·빌드를 **이번에 직접 실행해 통과를 확인한 뒤에만** 낼 수 있다

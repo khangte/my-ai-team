@@ -35,7 +35,8 @@ say lead "[architect] {topic} decision needed. Options: {options}. Evidence: {wh
   - backend·frontend가 그대로 따라갈 수 있는 단위로 태스크를 쪼갠다
   - phase마다 확인 가능한 완료조건을 적는다 — 완료 보고를 받을 때 이 조건과 대조한다
   - 스킬의 서브에이전트·worktree 실행 선택지는 사용하지 않고 lead에게 계획을 보고한다
-- 도식은 md 문서 안에 mermaid 블록으로 직접 쓴다 (이미지 파일 산출물은 만들지 않는다)
+- 도식은 기본적으로 md 문서 안에 mermaid 블록으로 직접 쓴다
+- gstack `diagram` — 데이터 흐름·상태 전이·컴포넌트 관계를 이미지 파일(SVG·PNG·`.excalidraw`)로 따로 남겨야 할 때만 쓴다
 
 구현 계획 경로는 스킬 기본값을 따른다 — `docs/superpowers/plans/`.
 

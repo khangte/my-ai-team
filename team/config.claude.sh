@@ -30,3 +30,14 @@ declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=(
     [backend]="systematic-debugging receiving-code-review"
     [reviewer]=""
 )
+
+# 역할 → gstack 스킬. 공식 설치본(~/.claude/skills/gstack)의 스킬 디렉터리에서 필요한 것만 링크한다.
+# 배정된 Claude 역할이 있을 때만 설치한다. 브라우저를 쓰는 스킬(design-review·qa-only·diagram)은 Chromium이 필요하다.
+declare -A CLAUDE_GSTACK_SKILL_SETS=(
+    [lead]="spec plan-eng-review"
+    [architect]="diagram"
+    [uiux]="design-review design-html"
+    [frontend]="qa-only"
+    [backend]="health"
+    [reviewer]="review"
+)

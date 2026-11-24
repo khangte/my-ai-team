@@ -31,7 +31,7 @@ if [ "$(uname -s)" = Darwin ]; then
 fi
 PATH="$BREW_FIRST$PATH"   # latest_nvm_bin의 sort -V가 GNU 판을 쓰도록 먼저 반영
 NVM_BIN="$(latest_nvm_bin)"
-export PATH="$BREW_FIRST$HOME/.local/bin:${NVM_BIN:+$NVM_BIN:}/usr/local/bin:/usr/bin:/bin:$PATH"
+export PATH="$BREW_FIRST$HOME/.local/bin:$HOME/.bun/bin:${NVM_BIN:+$NVM_BIN:}/usr/local/bin:/usr/bin:/bin:$PATH"
 # 파인·run-shell·세션 환경에 그대로 넘길 PATH. 기존 tmux 서버의 최소 PATH에 의존하지 않게 한다.
 TEAM_PATH="$BIN_DIR:${NVM_BIN:+$NVM_BIN:}$PATH"
 
@@ -78,7 +78,7 @@ declare -A USED_AGENTS=()
 for a in "${MEMBER_AGENTS[@]}"; do USED_AGENTS["$a"]=1; done
 
 # 공급자 하나만 쓰는 팀에서도 배분표 조회가 성립하도록 빈 배열을 먼저 둔다. 구성 파일이 값을 채운다.
-declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=() CODEX_SUPERPOWERS_SKILL_SETS=() CODEX_GSTACK_SKILL_SETS=()
+declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=() CODEX_SUPERPOWERS_SKILL_SETS=() CLAUDE_GSTACK_SKILL_SETS=() CODEX_GSTACK_SKILL_SETS=()
 
 for agent in "${!USED_AGENTS[@]}"; do
     # 프로젝트에 없는 배열이 기본값으로 남지 않도록 구성 파일을 병합하지 않는다.
@@ -752,7 +752,7 @@ fi
 
 # ── Claude — 필요한 플러그인 설치 ────────────────────────────
 # 역할별 활성화는 실행 시 --settings로 전달한다. 전역 설정은 바꾸지 않는다.
-step "Claude — 필요한 플러그인 설치..."
+step "Claude — 필요한 플러그인·gstack 설치..."
 
 
 install_claude_plugins() {
@@ -813,6 +813,39 @@ ensure_playwright_browser() {
 }
 ensure_playwright_browser
 
+GSTACK_DIR="$HOME/.claude/skills/gstack"
+
+install_claude_gstack() {
+    # gstack 스킬을 배정받은 Claude 역할이 있으면 공식 위치에 공식 setup으로 설치한다.
+    # 이미 설치돼 있으면 건드리지 않는다. 갱신은 gstack 자체 업데이트(/gstack-upgrade)가 맡는다.
+    # ponytail: clone 후 setup이 실패한 설치본도 다음 실행에서 설치됨으로 본다. 수동 재실행을 안내한다.
+    local i needed=false
+    for ((i = 0; i < PANE_COUNT; i++)); do
+        if [ "${MEMBER_AGENTS[$i]}" = claude ] && [ -n "${CLAUDE_GSTACK_SKILL_SETS[${MEMBER_NAMES[$i]}]:-}" ]; then
+            needed=true
+            break
+        fi
+    done
+    [ "$needed" = true ] || return 0
+    if [ -x "$GSTACK_DIR/setup" ]; then
+        echo "  ℹ️  gstack 이미 설치됨 ($GSTACK_DIR)"
+        return 0
+    fi
+    if ! command -v bun >/dev/null; then
+        echo -e "${YELLOW}  ⚠️  bun이 없어 gstack 설치를 건너뜁니다 (설치: curl -fsSL https://bun.sh/install | bash)${NC}" >&2
+        return 1
+    fi
+    git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git "$GSTACK_DIR" -q || return 1
+    # 비대화형 setup은 질문 없이 기본값을 쓴다. 등록되는 전역 훅은 팀 파인(--setting-sources project)에 로드되지 않는다.
+    if (cd "$GSTACK_DIR" && timeout 600 ./setup --host claude </dev/null); then
+        echo -e "  ${GREEN}✅ gstack 설치 완료${NC}"
+    else
+        echo -e "${YELLOW}  ⚠️  gstack setup 실패 또는 timeout (수동 확인: cd $GSTACK_DIR && ./setup --host claude)${NC}" >&2
+        return 1
+    fi
+}
+install_claude_gstack || true
+
 # ── Claude — 역할별 스킬 제한 ──────────────────────────────
 # 역할별 cwd에 필요한 스킬만 링크하고 project 설정 소스로 전역 스킬을 차단한다.
 # 제외되는 전역 훅·플러그인 설정은 실행 시 명시 주입한다.
@@ -841,6 +874,9 @@ for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
         fi
         link_plugin_skills "$plugin" "$plugin_root" $role_skill_list
     done
+    if [ -n "${CLAUDE_GSTACK_SKILL_SETS[$role]:-}" ]; then
+        link_plugin_skills gstack "$GSTACK_DIR" ${CLAUDE_GSTACK_SKILL_SETS[$role]}
+    fi
     echo "  $role: ${granted[*]:-(Claude 역할별 스킬 없음)}"
 done
 echo -e "${GREEN}  ✅ Claude 역할별 런타임 디렉터리 준비 완료${NC}"

@@ -2,9 +2,7 @@
 
 > README의 "역할별 스킬·플러그인" 절 상세. 배분 표와 제외 이유를 모아 둔다.
 
-> **gstack은 제거했다.** 설치 단계(`setup-team.sh` `[2/7]`)와 `CLAUDE_GSTACK_SKILL_SETS` 값을 주석 처리했고,
-> 아래 gstack 서술은 되살릴 때 참고하는 기록이다. lead의 `spec`·`plan-eng-review`는 `team/lead.md`의
-> "스킬 없이 하는 절차"로, reviewer의 `review`는 체크리스트로 대신한다.
+> gstack은 Claude·Codex 모두 역할별로 배분한다. Claude는 아래 표, Codex는 **Codex gstack** 절을 본다.
 
 ## 역할별 스킬 제한
 
@@ -16,16 +14,19 @@
   `.team/{역할}/.claude/skills`에 **필요한 스킬만 심볼릭 링크**하고 그 디렉터리를 cwd로 실행,
   `--setting-sources project`로 유저 전역·플러그인 스킬은 차단
 
-<!-- gstack 제거로 비활성화
-| 역할       | 허용 스킬                   |
-| ---------- | --------------------------- |
-| lead       | `spec` `plan-eng-review`    |
-| architect  | `diagram`                   |
-| researcher | `scrape` `browse`           |
-| uiux   | `design-review` `design-html` |
-| backend  | `health`                    |
-| reviewer   | `review`                    |
--->
+| 역할      | gstack 스킬 (`CLAUDE_GSTACK_SKILL_SETS`)          | superpowers 스킬 (`CLAUDE_SUPERPOWERS_SKILL_SETS`)                         |
+| --------- | ------------------------------------------------- | -------------------------------------------------------------------------- |
+| lead      | `spec` `plan-eng-review`                          | `finishing-a-development-branch`                                           |
+| architect | `diagram`                                         | `writing-plans`                                                            |
+| uiux      | `design-review` `design-html`  | -                                                                          |
+| frontend  | `qa-only`                                         | `systematic-debugging` `receiving-code-review` |
+| backend   | `health`                                          | `systematic-debugging` `receiving-code-review` |
+| reviewer  | `review`                                          | -                                                                          |
+
+- 설치: gstack을 배정받은 Claude 역할이 있으면 공식 위치 `~/.claude/skills/gstack`에 공식 `./setup --host claude`로 설치한다.
+  이미 설치돼 있으면 건드리지 않고, 갱신은 gstack 자체 업데이트(`/gstack-upgrade`)에 맡긴다. 설치에는 bun이 필요하다.
+- 공식 setup은 전역 `~/.claude/skills/`에 스킬을 펼치고 `~/.claude/settings.json`에 훅을 등록하지만,
+  팀 파인은 `--setting-sources project`로 실행하므로 둘 다 로드되지 않는다. 파인에는 원본 스킬 디렉터리 링크만 들어간다.
 
 - `spec`·`plan-eng-review`는 사용자에게 직접 묻는 대화형 스킬이라, 사용자와 대화하는 유일한 파인인 lead에 둔다
   (모호한 요청 → lead `spec` → architect `writing-plans` → lead `plan-eng-review` → backend)

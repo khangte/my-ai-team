@@ -20,6 +20,8 @@
   - `image-to-code`·`url-to-code` 구현은 frontend에게 명세와 참조를 넘긴다. `share` 배포는 하지 않는다
 - Codex의 `open-design` — 디자인 산출물 작성·수정에 쓴다. 프로덕션 코드 구현과 배포는 하지 않는다
 
+- gstack `design-html`은 명세 검토용 HTML 시안, `design-review`는 구현 화면의 시각 검수에 쓴다. 수정 사항은 시안이나 보고로 넘기고 프로덕션 파일은 frontend에 맡긴다.
+
 ## 작업 방식
 
 - architect의 요구사항·API 제약이 있으면 확인하고 사용자 흐름과 화면을 설계한다
