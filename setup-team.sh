@@ -8,6 +8,15 @@ set -e
 # 연관 배열·mapfile·${var^^}는 bash 4+가 필요하다. macOS 기본 bash 3.2는 여기서 막는다.
 [ "${BASH_VERSINFO[0]}" -ge 4 ] || { echo "bash 4+ 필요 (현재 $BASH_VERSION). macOS는 install/mac.sh 안내대로 Homebrew bash로 실행하세요." >&2; exit 1; }
 
+# team/{role}.md 지침 파일 위치. 이 스크립트(ai-setup 리포) 기준이므로 PROJECT_DIR과 무관하다.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEAM_DIR="$SCRIPT_DIR/team"
+BIN_DIR="$SCRIPT_DIR/bin"   # say·log-hook — 오버라이드 대상이 아닌 고정 스크립트
+
+# 인자 파싱·members.conf 파서·latest_nvm_bin·GREEN/YELLOW/NC를 설치 스크립트와 공유한다.
+source "$SCRIPT_DIR/lib/setup-common.sh"
+RED='\033[0;31m'
+
 # ── PATH 보강 ─────────────────────────────────────────────
 # 비대화형 셸에서도 파인과 훅이 node·python3를 찾도록 PATH를 보강한다.
 # macOS 전용(Linux/WSL의 우선순위는 그대로): Homebrew bash(bin/say의 env bash)와 GNU coreutils(timeout·realpath·sort -V)를 시스템 디렉터리보다 앞에 둔다.
@@ -20,20 +29,11 @@ if [ "$(uname -s)" = Darwin ]; then
         done
     done
 fi
-PATH="$BREW_FIRST$PATH"   # 아래 sort -V가 GNU 판을 쓰도록 먼저 반영
-NVM_BIN=$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)
+PATH="$BREW_FIRST$PATH"   # latest_nvm_bin의 sort -V가 GNU 판을 쓰도록 먼저 반영
+NVM_BIN="$(latest_nvm_bin)"
 export PATH="$BREW_FIRST$HOME/.local/bin:${NVM_BIN:+$NVM_BIN:}/usr/local/bin:/usr/bin:/bin:$PATH"
-
-# team/{role}.md 지침 파일 위치. 이 스크립트(ai-setup 리포) 기준이므로 PROJECT_DIR과 무관하다.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TEAM_DIR="$SCRIPT_DIR/team"
-BIN_DIR="$SCRIPT_DIR/bin"   # say·log-hook — 오버라이드 대상이 아닌 고정 스크립트
 # 파인·run-shell·세션 환경에 그대로 넘길 PATH. 기존 tmux 서버의 최소 PATH에 의존하지 않게 한다.
 TEAM_PATH="$BIN_DIR:${NVM_BIN:+$NVM_BIN:}$PATH"
-
-# 인자 파싱·members.conf 파서·GREEN/YELLOW/NC를 설치 스크립트와 공유한다.
-source "$SCRIPT_DIR/lib/setup-common.sh"
-RED='\033[0;31m'
 
 # say·훅이 공유하는 상태 경로. 공용 /tmp 대신 사용자 전용 경로를 쓰고 SAY_* 환경변수로 덮어쓸 수 있다.
 STATE_ROOT="$HOME/.cache"
@@ -77,6 +77,9 @@ fi
 declare -A USED_AGENTS=()
 for a in "${MEMBER_AGENTS[@]}"; do USED_AGENTS["$a"]=1; done
 
+# 공급자 하나만 쓰는 팀에서도 배분표 조회가 성립하도록 빈 배열을 먼저 둔다. 구성 파일이 값을 채운다.
+declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=() CODEX_SUPERPOWERS_SKILL_SETS=()
+
 for agent in "${!USED_AGENTS[@]}"; do
     # 프로젝트에 없는 배열이 기본값으로 남지 않도록 구성 파일을 병합하지 않는다.
     project_provider_config="$PROJECT_DIR/team/config.${agent}.sh"
@@ -101,17 +104,6 @@ wait_for_pane() {
 }
 
 # ── 유틸: Claude 준비 완료까지 대화상자 응답 + 대기 ─────────
-answer_claude_dialog() {
-    # 사용법: answer_claude_dialog <pane> <화면>
-    # 선택 표시(❯) 줄이 이미 Yes면 Enter만, 아니면(No, exit가 기본인 화면) Down 후 Enter.
-    local pane="$1" screen="$2"
-    if ! grep '❯' <<< "$screen" | grep -q "Yes"; then
-        tmux send-keys -t "$pane" Down
-        sleep 0.5
-    fi
-    tmux send-keys -t "$pane" Enter
-}
-
 wait_claude_ready() {
     # 폴더 신뢰·약관·외부 CLAUDE.md import 대화상자에 응답하며 입력 화면이 뜰 때까지 기다린다.
     # 이미 처리된 대화상자는 기다리지 않고, 시간 초과면 1을 반환한다.
@@ -120,7 +112,12 @@ wait_claude_ready() {
         screen="$(tmux capture-pane -t "$pane" -p 2>/dev/null)"
         # 낮은 pane에선 대화상자 제목이 잘리므로 선택지 문구로 판별한다.
         if grep -q "trust this folder\|I accept\|disable external imports" <<< "$screen"; then
-            answer_claude_dialog "$pane" "$screen"
+            # 선택 표시(❯) 줄이 이미 Yes면 Enter만, 아니면(No·exit가 기본인 화면) Down 후 Enter.
+            if ! grep '❯' <<< "$screen" | grep -q "Yes"; then
+                tmux send-keys -t "$pane" Down
+                sleep 0.5
+            fi
+            tmux send-keys -t "$pane" Enter
         elif grep -q "bypass permissions on\|? for shortcuts" <<< "$screen"; then
             return 0
         fi
@@ -132,12 +129,13 @@ wait_claude_ready() {
 # ── 유틸: 플러그인 설치·필요 여부 판별 (Claude·Codex 대칭) ──
 plugin_skill_set() {
     # 사용법: plugin_skill_set <CLAUDE|CODEX> <플러그인> <역할>
-    # {공급자}_{플러그인}_SKILL_SETS[역할] 값을 출력한다. 배열이 없으면 빈 값이다.
-    local var="${1}_${2^^}_SKILL_SETS" role="$3"
-    var="${var//-/_}"
-    [[ "$(declare -p "$var" 2>/dev/null)" == "declare -A"* ]] || return 0
-    local -n skill_sets="$var"
-    printf '%s' "${skill_sets[$role]:-}"
+    # 역할별 스킬 배분이 있는 플러그인은 superpowers뿐이다. 그 외 플러그인은 빈 값.
+    [ "$2" = superpowers ] || return 0
+    if [ "$1" = CLAUDE ]; then
+        printf '%s' "${CLAUDE_SUPERPOWERS_SKILL_SETS[$3]:-}"
+    else
+        printf '%s' "${CODEX_SUPERPOWERS_SKILL_SETS[$3]:-}"
+    fi
 }
 
 role_in() {
@@ -310,12 +308,6 @@ say_state_exports() {
         "$(shell_quote "$BUSY_STATE_DIR")" "$(shell_quote "$REPORT_STATE_DIR")" "$(shell_quote "$QUEUE_STATE_DIR")"
 }
 
-# ── 유틸: JSON 문자열 값으로 안전하게 넣을 수 있게 이스케이프 ──
-json_escape() {
-    # 백슬래시부터 이스케이프해 JSON 문자열의 중복 처리를 피한다.
-    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
-}
-
 # ── 유틸: 공통 지침을 대상 프로젝트 파일에 병합 (Claude·Codex 공용) ──
 merge_team_md() {
     # 사용법: merge_team_md <파일명> <마커 이름> <표시 이름>
@@ -397,64 +389,76 @@ start_claude_in_pane() {
     fi
 
     # 훅에는 호출 시점의 파인 번호를 고정한다. 훅에서 조회하면 활성 파인이 잡힌다.
-    # project 설정 소스가 제외한 rtk 훅을 다시 주입하고 로깅은 별도 matcher로 둔다.
-    # 셸 인용 후 JSON 이스케이프를 적용한다.
-    local log_cmd log_cmd_json
+    # project 설정 소스가 제외한 rtk 훅·전역 플러그인 설정을 역할별로 다시 주입한다.
+    local log_cmd busy_start busy_clear
     log_cmd="$(shell_quote "$BIN_DIR/log-hook") $(shell_quote "$role") $(shell_quote "$PROJECT_DIR")"
-    log_cmd_json="$(json_escape "$log_cmd")"
-    local pretooluse_json="\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"rtk hook claude\"}]},{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]}]"
-
-    # 상태 경로에 작은따옴표 등이 있어도 JSON이 깨지지 않도록 이스케이프한다.
-    local busy_start_json busy_clear_json
-    busy_start_json="$(json_escape "mkdir -p $(shell_quote "$BUSY_STATE_DIR") && touch $(shell_quote "$BUSY_STATE_DIR/${state_key}") && rm -f $(shell_quote "$REPORT_STATE_DIR/${state_key}")")"
-    busy_clear_json="$(json_escape "rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}")")"
     # 턴 시작에 busy 마커를 만들고 이전 보고 마커를 비운다.
-    local userprompt_json="\"UserPromptSubmit\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]},{\"hooks\":[{\"type\":\"command\",\"command\":\"${busy_start_json}\"}]}]"
+    busy_start="mkdir -p $(shell_quote "$BUSY_STATE_DIR") && touch $(shell_quote "$BUSY_STATE_DIR/${state_key}") && rm -f $(shell_quote "$REPORT_STATE_DIR/${state_key}")"
+    # /clear·/compact는 Stop 훅 없이 끝날 수 있으므로 SessionStart에서도 마커를 지운다.
+    busy_clear="rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}")"
+    stop_hook_cmd_for_role "$role" "$pane_id" "$state_key"
 
-    # /clear·/compact는 Stop 훅 없이 끝날 수 있으므로 SessionStart에서 마커를 지운다.
-    local sessionstart_json="\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${busy_clear_json}\"}]}]"
-
-    # 무인 파인에서 팀 밖 Claude 메시지가 승인 대기 후 폐기되지 않도록 수신을 허용한다.
-    local inbound_json="\"crossSessionInbound\":\"accept\""
-
-    # project 설정 소스가 사용자 설정의 우회 모드 동의를 제외한다. 낮은 pane에선 경고창의 동의 선택지가 잘려 응답할 수 없다.
-    local bypass_json="\"skipDangerousModePermissionPrompt\":true,"
-
-    # 200K에서 세션을 유지한 채 압축하고 번들 스킬의 프롬프트 고정비를 줄인다.
-    # 플러그인의 Playwright MCP 기본값은 시스템 Chrome 창을 요구하므로 헤드리스 Chromium을 지정한다.
-    local playwright_env=""
-    if role_in "${CLAUDE_PLUGIN_ROLES[playwright@claude-plugins-official]:-}" "$role"; then
-        playwright_env=",\"PLAYWRIGHT_MCP_HEADLESS\":\"true\",\"PLAYWRIGHT_MCP_BROWSER\":\"chromium\""
-    fi
-    local env_json="\"env\":{\"CLAUDE_CODE_DISABLE_1M_CONTEXT\":\"1\",\"CLAUDE_CODE_DISABLE_BUNDLED_SKILLS\":\"1\"${playwright_env}},"
-
-    # project 설정 소스가 제외한 전역 플러그인 설정을 역할별로 명시 주입한다.
-    local plugins_json="" enabled_entries=() marketplace_entries=() seen_marketplaces=" "
+    # 활성화할 플러그인을 "plugin<TAB>마켓플레이스 리포"로 넘긴다. 출처도 전달해야 플러그인을 찾는다.
+    local plugin plugin_specs=()
     for plugin in "${!CLAUDE_PLUGIN_ROLES[@]}"; do
         role_in "${CLAUDE_PLUGIN_ROLES[$plugin]}" "$role" || continue
-        enabled_entries+=("\"${plugin}\":true")
-        # 출처도 전달해야 해당 마켓플레이스의 플러그인을 찾는다.
-        local mp="${plugin##*@}"
-        if [[ "$seen_marketplaces" != *" $mp "* ]]; then
-            marketplace_entries+=("\"${mp}\":{\"source\":{\"source\":\"github\",\"repo\":\"${CLAUDE_PLUGIN_MARKETPLACES[$mp]}\"}}")
-            seen_marketplaces+="$mp "
-        fi
+        plugin_specs+=("$plugin"$'\t'"${CLAUDE_PLUGIN_MARKETPLACES[${plugin##*@}]:-}")
     done
-    if [ ${#enabled_entries[@]} -gt 0 ]; then
-        # IFS 변경을 서브셸에 가둔다. local IFS는 함수 끝까지 남는다.
-        plugins_json="\"enabledPlugins\":{$(IFS=,; echo "${enabled_entries[*]}")},\"extraKnownMarketplaces\":{$(IFS=,; echo "${marketplace_entries[*]}")},"
+
+    # 플러그인의 Playwright MCP 기본값은 시스템 Chrome 창을 요구하므로 헤드리스 Chromium을 지정한다.
+    local playwright=""
+    if role_in "${CLAUDE_PLUGIN_ROLES[playwright@claude-plugins-official]:-}" "$role"; then
+        playwright=1
     fi
 
-    # 공통 Stop 명령을 JSON 문자열로 직렬화한다.
-    stop_hook_cmd_for_role "$role" "$pane_id" "$state_key"
-    local stop_hook_cmd_json; stop_hook_cmd_json="$(json_escape "$STOP_HOOK_CMD")"
-
-    # lead의 자기 보고 루프는 Stop 명령에서 막고, 지침만으로 막히지 않는
-    # 직접 tmux 전송은 권한 설정으로 차단한다.
-    local deny_json=""
-    [ "$role" != "lead" ] || deny_json="\"permissions\":{\"deny\":[\"Bash(tmux send-keys:*)\"]},"
+    # 상태 경로·명령에 따옴표나 백슬래시가 있어도 깨지지 않게 직렬화는 python3 json에 맡긴다.
     local settings_file="$RUNTIME_DIR/${role}.settings.json"
-    printf '%s' "{${plugins_json}${deny_json}${env_json}${bypass_json}${inbound_json},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${stop_hook_cmd_json}\"}]}],${pretooluse_json},${userprompt_json},${sessionstart_json}}}" > "$settings_file"
+    SETTINGS_ROLE="$role" SETTINGS_LOG_CMD="$log_cmd" SETTINGS_STOP_CMD="$STOP_HOOK_CMD" \
+    SETTINGS_BUSY_START="$busy_start" SETTINGS_BUSY_CLEAR="$busy_clear" SETTINGS_PLAYWRIGHT="$playwright" \
+        python3 -I - ${plugin_specs[@]+"${plugin_specs[@]}"} > "$settings_file" <<'PY'
+import json
+import os
+import sys
+
+def hook(command, matcher=None):
+    entry = {"hooks": [{"type": "command", "command": command}]}
+    if matcher:
+        entry["matcher"] = matcher
+    return entry
+
+env = os.environ
+settings = {
+    # 200K에서 세션을 유지한 채 압축하고 번들 스킬의 프롬프트 고정비를 줄인다.
+    "env": {"CLAUDE_CODE_DISABLE_1M_CONTEXT": "1", "CLAUDE_CODE_DISABLE_BUNDLED_SKILLS": "1"},
+    # 낮은 pane에선 우회 모드 경고창의 동의 선택지가 잘려 응답할 수 없다.
+    "skipDangerousModePermissionPrompt": True,
+    # 무인 파인에서 팀 밖 Claude 메시지가 승인 대기 후 폐기되지 않도록 수신을 허용한다.
+    "crossSessionInbound": "accept",
+    "hooks": {
+        "Stop": [hook(env["SETTINGS_STOP_CMD"])],
+        # 로깅은 rtk 훅과 별도 matcher로 둔다.
+        "PreToolUse": [hook("rtk hook claude", "Bash"), hook(env["SETTINGS_LOG_CMD"], "*")],
+        "UserPromptSubmit": [hook(env["SETTINGS_LOG_CMD"]), hook(env["SETTINGS_BUSY_START"])],
+        "SessionStart": [hook(env["SETTINGS_BUSY_CLEAR"])],
+        },
+    }
+if env["SETTINGS_PLAYWRIGHT"]:
+    settings["env"]["PLAYWRIGHT_MCP_HEADLESS"] = "true"
+    settings["env"]["PLAYWRIGHT_MCP_BROWSER"] = "chromium"
+# lead의 자기 보고 루프는 Stop 명령에서 막고, 지침으로 막히지 않는 직접 tmux 전송은 권한으로 차단한다.
+if env["SETTINGS_ROLE"] == "lead":
+    settings["permissions"] = {"deny": ["Bash(tmux send-keys:*)"]}
+enabled = {}
+marketplaces = {}
+for spec in sys.argv[1:]:
+    plugin, repo = spec.split("\t")
+    enabled[plugin] = True
+    marketplaces[plugin.rsplit("@", 1)[1]] = {"source": {"source": "github", "repo": repo}}
+if enabled:
+    settings["enabledPlugins"] = enabled
+    settings["extraKnownMarketplaces"] = marketplaces
+json.dump(settings, sys.stdout)
+PY
     local settings_arg="--settings $(shell_quote "$settings_file")"
 
     # 부모 Claude 세션 감지를 해제하고 say 실행 경로를 추가한다.
@@ -495,15 +499,34 @@ write_codex_role_agents() {
     # 공통 Stop 로직을 사용하고 로컬 훅 신뢰 승인은 기동 시 처리한다.
     [ -n "$pane_id" ] || return 0
     stop_hook_cmd_for_role "$role" "$pane_id" "$state_key"
-    local hook_cmd_json; hook_cmd_json="$(json_escape "$STOP_HOOK_CMD")"
-    local session_start_cmd_json; session_start_cmd_json="$(json_escape "rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}")")"
-    local log_cmd_json
-    log_cmd_json="$(json_escape "$(shell_quote "$BIN_DIR/log-hook") $(shell_quote "$role") $(shell_quote "$PROJECT_DIR") --quiet")"
-    local log_hook_json="[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]}]"
-    # 보고 마커는 턴마다 비운다. Codex busy 마커는 say가 관리한다.
-    local report_clear_json; report_clear_json="$(json_escape "rm -f $(shell_quote "$REPORT_STATE_DIR/${state_key}")")"
-    local userprompt_json="[{\"hooks\":[{\"type\":\"command\",\"command\":\"${log_cmd_json}\"}]},{\"hooks\":[{\"type\":\"command\",\"command\":\"${report_clear_json}\"}]}]"
-    local hooks_json="{\"hooks\":{\"SessionStart\":[{\"matcher\":\"startup|resume|clear|compact\",\"hooks\":[{\"type\":\"command\",\"command\":\"${session_start_cmd_json}\"}]}],\"UserPromptSubmit\":${userprompt_json},\"PreToolUse\":${log_hook_json},\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"${hook_cmd_json}\"}]}]}}"
+    local log_cmd hooks_json
+    log_cmd="$(shell_quote "$BIN_DIR/log-hook") $(shell_quote "$role") $(shell_quote "$PROJECT_DIR") --quiet"
+    # 보고 마커는 턴마다 비운다. Codex busy 마커는 say가 관리한다. 직렬화는 python3 json에 맡긴다.
+    hooks_json="$(HOOKS_LOG_CMD="$log_cmd" HOOKS_STOP_CMD="$STOP_HOOK_CMD" \
+        HOOKS_BUSY_CLEAR="rm -f $(shell_quote "$BUSY_STATE_DIR/${state_key}")" \
+        HOOKS_REPORT_CLEAR="rm -f $(shell_quote "$REPORT_STATE_DIR/${state_key}")" \
+        python3 -I - <<'PY'
+import json
+import os
+import sys
+
+def hook(command, matcher=None):
+    entry = {"hooks": [{"type": "command", "command": command}]}
+    if matcher:
+        entry["matcher"] = matcher
+    return entry
+
+env = os.environ
+log = hook(env["HOOKS_LOG_CMD"])
+hooks = {
+    "SessionStart": [hook(env["HOOKS_BUSY_CLEAR"], "startup|resume|clear|compact")],
+    "UserPromptSubmit": [log, hook(env["HOOKS_REPORT_CLEAR"])],
+    "PreToolUse": [log],
+    "Stop": [hook(env["HOOKS_STOP_CMD"])],
+    }
+json.dump({"hooks": hooks}, sys.stdout)
+PY
+)"
     mkdir -p "$work_dir/.codex"
     # 정리 뒤에도 남아 있는 hooks.json은 사용자 파일이므로 덮어쓰지 않는다.
     if [ -e "$work_dir/.codex/hooks.json" ] || [ -L "$work_dir/.codex/hooks.json" ]; then
@@ -588,27 +611,15 @@ start_codex_in_pane() {
     return 0
 }
 
-# ── claude 로그인 확인 ────────────────
-check_login() {
-    # Claude 로그인 상태를 확인한다.
-    claude auth status >/dev/null 2>&1
-}
-
-check_codex_login() {
-    # Codex 로그인 상태를 확인한다.
-    codex login status >/dev/null 2>&1
-}
-
-# ── [0/7] 공통 (Claude·Codex) — 사전 요구사항 확인 ─────────
+# ── 공통 (Claude·Codex) — 사전 요구사항 확인 ───────────────
 used_agents_list="${!USED_AGENTS[*]}"
 # 표시 번호는 실제로 도는 단계만 센다 — 단일 공급자 팀에서 번호가 건너뛰지 않게.
+# 공통 3단계(사전 확인·레이아웃·기동) + Claude 3 + Codex 2.
 STEP=0
-STEP_TOTAL=2
-[ -n "${USED_AGENTS[claude]:-}" ] && STEP_TOTAL=$((STEP_TOTAL + 3))
-[ -n "${USED_AGENTS[codex]:-}" ] && STEP_TOTAL=$((STEP_TOTAL + 2))
-echo -e "${YELLOW}[$((STEP++))/$STEP_TOTAL] 공통 (Claude·Codex) — 사전 요구사항 확인 (${used_agents_list})...${NC}"
-
-NEED_FIRST_LOGIN=false
+TOTAL=3
+[ -n "${USED_AGENTS[claude]:-}" ] && TOTAL=$((TOTAL + 3))
+[ -n "${USED_AGENTS[codex]:-}" ] && TOTAL=$((TOTAL + 2))
+step "공통 (Claude·Codex) — 사전 요구사항 확인 (${used_agents_list})..."
 
 MISSING=()
 command -v python3 &>/dev/null || MISSING+=("python3 (apt-get install -y python3)")
@@ -634,10 +645,9 @@ if [ -n "${USED_AGENTS[claude]:-}" ]; then
     echo "  ✅ claude $(claude --version 2>/dev/null | head -1)"
 
     echo -n "  Claude 로그인 확인... "
-    if check_login; then
+    if claude auth status >/dev/null 2>&1; then
         echo -e "${GREEN}✅ 로그인 완료${NC}"
     else
-        NEED_FIRST_LOGIN=true
         echo -e "${YELLOW}로그인이 필요합니다.${NC}"
         echo
         echo "Claude를 실행합니다."
@@ -646,7 +656,7 @@ if [ -n "${USED_AGENTS[claude]:-}" ]; then
         claude
         echo
         read -p "로그인이 완료되었다면 Enter를 누르세요..."
-        if ! check_login; then
+        if ! claude auth status >/dev/null 2>&1; then
             echo -e "${RED}❌ 로그인이 확인되지 않았습니다.${NC}"
             exit 1
         fi
@@ -658,7 +668,7 @@ fi
 if [ -n "${USED_AGENTS[codex]:-}" ]; then
     echo "  ✅ codex $(codex --version 2>/dev/null | head -1)"
     echo -n "  Codex 로그인 확인... "
-    if check_codex_login; then
+    if codex login status >/dev/null 2>&1; then
         echo -e "${GREEN}✅ 로그인 완료${NC}"
     else
         echo -e "${YELLOW}로그인이 필요합니다.${NC}"
@@ -668,7 +678,7 @@ if [ -n "${USED_AGENTS[codex]:-}" ]; then
         codex login
         echo
         read -p "로그인이 완료되었다면 Enter를 누르세요..."
-        if ! check_codex_login; then
+        if ! codex login status >/dev/null 2>&1; then
             echo -e "${RED}❌ 로그인이 확인되지 않았습니다.${NC}"
             exit 1
         fi
@@ -716,10 +726,10 @@ mkdir -p "$RUNTIME_DIR"
 
 if [ -n "${USED_AGENTS[claude]:-}" ]; then
 
-# ── [1/7] Claude — rtk 훅 초기화 ───────────────────────────
+# ── Claude — rtk 훅 초기화 ─────────────────────────────────
 # 로그인 후 생성되는 설정에 훅을 등록한다.
 # 비대화형 telemetry 동의 대기는 환경변수·응답·timeout으로 차단한다.
-echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Claude — rtk 훅 초기화...${NC}"
+step "Claude — rtk 훅 초기화..."
 
 if printf 'n\n' | RTK_TELEMETRY_DISABLED=1 timeout 15 rtk init -g --auto-patch; then
     echo -e "  ${GREEN}✅  rtk 훅 등록 완료${NC}"
@@ -729,9 +739,9 @@ else
 fi
 
 
-# ── [2/7] Claude — 필요한 플러그인 설치 ──────────────────────
+# ── Claude — 필요한 플러그인 설치 ────────────────────────────
 # 역할별 활성화는 실행 시 --settings로 전달한다. 전역 설정은 바꾸지 않는다.
-echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Claude — 필요한 플러그인 설치...${NC}"
+step "Claude — 필요한 플러그인 설치..."
 
 
 install_claude_plugins() {
@@ -792,11 +802,11 @@ ensure_playwright_browser() {
 }
 ensure_playwright_browser
 
-# ── [3/7] Claude — 역할별 스킬 제한 ────────────────────────
+# ── Claude — 역할별 스킬 제한 ──────────────────────────────
 # 역할별 cwd에 필요한 스킬만 링크하고 project 설정 소스로 전역 스킬을 차단한다.
 # 제외되는 전역 훅·플러그인 설정은 실행 시 명시 주입한다.
 # 홈 아래 프로젝트에서는 전역 rules·CLAUDE.md가 계속 로드된다.
-echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Claude — 런타임 준비 (공통 지침 병합·역할별 스킬 제한)...${NC}"
+step "Claude — 런타임 준비 (공통 지침 병합·역할별 스킬 제한)..."
 
 # 배분은 CLAUDE_{플러그인}_SKILL_SETS를 따른다. 스킬이 없어도 역할 cwd는 만든다.
 # 전역 규칙은 홈 아래 프로젝트에서 자동 상속하므로 별도로 주입하지 않는다.
@@ -828,24 +838,20 @@ fi
 
 if [ -n "${USED_AGENTS[codex]:-}" ]; then
 
-# ── [4/7] Codex — 필요한 플러그인 설치 ────────────────────────────
-echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Codex — 필요한 플러그인 설치...${NC}"
+# ── Codex — 필요한 플러그인 설치 ──────────────────────────────────
+step "Codex — 필요한 플러그인 설치..."
 
 base_codex_home="${CODEX_HOME:-$HOME/.codex}"
 codex_assets_home="$TEAM_SKILLS_ROOT/_assets/codex-home"
 
-codex_default_model_config() {
-    # 첫 TOML 테이블 앞의 기본 모델·추론 설정만 읽는다. 없는 파일·키는 생략한다.
-    [ -f "$1/config.toml" ] || return 0
-    awk '/^[[:space:]]*\[/ { exit } /^[[:space:]]*(model|model_reasoning_effort)[[:space:]]*=/ { print }' "$1/config.toml"
-}
-
 write_codex_role_plugins() {
     # 기본 모델 설정을 매번 상속하고 배정 플러그인만 켠다. 명시한 실행 인자가 우선한다.
-    local role="$1" role_home="$2" plugin
+    local role="$1" role_home="$2" base_config="${base_codex_home:-}/config.toml" plugin
     mkdir -p "$role_home"
     {
-        codex_default_model_config "${base_codex_home:-}"
+        # 기본 홈의 첫 TOML 테이블 앞에 있는 모델·추론 설정만 상속한다. 없는 파일·키는 생략한다.
+        [ ! -f "$base_config" ] ||
+            awk '/^[[:space:]]*\[/ { exit } /^[[:space:]]*(model|model_reasoning_effort)[[:space:]]*=/ { print }' "$base_config"
         printf '[plugins._default]\nenabled = false\n'
         for plugin in "${!CODEX_PLUGIN_ROLES[@]}"; do
             role_in "${CODEX_PLUGIN_ROLES[$plugin]}" "$role" || continue
@@ -875,14 +881,27 @@ link_codex_base_assets() {
     fi
 }
 
-codex_shared_plugin_cache() {
-    # 대상 홈을 제외하고 기본 홈 → 자산 홈 → 다른 역할 홈에서 설치본을 찾는다.
-    local key="$1" skip="$2" home
+codex_plugin_source() {
+    # 사용법: codex_plugin_source <plugin@marketplace> <cache|skills> [제외할 홈]
+    # 기본 홈 → 자산 홈 → 역할 홈 순으로 찾아 cache는 버전 디렉터리, skills는 그 안의 skills를 출력한다.
+    local key="$1" want="$2" skip="${3:-}" home version
     for home in "$base_codex_home" "$codex_assets_home" "$TEAM_SKILLS_ROOT"/*/.codex-home; do
         [ -d "$home" ] || continue
         [ "$home" != "$skip" ] || continue
-        codex_plugin_cache "$home" "$key" && return 0
+        version="$(codex_plugin_cache "$home" "$key")" || continue
+        if [ "$want" = skills ]; then
+            [ -d "$version/skills" ] || continue
+            printf '%s\n' "$version/skills"
+        else
+            printf '%s\n' "$version"
+        fi
+        return 0
     done
+    # 원격 카탈로그(openai-curated-remote) 플러그인은 설치본 없이 snapshot만 있을 수 있다.
+    if [ "$want" = skills ] && [[ "${key##*@}" == openai-curated* ]] && [ -d "$base_codex_home/.tmp/plugins/plugins/${key%@*}/skills" ]; then
+        printf '%s\n' "$base_codex_home/.tmp/plugins/plugins/${key%@*}/skills"
+        return 0
+    fi
     return 1
 }
 
@@ -908,7 +927,7 @@ prepare_codex_role_home() {
     for plugin in "${role_plugins[@]}"; do
         if codex_plugin_cache "$role_home" "$plugin" >/dev/null; then
             echo "  ℹ️  $plugin 이미 설치됨 → $role"
-        elif base_cache="$(codex_shared_plugin_cache "$plugin" "$role_home")"; then
+        elif base_cache="$(codex_plugin_source "$plugin" cache "$role_home")"; then
             # 캐시만 공유하고 활성화는 역할별 config.toml로 격리한다.
             link_dir="$role_home/plugins/cache/${plugin##*@}/${plugin%@*}"
             mkdir -p "$(dirname "$link_dir")"
@@ -923,26 +942,25 @@ prepare_codex_role_home() {
     done
 }
 
-codex_plugin_skills_root() {
-    # 기본 홈 → 자산 홈 → 역할 홈 → 공식 snapshot 순으로 스킬 원본을 찾는다.
-    local key="$1" home version
-    for home in "$base_codex_home" "$codex_assets_home" "$TEAM_SKILLS_ROOT"/*/.codex-home; do
-        [ -d "$home" ] || continue
-        if version="$(codex_plugin_cache "$home" "$key")" && [ -d "$version/skills" ]; then
-            printf '%s\n' "$version/skills"
+codex_role_matches() {
+    # 사용법: codex_role_matches <plugin@marketplace> <skills|plugin>
+    # Codex 파인 중 그 플러그인의 선택 스킬을 받는(skills) 또는 플러그인을 활성화하는(plugin) 역할이 있으면 0.
+    local key="$1" want="$2" i role
+    for ((i = 0; i < PANE_COUNT; i++)); do
+        [ "${MEMBER_AGENTS[$i]}" = "codex" ] || continue
+        role="${MEMBER_NAMES[$i]}"
+        if [ "$want" = skills ]; then
+            [ -z "$(plugin_skill_set CODEX "${key%@*}" "$role")" ] || return 0
+        elif role_in "${CODEX_PLUGIN_ROLES[$key]:-}" "$role"; then
             return 0
         fi
     done
-    if [[ "${key##*@}" == openai-curated* ]] && [ -d "$base_codex_home/.tmp/plugins/plugins/${key%@*}/skills" ]; then
-        printf '%s\n' "$base_codex_home/.tmp/plugins/plugins/${key%@*}/skills"
-        return 0
-    fi
     return 1
 }
 
 prepare_codex_skill_sources() {
     # 선택 스킬에만 필요한 설치본은 전역 설정을 건드리지 않도록 팀 자산 홈에 둔다.
-    local key role i has_skill_source activated keys=() roles
+    local key keys=()
     if [ "${#CODEX_PLUGIN_ROLES[@]}" -gt 0 ]; then
         mapfile -t keys < <(printf '%s\n' "${!CODEX_PLUGIN_ROLES[@]}" | sort)
     fi
@@ -955,25 +973,13 @@ prepare_codex_skill_sources() {
             fi
             continue
         fi
-        has_skill_source=false
-        for ((i = 0; i < PANE_COUNT; i++)); do
-            [ "${MEMBER_AGENTS[$i]}" = "codex" ] || continue
-            role="${MEMBER_NAMES[$i]}"
-            [ -z "$(plugin_skill_set CODEX "${key%@*}" "$role")" ] || has_skill_source=true
-        done
-        [ "$has_skill_source" = true ] || continue
-        if codex_plugin_skills_root "$key" >/dev/null; then
+        codex_role_matches "$key" skills || continue
+        if codex_plugin_source "$key" skills >/dev/null; then
             echo "  ℹ️  $key 스킬 원본 이미 있음"
             continue
         fi
         # 활성화하는 Codex 역할이 있으면 역할 홈 준비에서 설치되므로 여기서 또 설치하지 않는다.
-        activated=false
-        roles="${CODEX_PLUGIN_ROLES[$key]:-}"
-        for ((i = 0; i < PANE_COUNT; i++)); do
-            [ "${MEMBER_AGENTS[$i]}" = "codex" ] || continue
-            if role_in "$roles" "${MEMBER_NAMES[$i]}"; then activated=true; fi
-        done
-        if [ "$activated" = true ]; then
+        if codex_role_matches "$key" plugin; then
             echo "  ℹ️  $key 역할 홈 설치본을 스킬 원본으로 사용"
             continue
         fi
@@ -986,22 +992,6 @@ prepare_codex_skill_sources() {
     done
 }
 
-find_codex_skill_source() {
-    # 프로젝트·사용자·시스템 순으로 독립 스킬 원본을 찾는다.
-    local skill="$1" candidate
-    for candidate in \
-        "$PROJECT_DIR/.agents/skills/$skill" \
-        "$HOME/.agents/skills/$skill" \
-        "$HOME/.codex/skills/$skill" \
-        "$HOME/.codex/skills/.system/$skill"; do
-        if [ -f "$candidate/SKILL.md" ]; then
-            printf '%s\n' "$candidate"
-            return 0
-        fi
-    done
-    return 1
-}
-
 prepare_codex_skill_sources
 
 for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
@@ -1010,29 +1000,9 @@ for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
     prepare_codex_role_home "$role" "$TEAM_SKILLS_ROOT/$role/.codex-home"
 done
 
-# ── [5/7] Codex — 런타임 준비 ────────────────────────────
-echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] Codex — 런타임 준비 (공통 지침 병합·역할별 스킬 제한)...${NC}"
+# ── Codex — 런타임 준비 ──────────────────────────────────
+step "Codex — 런타임 준비 (공통 지침 병합·역할별 스킬 제한)..."
 merge_team_md AGENTS.md codex "Codex 팀 공통 지침"
-
-link_codex_standalone_skills() {
-    # 호출 측의 role·role_skills_dir·granted를 쓴다. CODEX_SKILL_SETS[역할]의 standalone
-    # 스킬을 링크하되, 이미 있는 사용자 항목은 덮어쓰지 않고 새 링크만 소유 기록에 남긴다.
-    local skill src
-    for skill in ${CODEX_SKILL_SETS[$role]:-}; do
-        case "$skill" in
-            ""|.|..|*/*)
-                echo -e "${YELLOW}  ⚠️  $role: Codex 스킬 이름 '$skill'은 사용할 수 없습니다.${NC}" >&2
-                continue
-                ;;
-        esac
-        src="$(find_codex_skill_source "$skill")" || {
-            echo -e "${YELLOW}  ⚠️  $role: Codex 스킬 '$skill' 없음 (.agents/skills 또는 .codex/skills 확인)${NC}" >&2
-            continue
-        }
-        link_owned_skill "$(realpath "$src")" "$role_skills_dir/$skill" "$TEAM_SKILLS_ROOT/$role" || continue
-        granted+=("$skill")
-    done
-}
 
 for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
     [ "${MEMBER_AGENTS[$role_index]}" = "codex" ] || continue
@@ -1040,13 +1010,11 @@ for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
     role_skills_dir="$TEAM_SKILLS_ROOT/$role/.agents/skills"
     mkdir -p "$role_skills_dir"
     granted=()
-    link_codex_standalone_skills
-
     for plugin_key in "${!CODEX_PLUGIN_ROLES[@]}"; do
         plugin="${plugin_key%@*}"
         role_skill_list="$(plugin_skill_set CODEX "$plugin" "$role")"
         [ -n "$role_skill_list" ] || continue
-        plugin_root="$(codex_plugin_skills_root "$plugin_key" || true)"
+        plugin_root="$(codex_plugin_source "$plugin_key" skills || true)"
         link_plugin_skills "$plugin" "$plugin_root" $role_skill_list
     done
     echo "  $role: ${granted[*]:-(Codex 역할별 스킬 없음)}"
@@ -1055,8 +1023,8 @@ echo -e "${GREEN}  ✅ Codex 역할별 런타임 디렉터리 준비 완료${NC}
 
 fi
 
-# ── [6/7] 공통 (Claude·Codex) — TMUX 세션 & 레이아웃 구성 ─
-echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] 공통 (Claude·Codex) — TMUX 세션 & 레이아웃 구성...${NC}"
+# ── 공통 (Claude·Codex) — TMUX 세션 & 레이아웃 구성 ───────
+step "공통 (Claude·Codex) — TMUX 세션 & 레이아웃 구성..."
 
 # 초기 레이아웃에 충분한 크기를 확보한다. 접속 후에는 클라이언트 크기를 따른다.
 create_team_session() {
@@ -1101,8 +1069,8 @@ tmux set-option -t "$SESSION" mouse on
 
 echo "  ✅ 레이아웃 구성 완료 (${PANE_COUNT} panes)"
 
-# ── [7/7] 공통 (Claude·Codex) — 에이전트 자동 실행 ────────
-echo -e "\n${YELLOW}[$((STEP++))/$STEP_TOTAL] 공통 (Claude·Codex) — 파인별 에이전트 실행 중 (${used_agents_list})... (병렬, 최대 1분)${NC}"
+# ── 공통 (Claude·Codex) — 에이전트 자동 실행 ──────────────
+step "공통 (Claude·Codex) — 파인별 에이전트 실행 중 (${used_agents_list})... (병렬, 최대 1분)"
 
 # codex의 --add-dir는 존재하는 경로만 받는다. say의 lazy mkdir은
 # codex sandbox(workspace-write) 안에서 막히므로 파인 기동 전에 미리 만든다.
@@ -1126,32 +1094,15 @@ start_agent_in_pane() {
     "$BIN_DIR/say" --drain "$SESSION:0.$pane"
 }
 
-# 최초 Claude 로그인은 첫 파인에서 마친 뒤 나머지를 병렬 시작한다.
-# 병렬 출력은 역할별 파일에 모아 순서대로 표시한다.
+# 병렬 출력은 역할별 파일에 모아 순서대로 표시한다. 로그인은 사전 요구사항 단계에서 끝났다.
 start_pids=() start_rcs=() failed_panes=()
-launch_pane() {
-    # 파인 기동을 백그라운드로 시작하고 PID를 기록한다.
-    start_agent_in_pane "$1" > "$RUNTIME_DIR/pane-start-$1.log" 2>&1 &
-    start_pids[$1]=$!
-}
-first_pane=-1
-if [ "$NEED_FIRST_LOGIN" = true ]; then
-    for ((pane = 0; pane < PANE_COUNT; pane++)); do
-        if [ "${MEMBER_AGENTS[$pane]}" = "claude" ]; then first_pane=$pane; break; fi
-    done
-fi
-if [ "$first_pane" -ge 0 ]; then
-    launch_pane "$first_pane"
-    wait "${start_pids[$first_pane]}" && start_rcs[$first_pane]=0 || start_rcs[$first_pane]=$?
-fi
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
-    [ "$pane" -ne "$first_pane" ] || continue
-    launch_pane "$pane"
+    start_agent_in_pane "$pane" > "$RUNTIME_DIR/pane-start-$pane.log" 2>&1 &
+    start_pids[$pane]=$!
 done
 
 for ((pane = 0; pane < PANE_COUNT; pane++)); do
-    [ -n "${start_rcs[$pane]:-}" ] ||
-        { wait "${start_pids[$pane]}" && start_rcs[$pane]=0 || start_rcs[$pane]=$?; }
+    wait "${start_pids[$pane]}" && start_rcs[$pane]=0 || start_rcs[$pane]=$?
     echo -n "  Pane $pane (${MEMBER_NAMES[$pane]}, ${MEMBER_AGENTS[$pane]} · ${SPEC_MEMBER_MODELS[$pane]} · ${SPEC_MEMBER_REASONING_EFFORTS[$pane]:-effort 비어 있음}): "
     if [ "${start_rcs[$pane]}" -eq 0 ]; then
         echo -e "${GREEN}✅ 실행 완료${NC}"

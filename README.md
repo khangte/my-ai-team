@@ -35,7 +35,6 @@ tmux attach -t team1               # 팀 세션 접속
 .\install\windows.ps1 -Project C:\path\to\project
 ```
 
-Git Bash에서는 `bash ./install/windows.sh /c/path/to/project`로 설치할 수 있습니다.
 설치 후 팀 실행과 `tmux attach`는 WSL 터미널에서 합니다.
 프로젝트는 WSL 홈(`~/`) 아래 두는 편이 `/mnt/c`보다 빠릅니다.
 

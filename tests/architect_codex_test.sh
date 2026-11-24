@@ -24,10 +24,6 @@ test -n "${SPEC_MEMBER_REASONING_EFFORTS[$backend_index]}"
 # config.codex.sh는 스킬·플러그인 배분표만 담당한다(모델은 선언하지 않는다).
 source "$repo_dir/team/config.codex.sh"
 
-# standalone 스킬은 어느 역할에도 배정하지 않는다.
-for role in "${!CODEX_SKILL_SETS[@]}"; do
-    test -z "${CODEX_SKILL_SETS[$role]}"
-done
 test ! -d "$repo_dir/skills/codex"
 
 # backend에는 공식 Superpowers 플러그인의 디버깅·리뷰 수용 스킬만 선택 노출한다.
@@ -56,7 +52,7 @@ test -s "$repo_dir/team/uiux.md"
 # 런처가 파인별 CODEX_HOME과 세션 시작 정리 훅을 사용해야 한다.
 grep -qF 'export CODEX_HOME=$(shell_quote "$role_codex_home")' "$repo_dir/setup-team.sh"
 grep -qF 'CODEX_HOME="$role_home" codex login status' "$repo_dir/setup-team.sh"
-grep -qF '\"SessionStart\"' "$repo_dir/setup-team.sh"
+grep -qF '"SessionStart": [hook(env["HOOKS_BUSY_CLEAR"], "startup|resume|clear|compact")]' "$repo_dir/setup-team.sh"
 grep -qF 'CODEX_HOME="$role_home" codex plugin add' "$repo_dir/setup-team.sh"
 
 # pane_title은 CLI가 바꾸므로 테두리·창 제목은 @role 옵션으로 표시한다.

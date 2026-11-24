@@ -3,6 +3,7 @@
 set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$repo_dir/tests/lib.sh"
 test_dir="$(mktemp -d)"
 trap 'rm -rf "$test_dir"' EXIT
 fail() {
@@ -54,10 +55,6 @@ write_members "$proj/team/members.conf"
 "$repo_dir/install/wsl.sh" "$proj" >/dev/null 2>&1 && fail '팀 구성 없음을 통과시킴'
 write_members "$proj/team/members.conf" gemini-x
 "$repo_dir/install/wsl.sh" "$proj" >/dev/null 2>&1 && fail '잘못된 모델 접두사를 통과시킴'
-rm "$proj/team/members.conf"; printf 'SESSION=t\n' > "$proj/team/config.sh"   # 옛 config.sh만 있으면 이전 안내 후 중단
-err="$("$repo_dir/install/wsl.sh" "$proj" 2>&1)" && fail '옛 config.sh를 통과시킴'
-grep -q 'members.conf로 옮기세요' <<< "$err" || fail "옛 config.sh 이전 안내 누락: $err"
-rm "$proj/team/config.sh"
 "$repo_dir/install/wsl.sh" --agent foo "$proj" >/dev/null 2>&1 && fail '제거된 --agent를 통과시킴'
 
 # 값 없는 옵션, 재실행(멱등), 공백 경로(프로젝트·저장소 모두)
@@ -149,7 +146,9 @@ fakebrew="$test_dir/brew prefix"; mkdir -p "$fakebrew/bin" "$fakebrew/opt/coreut
 ln -s /bin/bash "$fakebrew/bin/bash"
 for c in sort timeout realpath; do printf '#!/bin/bash\nexit 0\n' > "$fakebrew/opt/coreutils/libexec/gnubin/$c"; done
 chmod +x "$fakebrew"/opt/coreutils/libexec/gnubin/*
-sed -n '/^# ── PATH 보강/,/^SCRIPT_DIR=/p' "$repo_dir/setup-team.sh" | sed '$d' > "$test_dir/path-block.sh"
+# PATH 보강 블록만 떼어 실행한다. latest_nvm_bin은 lib에 있어 함께 읽는다.
+{ printf 'source %q\n' "$repo_dir/lib/setup-common.sh"
+  sed -n '/^# ── PATH 보강/,/^TEAM_PATH=/p' "$repo_dir/setup-team.sh" | sed '$d'; } > "$test_dir/path-block.sh"
 # 우선순위 조정은 macOS(uname=Darwin)에서만 일어난다: Linux/WSL에서는 PATH 앞에 아무것도 붙지 않는다.
 linux_bash="$(env -i HOME="$test_dir" HOMEBREW_PREFIX="$fakebrew" PATH=/usr/bin:/bin /bin/bash -c 'source "$1"; command -v bash' _ "$test_dir/path-block.sh")"
 [ "$linux_bash" != "$fakebrew/bin/bash" ] || fail 'Linux에서 Homebrew PATH가 앞에 붙음'
@@ -168,7 +167,7 @@ if [ -n "$real_tmux" ]; then
     trap 'tmux kill-server 2>/dev/null || true; rm -rf "$test_dir"' EXIT
     env -i PATH=/usr/bin:/bin HOME="$test_dir" "$real_tmux" -S "$sock" new-session -d -s pre
     global_before="$(tmux show-environment -g PATH)"
-    eval "$(sed -n '/^create_team_session() {$/,/^}$/p' "$repo_dir/setup-team.sh")"
+    load_functions create_team_session
     SESSION=team PROJECT_DIR="$proj" BUSY_STATE_DIR=/s/b REPORT_STATE_DIR=/s/r QUEUE_STATE_DIR=/s/q TEAM_PATH="$fakebrew/bin:/usr/bin:/bin"
     create_team_session
     [ "$(tmux show-environment -t team PATH)" = "PATH=$TEAM_PATH" ] || fail '팀 세션 환경에 TEAM_PATH 누락'

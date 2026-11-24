@@ -76,16 +76,9 @@ record_marker() {
 }
 
 pane_interrupted() {
-    # 화면 하단에서 인터럽트 종료를 감지한다.
-    local screen
-    if [ "$#" -gt 0 ]; then
-        screen="$1"
-    else
-        # 인라인 렌더링이라 화면 아래쪽이 빈 줄일 수 있어 빈 줄을 걷어낸 뒤 자른다.
-        screen="$(tmux capture-pane -t "$pane" -p 2>/dev/null | grep -v '^[[:space:]]*$' | tail -15)"
-    fi
-    [ -n "$screen" ] || return 1
-    printf '%s\n' "$screen" | grep -qE 'Interrupted( by user| ·)|Conversation interrupted'
+    # 사용법: pane_interrupted <화면> — 화면 하단에서 인터럽트 종료를 감지한다.
+    [ -n "$1" ] || return 1
+    printf '%s\n' "$1" | grep -qE 'Interrupted( by user| ·)|Conversation interrupted'
 }
 
 is_busy() {
@@ -112,6 +105,7 @@ is_busy() {
     if [ -d "$BUSY_DIR" ]; then
         return 1
     fi
+    # 상태 디렉터리가 아직 없으면(설치 전 수동 실행) 화면 스피너로만 판정한다.
     tmux capture-pane -t "$pane" -p 2>/dev/null | tail -5 | grep -qE '\([0-9]+s( |·|$)'
 }
 
@@ -202,15 +196,10 @@ watcher_lock_is_orphaned() {
 }
 
 reclaim_orphan_watcher_lock() {
-    # 회수용 락으로 경합을 막고 고아 watcher 락을 제거한다.
+    # 고아 watcher 락을 제거한다. 동시에 회수하는 쪽이 있어도 rmdir이 실패할 뿐 무해하다.
     watcher_lock_is_orphaned || return 0
-    local reclaim_lock="$lock_file.reclaim"
-    mkdir "$reclaim_lock" 2>/dev/null || return 0
-    if watcher_lock_is_orphaned; then
-        rm -f "$lock_file/owner"
-        rmdir "$lock_file" 2>/dev/null || true
-    fi
-    rmdir "$reclaim_lock" 2>/dev/null || true
+    rm -f "$lock_file/owner"
+    rmdir "$lock_file" 2>/dev/null || true
 }
 
 queue_lock() {

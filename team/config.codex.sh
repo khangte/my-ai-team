@@ -19,16 +19,6 @@ declare -A CODEX_PLUGIN_ROLES=(
 # Playwright MCP를 켤 역할. 공식 카탈로그에 플러그인이 없어 역할별 config.toml에 MCP로 넣는다.
 CODEX_PLAYWRIGHT_ROLES="frontend uiux"
 
-# 역할 → standalone 스킬. .agents/skills/<name>·~/.codex/skills/<name>에서 찾아 링크한다.
-declare -A CODEX_SKILL_SETS=(
-    [lead]=""
-    [architect]=""
-    [uiux]=""
-    [frontend]=""
-    [backend]=""
-    [reviewer]=""
-)
-
 # 역할 → superpowers 스킬. snapshot의 원본에서 필요한 것만 링크한다.
 declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
     [lead]="finishing-a-development-branch"

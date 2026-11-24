@@ -57,7 +57,6 @@ lead='lead|claude-sonnet-5-5|high'
 expect_setup_stops members.conf "$lead" 'SESSION이 비어'
 expect_setup_stops members.conf 'SESSION=s' '팀 구성이 없습니다'
 expect_setup_stops members.conf "SESSION=s"$'\n'"$lead"$'\n'"$lead" '중복된 역할'
-expect_setup_stops config.sh 'SESSION="s"' 'members.conf로 옮기세요'
 
 [ "$failed" -eq 0 ] && echo "PASS: config_members_test"
 exit "$failed"

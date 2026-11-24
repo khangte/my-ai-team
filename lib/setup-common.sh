@@ -1,11 +1,16 @@
 #!/bin/bash
-# install/wsl.sh·install/mac.sh·install/windows.sh·install/docker.sh가 공유하는 인자 파싱과 팀 구성 판독.
+# install/wsl.sh·install/mac.sh·install/docker.sh가 공유하는 인자 파싱과 팀 구성 판독.
 # setup-team.sh도 team/members.conf 파서(load_team_members) 때문에 이 파일을 source한다.
 # bash 3.2(macOS 기본)에서도 동작해야 하므로 연관 배열·mapfile을 쓰지 않는다.
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
+
+latest_nvm_bin() {
+    # 가장 최신 nvm Node의 bin 경로를 출력한다. 없으면 빈 값이다.
+    ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1
+}
 
 setup_parse_args() {
     # 인자를 해석해 PROJECT_ARG를 채운다. 호출 전 SETUP_NAME(스크립트명)이 필요하다.
@@ -31,13 +36,10 @@ setup_parse_args() {
 
 # team/members.conf 파서. setup-team.sh·테스트도 이 파일을 source해 쓴다.
 team_members_file() {
-    # 프로젝트 members.conf가 있으면 그것을, 없으면 저장소 기본값 경로를 출력한다. 옛 config.sh만 있으면 실패한다.
+    # 프로젝트 members.conf가 있으면 그것을, 없으면 저장소 기본값 경로를 출력한다.
     local repo_dir="$1" project_dir="$2"
     if [ -f "$project_dir/team/members.conf" ]; then
         printf '%s\n' "$project_dir/team/members.conf"
-    elif [ -f "$project_dir/team/config.sh" ]; then
-        echo "❌ $project_dir/team/config.sh는 더 이상 읽지 않습니다. SESSION과 MEMBERS를 $project_dir/team/members.conf로 옮기세요 (형식: $repo_dir/team/members.conf)." >&2
-        return 2
     else
         printf '%s\n' "$repo_dir/team/members.conf"
     fi
@@ -147,14 +149,8 @@ setup_install_agent_clis() {
 setup_prepare_linux_path() {
     # WSL 비로그인 셸용 PATH 정리: Windows 상호운용 경로(/mnt/*)를 빼 Windows용 node·npm·CLI를 고르지 않게 하고,
     # 기존 NVM·~/.local 도구를 앞에 둔다. 로그인 셸(bash -l)에 기대지 않는다.
-    local nvm_bin entry rest="$PATH" kept=""
-    nvm_bin="$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)"
-    while [ -n "$rest" ]; do
-        entry="${rest%%:*}"
-        case "$rest" in *:*) rest="${rest#*:}" ;; *) rest="" ;; esac
-        case "$entry" in ""|/mnt/*) continue ;; esac
-        kept="${kept:+$kept:}$entry"
-    done
-    PATH="${nvm_bin:+$nvm_bin:}$HOME/.local/bin:$kept"
-    export PATH
+    local nvm_bin kept
+    nvm_bin="$(latest_nvm_bin)"
+    kept="$(awk -v RS=: '{gsub(/\n/, "")} NF && $0 !~ /^\/mnt\//{printf "%s%s", sep, $0; sep=":"}' <<< "$PATH")"
+    export PATH="${nvm_bin:+$nvm_bin:}$HOME/.local/bin:$kept"
 }

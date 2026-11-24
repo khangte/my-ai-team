@@ -9,14 +9,9 @@ test_dir="$(mktemp -d)"
 trap 'for s in "$test_dir"/tmux-*.sock; do command tmux -S "$s" kill-server 2>/dev/null || true; done; rm -rf "$test_dir"' EXIT
 fail() { printf '실패: %s\n' "$*" >&2; exit 1; }
 
-load_functions() {
-    local name
-    for name in "$@"; do
-        eval "$(sed -n "/^${name}() {\$/,/^}\$/p" "$script")"
-    done
-}
-load_functions codex_default_model_config write_codex_role_plugins codex_plugin_cache \
-    codex_shared_plugin_cache link_codex_base_assets prepare_codex_role_home \
+source "$repo_dir/tests/lib.sh"
+load_functions write_codex_role_plugins codex_plugin_cache \
+    codex_plugin_source link_codex_base_assets prepare_codex_role_home \
     start_codex_in_pane shell_quote say_state_exports create_team_session role_in
 TEAM_PATH="$PATH"
 BUSY_STATE_DIR=/state/busy REPORT_STATE_DIR=/state/say QUEUE_STATE_DIR=/state/queue PROJECT_DIR="${PROJECT_DIR:-/p}"

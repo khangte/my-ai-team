@@ -7,19 +7,13 @@ repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="$repo_dir/setup-team.sh"
 bash -n "$script"
 
-# 함수 본문만 꺼내 쓴다(스크립트 전체를 실행하지 않는다).
-load_functions() {
-    local name
-    for name in "$@"; do
-        eval "$(sed -n "/^${name}() {\$/,/^}\$/p" "$script")"
-    done
-}
-load_functions codex_default_model_config plugin_skill_set provider_plugin_needed claude_plugin_dir codex_plugin_cache \
+source "$repo_dir/tests/lib.sh"
+load_functions plugin_skill_set provider_plugin_needed claude_plugin_dir codex_plugin_cache \
     install_claude_plugins link_plugin_skills reset_generated_team_files \
-    link_codex_base_assets prepare_codex_role_home codex_plugin_skills_root \
-    prepare_codex_skill_sources codex_shared_plugin_cache link_codex_standalone_skills find_codex_skill_source write_codex_role_plugins answer_claude_dialog \
+    link_codex_base_assets prepare_codex_role_home codex_plugin_source \
+    prepare_codex_skill_sources codex_role_matches write_codex_role_plugins \
     wait_claude_ready wait_for_pane start_codex_in_pane team_owned_record team_owned_adopt_identical team_owned_clean \
-    link_owned_skill json_escape say_state_exports stop_hook_cmd_for_role write_codex_role_agents shell_quote \
+    link_owned_skill say_state_exports stop_hook_cmd_for_role write_codex_role_agents shell_quote \
     start_claude_in_pane role_in role_prompt_content merge_team_md ensure_playwright_browser
 
 test_dir="$(mktemp -d)"
@@ -156,27 +150,6 @@ link_plugin_skills plug "$test_dir/plug" mine tool-skill other-skill 2>/dev/null
 grep -qP '^L\t\.agents/skills/tool-skill\t' "$TEAM_SKILLS_ROOT/dev/.ai-setup-owned" || fail '소유 기록 누락'
 ! grep -q 'mine\|other-skill' "$TEAM_SKILLS_ROOT/dev/.ai-setup-owned" || fail '사용자 항목이 소유 기록에 들어감'
 
-# standalone 스킬도 같은 규칙: 점유된 경로는 보존, 새 링크는 기록, 구성에서 빠지면 정리.
-mkdir -p "$PROJECT_DIR/.agents/skills/solo" "$PROJECT_DIR/.agents/skills/taken" "$PROJECT_DIR/.agents/skills/dirtaken"
-: > "$PROJECT_DIR/.agents/skills/solo/SKILL.md"; : > "$PROJECT_DIR/.agents/skills/taken/SKILL.md"; : > "$PROJECT_DIR/.agents/skills/dirtaken/SKILL.md"
-declare -A CODEX_SKILL_SETS=([sa]="solo taken dirtaken nope")
-role=sa role_skills_dir="$TEAM_SKILLS_ROOT/sa/.agents/skills" granted=()
-rm -rf "$role_skills_dir"; mkdir -p "$role_skills_dir/dirtaken"
-ln -s "$test_dir/src/other" "$role_skills_dir/taken"
-output="$(link_codex_standalone_skills 2>&1)"
-expect_in "'.agents/skills/taken'에 기존 항목이 있어 덮어쓰지 않습니다" "$output"
-expect_in "'.agents/skills/dirtaken'에 기존 항목이 있어 덮어쓰지 않습니다" "$output"
-expect_in "Codex 스킬 'nope' 없음" "$output"
-link_codex_standalone_skills 2>/dev/null
-[ "$(readlink "$role_skills_dir/taken")" = "$test_dir/src/other" ] || fail 'standalone이 사용자 링크를 덮어씀'
-[ -d "$role_skills_dir/dirtaken" ] && [ ! -L "$role_skills_dir/dirtaken" ] || fail 'standalone이 사용자 디렉터리를 바꿈'
-[ "$(readlink "$role_skills_dir/solo")" = "$(realpath "$PROJECT_DIR/.agents/skills/solo")" ] || fail 'standalone 링크 미생성'
-grep -qP '^L\t\.agents/skills/solo\t' "$TEAM_SKILLS_ROOT/sa/.ai-setup-owned" || fail 'standalone 소유 기록 누락'
-! grep -q 'taken' "$TEAM_SKILLS_ROOT/sa/.ai-setup-owned" || fail '사용자 항목이 소유 기록에 들어감'
-CODEX_SKILL_SETS=([sa]="")
-reset_generated_team_files
-[ ! -L "$role_skills_dir/solo" ] || fail '구성에서 빠진 standalone 링크 남음'
-[ -L "$role_skills_dir/taken" ] && [ -d "$role_skills_dir/dirtaken" ] || fail '정리 중 사용자 항목 삭제됨'
 role=dev role_skills_dir="$TEAM_SKILLS_ROOT/dev/.agents/skills"
 
 # Codex hooks.json: 새로 만들면 소유 기록에 남고, 구성에서 빠지면 다음 실행에서 지워진다.
@@ -322,52 +295,50 @@ reuse_case() { # <이름> : base/assets/role 중 설치본을 어디에 둘지�
     prepare_codex_skill_sources > "$test_dir/reuse_out" 2>&1
 }
 MEMBER_AGENTS=(claude codex); MEMBER_NAMES=(lead developer)
-declare -A CODEX_PLUGIN_ROLES=(["srconly@local"]="")
+declare -A CODEX_PLUGIN_ROLES=(["superpowers@local"]="")
 declare -A CODEX_SUPERPOWERS_SKILL_SETS=([developer]="probe")
-CODEX_SRCONLY_SKILL_SETS=; unset CODEX_SRCONLY_SKILL_SETS
-declare -A CODEX_SRCONLY_SKILL_SETS=([developer]="probe")
 rm -rf "$base_codex_home" "$TEAM_SKILLS_ROOT/developer/.codex-home" "$codex_assets_home"
-make_codex_cache "$TEAM_SKILLS_ROOT/developer/.codex-home" srconly@local
+make_codex_cache "$TEAM_SKILLS_ROOT/developer/.codex-home" superpowers@local
 reuse_case
 [ ! -s "$test_dir/codex_calls" ] || fail "역할 홈 설치본이 있는데 설치함: $(cat "$test_dir/codex_calls")"
 grep -qF '스킬 원본 이미 있음' "$test_dir/reuse_out" || fail '역할 홈 설치본을 원본으로 못 찾음'
 rm -rf "$TEAM_SKILLS_ROOT/developer/.codex-home"
-make_codex_cache "$codex_assets_home" srconly@local
+make_codex_cache "$codex_assets_home" superpowers@local
 reuse_case
 [ ! -s "$test_dir/codex_calls" ] || fail "자산 홈 설치본이 있는데 설치함"
 rm -rf "$codex_assets_home"
 reuse_case
-[ "$(grep -c 'plugin add srconly@local' "$test_dir/codex_calls")" = 1 ] || fail '설치본이 없으면 정확히 1회 설치해야 함'
+[ "$(grep -c 'plugin add superpowers@local' "$test_dir/codex_calls")" = 1 ] || fail '설치본이 없으면 정확히 1회 설치해야 함'
 grep -qF "$codex_assets_home plugin add" "$test_dir/codex_calls" || fail '자산 홈에 설치되지 않음'
 # 활성화와 스킬 원본을 겸하는 플러그인은 첫 실행에서 자산 홈에 중복 설치하지 않는다.
 rm -rf "$codex_assets_home" "$TEAM_SKILLS_ROOT/developer/.codex-home"
-declare -A CODEX_PLUGIN_ROLES=(["srconly@local"]="developer")
+declare -A CODEX_PLUGIN_ROLES=(["superpowers@local"]="developer")
 reuse_case
 [ ! -s "$test_dir/codex_calls" ] || fail "활성화+스킬 원본 플러그인을 자산 홈에 중복 설치함"
 : > "$test_dir/codex_calls"
 prepare_codex_role_home developer "$TEAM_SKILLS_ROOT/developer/.codex-home" >/dev/null
-[ "$(grep -c 'plugin add srconly@local' "$test_dir/codex_calls")" = 1 ] || fail '역할 홈 설치가 정확히 1회가 아님'
-codex_plugin_skills_root srconly@local >/dev/null || fail '역할 홈 설치본이 스킬 원본으로 안 잡힘'
+[ "$(grep -c 'plugin add superpowers@local' "$test_dir/codex_calls")" = 1 ] || fail '역할 홈 설치가 정확히 1회가 아님'
+codex_plugin_source superpowers@local skills >/dev/null || fail '역할 홈 설치본이 스킬 원본으로 안 잡힘'
 # 자산 홈에 먼저 설치된 것은 역할 홈 준비에서 다시 받지 않고 연결한다.
 rm -rf "$TEAM_SKILLS_ROOT/developer/.codex-home"
-make_codex_cache "$codex_assets_home" srconly@local
+make_codex_cache "$codex_assets_home" superpowers@local
 : > "$test_dir/codex_calls"
 prepare_codex_role_home developer "$TEAM_SKILLS_ROOT/developer/.codex-home" >/dev/null
 ! grep -q 'plugin add' "$test_dir/codex_calls" || fail '자산 홈 설치본을 두고 재설치함'
-codex_plugin_cache "$TEAM_SKILLS_ROOT/developer/.codex-home" srconly@local >/dev/null || fail '자산 홈 설치본이 역할 홈에 연결 안 됨'
+codex_plugin_cache "$TEAM_SKILLS_ROOT/developer/.codex-home" superpowers@local >/dev/null || fail '자산 홈 설치본이 역할 홈에 연결 안 됨'
 
 # 다른 역할 홈에만 설치된 플러그인: 활성화 역할의 홈 준비도 재설치 없이 연결하고 config는 역할별로 유지한다.
 rm -rf "$base_codex_home" "$codex_assets_home" "$TEAM_SKILLS_ROOT/developer/.codex-home" "$TEAM_SKILLS_ROOT/other/.codex-home"
-make_codex_cache "$TEAM_SKILLS_ROOT/other/.codex-home" srconly@local
+make_codex_cache "$TEAM_SKILLS_ROOT/other/.codex-home" superpowers@local
 : > "$test_dir/codex_calls"
 reuse_case
 [ ! -s "$test_dir/codex_calls" ] || fail '다른 역할 홈 설치본이 있는데 자산 홈에 설치함'
 output="$(prepare_codex_role_home developer "$TEAM_SKILLS_ROOT/developer/.codex-home")"
 ! grep -q 'plugin add' "$test_dir/codex_calls" || fail "다른 역할 홈 설치본이 있는데 plugin add 호출: $(cat "$test_dir/codex_calls")"
-expect_in "srconly@local 로컬에 이미 설치됨(다른 홈 설치본 재사용) → developer" "$output"
-codex_plugin_cache "$TEAM_SKILLS_ROOT/developer/.codex-home" srconly@local >/dev/null || fail '다른 역할 홈 설치본이 연결 안 됨'
-grep -qF '[plugins."srconly@local"]' "$TEAM_SKILLS_ROOT/developer/.codex-home/config.toml" || fail '역할별 활성화 누락'
-! grep -qF 'srconly' "$TEAM_SKILLS_ROOT/other/.codex-home/config.toml" 2>/dev/null || fail '다른 역할 config가 바뀜'
+expect_in "superpowers@local 로컬에 이미 설치됨(다른 홈 설치본 재사용) → developer" "$output"
+codex_plugin_cache "$TEAM_SKILLS_ROOT/developer/.codex-home" superpowers@local >/dev/null || fail '다른 역할 홈 설치본이 연결 안 됨'
+grep -qF '[plugins."superpowers@local"]' "$TEAM_SKILLS_ROOT/developer/.codex-home/config.toml" || fail '역할별 활성화 누락'
+! grep -qF 'superpowers' "$TEAM_SKILLS_ROOT/other/.codex-home/config.toml" 2>/dev/null || fail '다른 역할 config가 바뀜'
 rm -rf "$TEAM_SKILLS_ROOT/other" "$TEAM_SKILLS_ROOT/developer/.codex-home"
 
 # ── 빈 플러그인 배열: 오류·명령 없이 건너뛰고 set -e에서도 이어진다 ──
@@ -383,7 +354,6 @@ grep -q 'after-claude' "$test_dir/empty_out" && grep -q 'after-codex' "$test_dir
 ! grep -q 'bad array subscript' "$test_dir/empty_out" || fail 'bad array subscript'
 [ ! -s "$test_dir/claude_calls" ] && [ ! -s "$test_dir/codex_calls" ] || fail '빈 배열인데 명령 호출'
 
-unset CODEX_SRCONLY_SKILL_SETS
 declare -A CODEX_PLUGIN_ROLES=(
     ["have-base@local"]="developer" ["have-role@local"]="developer" ["fresh@local"]="developer"
     ["unused-installed@local"]="reviewer" ["unused-missing@local"]="reviewer"
@@ -461,7 +431,7 @@ PROJECT_DIR="$weird" TEAM_SKILLS_ROOT="$weird/.team" RUNTIME_DIR="$weird/.team/_
 mkdir -p "$BIN_DIR" "$TEAM_SKILLS_ROOT/dev/.claude/skills" "$TEAM_SKILLS_ROOT/dev/.codex-home" "$TEAM_DIR"
 printf '# role\n' > "$TEAM_DIR/dev.md"
 for n in say log-hook; do ln -sf "$fakebin/fake" "$BIN_DIR/$n"; done
-MEMBER_NAMES=(lead dev) NEED_FIRST_LOGIN=false
+MEMBER_NAMES=(lead dev)
 CLAUDE_PLUGIN_ROLES=() CLAUDE_PLUGIN_MARKETPLACES=()
 pane_state_key() { printf 'key'; }
 export FAKE_LOG="$test_dir/fake.log"
