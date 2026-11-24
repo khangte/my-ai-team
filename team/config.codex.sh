@@ -28,3 +28,14 @@ declare -A CODEX_SUPERPOWERS_SKILL_SETS=(
     [backend]="systematic-debugging receiving-code-review"
     [reviewer]=""
 )
+
+# 역할 → gstack Codex 스킬. 설치본의 gstack- 접두어는 로더가 붙인다.
+declare -A CODEX_GSTACK_SKILL_SETS=(
+    [lead]="spec plan-eng-review"
+    [architect]="diagram"
+    [researcher]="scrape browse"
+    [uiux]="design-review design-html"
+    [frontend]="qa-only"
+    [backend]="health"
+    [reviewer]="review"
+)

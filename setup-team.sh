@@ -78,7 +78,7 @@ declare -A USED_AGENTS=()
 for a in "${MEMBER_AGENTS[@]}"; do USED_AGENTS["$a"]=1; done
 
 # 공급자 하나만 쓰는 팀에서도 배분표 조회가 성립하도록 빈 배열을 먼저 둔다. 구성 파일이 값을 채운다.
-declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=() CODEX_SUPERPOWERS_SKILL_SETS=()
+declare -A CLAUDE_SUPERPOWERS_SKILL_SETS=() CODEX_SUPERPOWERS_SKILL_SETS=() CODEX_GSTACK_SKILL_SETS=()
 
 for agent in "${!USED_AGENTS[@]}"; do
     # 프로젝트에 없는 배열이 기본값으로 남지 않도록 구성 파일을 병합하지 않는다.
@@ -559,6 +559,10 @@ start_codex_in_pane() {
         work_dir="$TEAM_SKILLS_ROOT/$role"
     fi
     local role_codex_home="$work_dir/.codex-home"
+    local gstack_env=""
+    if [ -f "$TEAM_SKILLS_ROOT/_assets/gstack/installed" ] && [ -n "$(codex_gstack_skills "$role")" ]; then
+        gstack_env="export GSTACK_STATE_ROOT=$(shell_quote "$TEAM_SKILLS_ROOT/_assets/gstack/state") && "
+    fi
     write_codex_role_agents "$role" "$work_dir" "$pane_id" "$state_key" || true
 
     local model_arg="--model $(shell_quote "$model")"
@@ -577,7 +581,7 @@ start_codex_in_pane() {
     # 파일 쓰기 경계는 --add-dir로 별도 유지한다.
     local tmux_tmpdir="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)"
     tmux send-keys -t "$pane" \
-        "cd $(shell_quote "$work_dir") && export CODEX_HOME=$(shell_quote "$role_codex_home") && export PATH=$(shell_quote "${TEAM_PATH:-$PATH}") && $(say_state_exports) && $(shell_quote "$codex_bin") $permission_args --dangerously-bypass-hook-trust --add-dir $(shell_quote "$PROJECT_DIR") --add-dir $(shell_quote "$tmux_tmpdir") --add-dir $(shell_quote "$BUSY_STATE_DIR") --add-dir $(shell_quote "$REPORT_STATE_DIR") --add-dir $(shell_quote "$QUEUE_STATE_DIR") -c 'sandbox_workspace_write.network_access=true' -c check_for_update_on_startup=false $model_arg $reasoning_arg" Enter
+        "cd $(shell_quote "$work_dir") && export CODEX_HOME=$(shell_quote "$role_codex_home") && export PATH=$(shell_quote "${TEAM_PATH:-$PATH}") && $(say_state_exports) && ${gstack_env}$(shell_quote "$codex_bin") $permission_args --dangerously-bypass-hook-trust --add-dir $(shell_quote "$PROJECT_DIR") --add-dir $(shell_quote "$tmux_tmpdir") --add-dir $(shell_quote "$BUSY_STATE_DIR") --add-dir $(shell_quote "$REPORT_STATE_DIR") --add-dir $(shell_quote "$QUEUE_STATE_DIR") -c 'sandbox_workspace_write.network_access=true' -c check_for_update_on_startup=false $model_arg $reasoning_arg" Enter
 
     # 프로젝트 신뢰 대화상자 또는 입력 화면을 기다린다. 둘 다 없으면 실패한다.
     local trust_pattern="Do you trust the contents\|Trust this folder?"
@@ -999,7 +1003,47 @@ prepare_codex_skill_sources() {
     done
 }
 
+codex_gstack_skills() {
+    local role="$1" skill
+    for skill in ${CODEX_GSTACK_SKILL_SETS[$role]:-}; do
+        printf 'gstack-%s\n' "${skill#gstack-}"
+    done
+}
+
+prepare_codex_gstack() {
+    local i needed=false
+    for ((i = 0; i < PANE_COUNT; i++)); do
+        if [ "${MEMBER_AGENTS[$i]}" = codex ] && [ -n "$(codex_gstack_skills "${MEMBER_NAMES[$i]}")" ]; then
+            needed=true
+            break
+        fi
+    done
+    [ "$needed" = true ] || return 0
+
+    local root="$TEAM_SKILLS_ROOT/_assets/gstack"
+    local source="$root/source" install_home="$root/codex-home"
+    if [ -f "$root/installed" ] && compgen -G "$install_home/skills/gstack-*/SKILL.md" >/dev/null; then
+        return 0
+    fi
+    mkdir -p "$root" "$install_home" "$root/state" "$root/tmp" "$root/bun-cache" || return 1
+    if [ ! -x "$source/setup" ]; then
+        git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git "$source" || return 1
+    fi
+    # 공식 설치가 생성한 훅은 자산 홈에 둔다. 실행 파인에는 선택한 스킬만 연결한다.
+    (
+        cd "$source" || exit 1
+        PATH="$TEAM_PATH" CODEX_HOME="$install_home" GSTACK_STATE_ROOT="$root/state" \
+            BUN_TMPDIR="$root/tmp" BUN_INSTALL_CACHE_DIR="$root/bun-cache" \
+            ./setup --host codex
+    ) || return 1
+    compgen -G "$install_home/skills/gstack-*/SKILL.md" >/dev/null || return 1
+    touch "$root/installed"
+}
+
 prepare_codex_skill_sources
+if ! prepare_codex_gstack; then
+    echo -e "${YELLOW}⚠️  Codex gstack 설치 실패. 다음 실행에서 재시도합니다.${NC}" >&2
+fi
 
 for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
     [ "${MEMBER_AGENTS[$role_index]}" = "codex" ] || continue
@@ -1024,6 +1068,10 @@ for ((role_index = 0; role_index < PANE_COUNT; role_index++)); do
         plugin_root="$(codex_plugin_source "$plugin_key" skills || true)"
         link_plugin_skills "$plugin" "$plugin_root" $role_skill_list
     done
+    gstack_skills="$(codex_gstack_skills "$role")"
+    if [ -n "$gstack_skills" ] && [ -f "$TEAM_SKILLS_ROOT/_assets/gstack/installed" ]; then
+        link_plugin_skills gstack "$TEAM_SKILLS_ROOT/_assets/gstack/codex-home/skills" $gstack_skills
+    fi
     echo "  $role: ${granted[*]:-(Codex 역할별 스킬 없음)}"
 done
 echo -e "${GREEN}  ✅ Codex 역할별 런타임 디렉터리 준비 완료${NC}"

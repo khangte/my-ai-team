@@ -88,7 +88,7 @@ gstack 보일러플레이트라 실제 디자인 지침은 32%뿐이다. 웹 리
 Codex 파인(기본 구성에서 architect·uiux·reviewer)은 앞 절의 Claude용 스킬·플러그인을 읽지 못한다.
 `team/config.claude.sh`의 각 역할 항목은 그 역할을 Claude로 돌릴 때만 적용되고,
 Codex 파인의 플러그인·스킬은 `team/config.codex.sh`가 따로 정한다. 형식은 `config.claude.sh`와 같다
-(`CODEX_PLUGIN_ROLES`는 플러그인 → 역할, `CODEX_SKILL_SETS`·`CODEX_SUPERPOWERS_SKILL_SETS`는 역할 → 스킬).
+(`CODEX_PLUGIN_ROLES`는 플러그인 → 역할, `CODEX_GSTACK_SKILL_SETS`·`CODEX_SUPERPOWERS_SKILL_SETS`는 역할 → 스킬).
 
 | 역할      | Codex에서 받는 것                                                              |
 | --------- | ------------------------------------------------------------------------------ |
@@ -104,20 +104,32 @@ Codex 파인의 플러그인·스킬은 `team/config.codex.sh`가 따로 정한�
 (현재 카탈로그는 `openai-curated-remote`). superpowers 스킬 링크는 공식 marketplace snapshot
 (`~/.codex/.tmp/plugins`)에서 가져온다.
 
-gstack 스킬(`CODEX_SKILL_SETS`)은 비워 둔다. `setup-team.sh`는 gstack을 claude host로만
-설치하고(`./setup`), gstack의 codex 렌더링은 이름이 `gstack-<name>`이라
-`find_codex_skill_source`가 찾지 못한다 — 설정해도 경고만 내고 건너뛴다.
+### Codex gstack
+
+Codex 역할에 `CODEX_GSTACK_SKILL_SETS` 배정이 있으면 공식 `./setup --host codex`를 실행합니다. 소스와 설치본은 `.team/_assets/gstack`에 보관하고 이후 기동에서 재사용합니다. 실행 파인에는 설치본의 `gstack-*` 디렉터리 중 배정한 항목만 링크합니다. 설치기가 만든 gstack 훅은 자산 홈에 있으며, 실행 파인의 메시징 훅 설정과 분리됩니다. gstack의 Codex 지원 등급은 실험적입니다. [공식 호스트 안내](https://github.com/garrytan/gstack#other-ai-agents)
+
+| 역할 | gstack 스킬 |
+| --- | --- |
+| lead | `spec`, `plan-eng-review` |
+| architect | `diagram` |
+| uiux | `design-review`, `design-html` |
+| frontend | `qa-only` |
+| backend | `health` |
+| reviewer | `review` |
+| researcher · 프로젝트에서 역할 추가 시 | `scrape`, `browse` |
+
+표는 해당 역할을 **Codex 모델로 실행할 때** 적용됩니다. 프로젝트별 `team/config.codex.sh`에서 배열을 비우면 gstack을 생략할 수 있습니다. 최초 설치에는 Git과 네트워크가 필요하며, 브라우저 스킬은 Chromium 실행에 필요한 시스템 라이브러리가 있어야 합니다.
 
 Codex 공식 카탈로그를 기준으로 Claude 기능의 대체재를 다음처럼 사용한다.
 
 | 기존 기능                                   | Codex 네이티브 대체재                                     | 적용 방침                                        |
 | ------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------ |
 | Superpowers `brainstorming`·`writing-plans` | `superpowers`의 동명 스킬                                 | architect를 Codex로 돌릴 때 `CODEX_SUPERPOWERS_SKILL_SETS`에 선언(기본 배정은 `writing-plans`, `brainstorming`은 미배정) |
-| gstack `diagram`                            | `figma@openai-curated-remote`의 `figma-generate-diagram`         | FigJam을 쓰는 프로젝트에서만 역할별 전체 설치    |
+| FigJam 산출물 | `figma@openai-curated-remote`의 `figma-generate-diagram` | FigJam을 쓰는 프로젝트에서만 역할별 전체 설치 |
 | 문서 기반 spec → plan/task                  | `notion@openai-curated-remote`의 `notion-spec-to-implementation` | Notion이 source of truth일 때만 역할별 전체 설치 |
 | GitHub issue/PR 문맥                        | `github@openai-curated-remote`                                 | 로컬 저장소만 쓰면 불필요                        |
 | lifecycle hook                              | Codex 네이티브 hooks                                      | 이 저장소가 `SessionStart`·`Stop`을 자동 생성    |
-| Serena·gstack `health`·독립 plan review     | 정확한 공식 대체재 없음                                   | Codex 기본 저장소 도구와 architect 지침으로 수행 |
+| Serena·독립 plan review     | 정확한 공식 대체재 없음                                   | Codex 기본 저장소 도구와 architect 지침으로 수행 |
 
 `CODEX_SUPERPOWERS_SKILL_SETS`에 선언하면 `setup-team.sh`가 superpowers에서 그 스킬만 찾아
 `.team/{역할}/.agents/skills`에 링크한다. 전체 플러그인에 포함된 나머지 스킬은 그 역할에 보이지 않는다.
