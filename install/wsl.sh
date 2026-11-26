@@ -10,9 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # 저장소 루�
 source "$SCRIPT_DIR/lib/setup-common.sh"
 
 setup_parse_args "$@"
-# apt 기반 Linux/WSL 전용이다. macOS는 install/mac.sh, Windows 네이티브는 install/windows.ps1을 쓴다.
+# apt 기반 Linux/WSL 전용이다. macOS는 install/mac.sh를 쓴다. Windows는 WSL 안에서 이 스크립트를 쓴다.
 if [ "$(uname -s)" != Linux ] || ! command -v apt-get &>/dev/null; then
-    echo "apt 기반 Linux/WSL 전용 스크립트입니다. macOS는 install/mac.sh, Windows는 install/windows.ps1을 쓰세요." >&2
+    echo "apt 기반 Linux/WSL 전용 스크립트입니다. macOS는 install/mac.sh를 쓰세요. Windows는 WSL 안에서 실행하세요." >&2
     exit 1
 fi
 setup_prepare_linux_path

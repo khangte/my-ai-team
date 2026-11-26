@@ -14,7 +14,7 @@ source "$SCRIPT_DIR/lib/setup-common.sh"
 setup_parse_args "$@"
 # SETUP_ALLOW_NON_DARWIN은 Linux CI의 스텁 검증 전용이다.
 if [ "$(uname -s)" != Darwin ] && [ "${SETUP_ALLOW_NON_DARWIN:-}" != 1 ]; then
-    echo "macOS 전용 스크립트입니다. WSL/Linux는 install/wsl.sh, Windows는 install/windows.ps1을 쓰세요." >&2
+    echo "macOS 전용 스크립트입니다. WSL/Linux는 install/wsl.sh를 쓰세요." >&2
     exit 1
 fi
 setup_load_team

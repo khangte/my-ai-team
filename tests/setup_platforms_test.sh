@@ -1,5 +1,5 @@
 #!/bin/bash
-# install/wsl.sh·install/mac.sh·install/windows.ps1의 에이전트 선택, 혼합 팀 판독, 플랫폼 사전 조건 안내를 스텁으로 검증한다.
+# install/wsl.sh·install/mac.sh의 에이전트 선택, 혼합 팀 판독, 플랫폼 사전 조건 안내를 스텁으로 검증한다.
 set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -181,27 +181,6 @@ else
 fi
 grep -q 'export PATH=$(shell_quote "${TEAM_PATH:-$PATH}")' "$repo_dir/setup-team.sh" || fail '파인 시작 명령이 TEAM_PATH를 export하지 않음'
 ! grep -qF '):\$PATH' "$repo_dir/setup-team.sh" || fail '파인 PATH가 tmux 서버 PATH에 의존함'
-
-# ── 4. Windows: tmux 한계를 정직하게 안내하고 WSL로 위임 ─────────
-ps1="$repo_dir/install/windows.ps1"
-grep -q 'wsl.exe' "$ps1" && grep -q 'install/wsl.sh' "$ps1" || fail 'WSL 위임 누락'
-grep -q 'wsl.exe -e wslpath -a' "$ps1" || fail 'wslpath는 -e로 셸 해석을 우회해야 함(UNC 역슬래시 보존)'
-grep -q 'Get-Location' "$ps1" || fail '-Project 생략 시 현재 폴더 전달 누락'
-grep -q -- '--cd' "$ps1" && grep -q '네이티브 CLI' "$ps1" || fail 'Windows 범위 구분 안내 누락'
-grep -q 'tmux는 네이티브 Windows에서 동작하지 않' "$ps1" || fail 'tmux 요건 안내 누락'
-! grep -qE 'choco|winget|scoop' "$ps1" || fail '네이티브 tmux 설치를 시도하면 안 됨'
-if command -v pwsh >/dev/null; then
-    # -Command 뒤 인자는 $args로 전달되지 않으므로 -File 검증 스크립트에 경로를 인자로 넘긴다.
-    cat > "$test_dir/parse.ps1" <<'PS'
-param([string]$Path)
-$errs = $null
-[void][System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$null, [ref]$errs)
-if ($errs) { $errs | ForEach-Object { [Console]::Error.WriteLine($_.ToString()) }; exit 1 }
-PS
-    pwsh -NoProfile -NonInteractive -File "$test_dir/parse.ps1" -Path "$ps1" || fail 'ps1 구문 오류'
-else
-    echo '참고: pwsh가 없어 install/windows.ps1은 정적 검사만 했습니다.'
-fi
 
 # ── Docker: 컨테이너 이름은 프로젝트별이며 특수문자는 안전하게 치환된다 ──
 dstub="$test_dir/dstub"; mkdir -p "$dstub" "$test_dir/my proj.x"
