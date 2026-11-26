@@ -16,72 +16,61 @@ cd ~/ai-setup
 tmux attach -t team1               # 팀 세션 접속
 ```
 
-팀에서 사용하는 공급자의 로그인이 필요합니다. 실행 시 인증 상태를 확인하며,
-미로그인 상태라면 Claude는 `/login`, Codex는 `codex login`을 안내합니다.
-프로젝트 경로를 생략하면 `$PROJECT_DIR`, 없으면 현재 디렉터리를 사용합니다.
+- 사용하는 공급자 로그인 필요: Claude는 `/login`, Codex는 `codex login` (미로그인 시 실행 중 안내)
+- 프로젝트 경로 생략 시: `$PROJECT_DIR` → 현재 디렉터리 순
 
-### 다른 환경에서 실행
+### macOS
 
-**macOS** — Homebrew를 먼저 설치하고, 기본 bash 3.2 대신 Homebrew bash로 실행합니다.
+Homebrew 필요, Homebrew bash로 실행(기본 bash 3.2 미지원)
 
 ```bash
 ./install/mac.sh /path/to/project
 "$(brew --prefix)/bin/bash" ./setup-team.sh /path/to/project
 ```
 
-**Windows** — WSL2 배포판이 필요합니다. PowerShell에서 의존성을 설치합니다.
+### 팀원과 같은 환경 공유 (Docker)
 
-```powershell
-.\install\windows.ps1 -Project C:\path\to\project
-```
-
-설치 후 팀 실행과 `tmux attach`는 WSL 터미널에서 합니다.
-프로젝트는 WSL 홈(`~/`) 아래 두는 편이 `/mnt/c`보다 빠릅니다.
-
-**Docker** — Docker가 설치된 환경에서 이미지 빌드부터 팀 실행까지 진행합니다.
+저장소의 `Dockerfile`로 `claude-team` 이미지를 빌드해, 팀원 모두 같은 OS·도구 구성에서 팀을 실행합니다. Claude Code·Codex는 빌드 시점의 최신 버전이 설치됩니다.
 
 ```bash
 ./install/docker.sh /path/to/project
 docker exec -it claude-env-<프로젝트이름>-<경로체크섬> bash -lc "tmux attach -t team1"
 ```
 
-기본 실행은 Claude의 `--dangerously-skip-permissions`와 Codex의
-`--dangerously-bypass-approvals-and-sandbox`를 사용합니다.
-파일 수정·삭제에 별도 승인을 받지 않으므로 git으로 관리하는 프로젝트나 격리 환경에서 사용하세요.
-Codex를 `workspace-write`로 제한하려면 `CODEX_FULL_ACCESS=0`으로 실행합니다.
-이 경우 `.git` 쓰기가 제한되어 `git add`·`git commit`을 할 수 없습니다.
+### 기본 실행 옵션
+
+  - `claude --dangerously-skip-permissions`
+  - `codex --dangerously-bypass-approvals-and-sandbox`
+  > 파일 수정·삭제에 승인을 받지 않음 → git 관리 프로젝트나 격리 환경에서 사용
 
 ## 팀 구성
 
-현재 기본 팀은 **lead·architect·uiux·frontend·backend·reviewer 6인**이며, architect·uiux·reviewer는 Codex,
-lead·frontend·backend는 Claude를 사용합니다. UI/UX 설계가 필요 없는 프로젝트는 `team/members.conf`에서 uiux를 뺄 수 있습니다.
-독립 researcher 역할은 두지 않고 기술 조사는 architect, UX·레퍼런스 조사는 uiux,
-구현용 API·라이브러리 조사는 frontend·backend가 담당합니다.
+기본 팀 6인
 
 | 역할 | 한글 표시 이름 | 담당 |
 | --- | --- | --- |
 | lead | 팀장 | 작업 배분·결과 수합·git 커밋 |
-| architect | 설계 | 기획·설계 — 스펙·설계·구현 계획, 완료조건 판정·설계 이탈 승인 |
+| architect | 기획 | 스펙·설계·구현 계획, 기술 조사, 완료조건 판정·설계 이탈 승인 |
 | uiux | UI/UX | UX·레퍼런스 조사, UI/UX 명세, 구현 화면 검수 |
 | frontend | 프론트엔드 | 프론트엔드 구현·API 연동·반응형·브라우저 검증 |
 | backend | 백엔드 | 백엔드 구현·API·DB·테스트·빌드 |
 | reviewer | 리뷰어 | 코드 리뷰·QA·커버리지 판정 |
 
-lead는 단순 수정을 frontend·backend에, 스펙·설계가 필요한 요청을 architect에, UI/UX 디자인이 필요한 요청을 uiux에 배분합니다. architect가 올린 목적 분기·설계 대안은 lead가 선택합니다.
-화면 작업은 `uiux 명세 → frontend 구현 → uiux 화면 검수 → reviewer 코드 리뷰 → lead 커밋`으로 진행하고, 설계가 함께 필요하면 architect 계획이 먼저입니다.
-코드 변경은 trivial 변경을 빼고 reviewer의 승인 보고를 받은 뒤에만 lead가 커밋합니다.
-uiux가 없는 경우 frontend는 기존 디자인 기준 안에서 사소한 수정을 처리합니다.
-새 사용자 흐름·디자인 기준이 필요하면 lead가 사용자에게 uiux 활성화(`team/members.conf` 변경과 재기동)를 요청합니다.
+- 작업 흐름: (architect 계획) → uiux 명세 → frontend 구현 → uiux 화면 검수 → reviewer 리뷰 → lead 커밋
+- UI/UX 설계가 필요 없으면 `team/members.conf`에서 uiux 제외
 
 ### 프로젝트별 설정
 
-대상 프로젝트에 `team/members.conf`가 있으면 저장소 기본값 대신 그 파일만 읽습니다.
-저장소의 [team/members.conf](team/members.conf)를 복사해 수정할 수 있습니다.
-파싱 로직은 `lib/setup-common.sh`에 있으므로 로직이 바뀌어도 프로젝트 파일을 다시 복사할 필요가 없습니다.
+- 대상 프로젝트에 `team/members.conf`가 있으면 저장소 기본값 대신 그 파일만 사용
+- 저장소의 [team/members.conf](team/members.conf)를 복사해 수정
+- 역할 줄을 추가·삭제해 팀원 구성 조정 (예: 작은 수정은 lead·backend·reviewer 3인)
+- 파싱 로직은 `lib/setup-common.sh`에 있어 로직 변경 시 재복사 불필요
 
 ```text
 # /path/to/project/team/members.conf
+# tmux 세션 이름
 SESSION=team1
+# 팀원 정의
 lead|claude-sonnet-5-5|medium
 architect|claude-sonnet-5-5|high
 uiux|gpt-6.1-terra|medium
@@ -90,25 +79,11 @@ backend|claude-sonnet-5-5|medium
 reviewer|gpt-6.1-sol|medium
 ```
 
-멤버 줄 형식은 `role|model|effort`이며, 줄 순서대로 패널이 배치됩니다. 빈 줄과 `#` 주석은 무시합니다.
-옛 `team/config.sh`만 있는 프로젝트는 실행을 멈추고 `members.conf`로 옮기라고 안내합니다.
-`role`·`model`과 `SESSION`은 필수이고, 비어 있거나 형식이 틀리면 경고를 출력하고 실행을 멈춥니다.
-역할을 추가하거나 제거해 인원을 조절합니다.
-
-- `model`: 전체 모델 ID를 씁니다. 접두사로 공급자를 정합니다(`claude-*`는 Claude, `gpt-*`는 Codex).
-- `effort`: `low`·`medium`·`high`·`xhigh`·`max` 중 모델이 지원하는 값을 지정합니다. 비우면(`lead|claude-sonnet-5-5|`) CLI 기본값을 쓰고, 파인 테두리에는 `effort 비어 있음`으로 표시합니다.
-
-작은 백엔드 수정에는 아래 세 역할로 팀을 시작할 수 있습니다. 프론트엔드 수정이라면 `backend` 줄을 기본 구성의 `frontend` 줄로 바꿉니다.
-
-```text
-SESSION=team-small
-lead|claude-sonnet-5-5|medium
-backend|claude-sonnet-5-5|medium
-reviewer|gpt-6.1-sol|medium
-```
-
-팀 전체를 Codex로 실행하려면 각 역할의 `model`을 `gpt-*`로 지정하세요.
-설치 스크립트도 같은 팀 구성을 읽어 필요한 공급자의 CLI를 설치합니다.
+- 형식: `role|model|effort`, 줄 순서 = 패널 배치 순서
+- 필수: `SESSION`, `role`, `model` (비었거나 형식 오류 시 경고 후 중단)
+- `model`: 전체 모델 ID, 접두사로 공급자 결정 (`claude-*` Claude, `gpt-*` Codex)
+- `effort`: `low`·`medium`·`high`·`xhigh`·`max` 중 모델 지원 값. 비우면 CLI 기본값(테두리에 `effort 비어 있음` 표시)
+- 설치 스크립트도 같은 구성을 읽어 필요한 CLI만 설치
 
 ### 지침과 스킬
 
@@ -118,10 +93,9 @@ reviewer|gpt-6.1-sol|medium
 | `team/{역할}.md` | 프로젝트 파일을 우선 사용하고, 없으면 저장소 기본 지침 사용 |
 | `team/config.claude.sh`·`team/config.codex.sh` | 역할별 스킬·플러그인 배분. 프로젝트 파일이 있으면 기본 배분표를 통째로 대체 |
 
-역할 지침은 Claude에 `--append-system-prompt-file`로 전달하고, Codex에는
-`.team/{역할}/AGENTS.md`로 생성합니다. 새 역할을 만들 때는 대응하는 지침 파일도 추가하세요.
-공급자별 배분표를 재정의할 때는 필요한 배열을 모두 선언해야 합니다.
-상세 배분은 [스킬·플러그인 가이드](docs/guides/skill-allocation.md)를 참고하세요.
+- 역할 지침 전달: Claude는 `--append-system-prompt-file`, Codex는 `.team/{역할}/AGENTS.md` 생성
+- 새 역할 추가 시 `team/{역할}.md` 작성, 배분표에 스킬 배정
+- 상세: [스킬·플러그인 가이드](docs/guides/skill-allocation.md)
 
 ## 운영
 
@@ -133,58 +107,57 @@ tmux capture-pane -t team1:0.2 -p | tail -5    # 특정 패널 진행 확인
 tmux kill-session -t team1                    # 종료
 ```
 
-세션 이름은 `SESSION`으로 바꿉니다. `setup-team.sh`를 다시 실행하면
-같은 이름의 기존 세션을 종료하고 팀을 새로 구성합니다.
+- `setup-team.sh` 재실행 시 같은 이름의 기존 세션을 종료하고 새로 구성
 
-### 팀 진단과 상태
+### 진단과 상태
 
-저장소 루트에서 다음 명령을 실행합니다. 다른 프로젝트를 조회하려면 명령 끝에 프로젝트 경로를 붙입니다.
-
-```bash
-./bin/team doctor
-./bin/team status
-./bin/team status --watch
-```
-
-- `doctor`는 팀 구성, 필수 도구, 사용 중인 공급자의 인증을 점검합니다. 팀이 떠 있으면 파인 상태도 표시합니다.
-- `status`는 역할별 모델, 기동 상태, 대기 메시지 수와 지연, 시작 훅 실행 관측 여부를 표시합니다. 이전에 띄운 세션의 기동 결과는 **준비 여부 미확인**으로 표시될 수 있습니다.
-- `--watch`는 현재 터미널에서 2초마다 갱신합니다. 별도 셸 파인에서 볼 때는 `team status --watch`를 실행하고, `Ctrl+C`로 조회를 종료합니다. 팀 파인에서는 `team`이 PATH에 등록되어 있습니다.
-
-전송이 반복 실패해 큐에서 빠진 메시지는 `status`에서 역할별 누적 건수와 최근 실패 시각을 확인할 수 있습니다. 실행 중인 세션에서 실패 목록을 연 뒤 해당 ID를 선택해 다시 제출합니다.
+저장소 루트에서 실행. 다른 프로젝트는 끝에 경로 추가.
 
 ```bash
-./bin/team failures
-./bin/team retry <실패_ID>
+./bin/team doctor            # 팀 구성·필수 도구·공급자 인증 점검 (실행 중이면 파인 상태 포함)
+./bin/team status            # 역할별 모델·기동 상태·대기 메시지 수/지연·시작 훅 관측 여부
+./bin/team status --watch    # 2초마다 갱신, Ctrl+C로 종료
+./bin/team failures          # 전송 실패로 큐에서 빠진 메시지 목록
+./bin/team retry <실패_ID>    # 실패 메시지 재제출
 ```
 
-재시도는 기존 `say` 대기열을 따릅니다. 원래 실패 이력은 남으며, 같은 ID를 다시 실행하면 메시지가 한 번 더 제출됩니다. 기존 `dropped.log`에만 있는 기록은 해당 로그에서 확인할 수 있습니다.
+- 팀 파인 안에서는 `team`이 PATH에 등록됨
+- 같은 실패 ID를 다시 `retry`하면 메시지가 중복 제출됨
 
 ### 패널 간 메시지
-
-각 패널에서는 PATH에 등록된 `say`로 역할이나 패널 번호를 지정해 메시지를 보냅니다.
-메시지 본문은 영어로 간결하게 작성합니다.
 
 ```bash
 say lead "[backend] Implementation complete."
 say :0.0 "[backend] Tests passed."
+SAY_NOWAIT=1 say backend "Stop the current task."   # 작업 중단
+./bin/say team1:0.0 "..."                          # 팀 밖 셸에서
 ```
 
-상대가 작업 중이면 메시지는 큐에 쌓였다가 유휴 시 전달됩니다.
-작업 중단이 필요할 때는 `SAY_NOWAIT=1 say backend "Stop the current task."`를 사용합니다.
-팀 밖 셸에서는 저장소의 `./bin/say team1:0.0 "..."`처럼 세션명까지 지정합니다.
+- 상대가 작업 중이면 큐에 쌓였다가 유휴 시 전달
+- 보고 규칙·장애 대응: [패널 메시징 가이드](docs/guides/pane-messaging.md)
 
-- 일반 작업은 lead에 완료 보고합니다.
-- phase 계획에 따른 구현은 architect가 완료조건을 대조한 뒤 lead에 보고합니다.
-- 코드 품질 수정요청은 작성자에게, 설계 판단은 architect에게 직접 전달합니다.
-- 다음 담당자에게 넘긴 중간 상태는 lead에 중복 보고하지 않고, 사안이 종결되면 최종 결과만 보고합니다.
+### 로그
 
-메시징과 보고 누락 방지 훅의 동작은 [패널 메시징 가이드](docs/guides/pane-messaging.md)에 정리되어 있습니다.
+- 프롬프트·툴 사용 기록: 대상 프로젝트 `.team-logs/{역할}.jsonl` (Claude·Codex 공통 형식, 자체 `.gitignore`로 커밋 제외)
+- 런타임 생성 파일(지침·스킬 링크 등): `.team/`
 
-### 로그 확인
+## 프로젝트 구조
 
-프롬프트와 툴 사용 기록은 대상 프로젝트의 `.team-logs/{역할}.jsonl`에 자동 저장됩니다.
-Claude·Codex 모두 같은 위치와 형식을 사용하며, 로그 디렉터리는 자체 `.gitignore`로 커밋에서 제외됩니다.
-런타임 지침·스킬 링크 등 실행 중 생성되는 파일은 `.team/`에 있습니다.
+```text
+ai-setup/
+├── setup-team.sh        # 팀 실행 진입점: tmux 세션·패널 구성, 지침·스킬 배치
+├── bin/                 # 팀 패널 PATH에 등록되는 실행 파일
+│   ├── team             # doctor·status·failures·retry
+│   ├── say              # 패널 간 메시지 전송·큐
+│   └── log-hook         # 프롬프트·툴 사용 로그 기록 훅
+├── lib/                 # 설치·실행 스크립트 공용 모듈 (members.conf 파싱, 전송 실패 기록)
+├── install/             # 환경별 의존성 설치 (wsl·mac·docker)
+├── team/                # 기본 팀 구성·역할 지침·스킬 배분표
+├── CLAUDE.md·AGENTS.md  # 대상 프로젝트에 병합되는 공통 규칙
+├── Dockerfile
+├── tests/
+└── docs/                # 가이드·설계 계획·리뷰 판정
+```
 
 ## 참고 문서
 

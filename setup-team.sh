@@ -392,7 +392,7 @@ start_claude_in_pane() {
         role_prompt_content "$role_file" "$role" "$work_dir" > "$prompt_file"
         system_prompt_arg="--append-system-prompt-file $(shell_quote "$prompt_file")"
     else
-        echo -e "${RED}⚠️  team/${role}.md 없음 → 이 파인은 역할 지침 없이 실행됩니다 (MEMBER_NAMES 오타 확인)${NC}" >&2
+        echo -e "${RED}⚠️  team/${role}.md 없음 → 이 파인은 역할 지침 없이 실행됩니다 (members.conf 오타 확인)${NC}" >&2
     fi
 
     # 훅에는 호출 시점의 파인 번호를 고정한다. 훅에서 조회하면 활성 파인이 잡힌다.
@@ -487,7 +487,7 @@ write_codex_role_agents() {
     [ -f "$role_file" ] || role_file="$TEAM_DIR/${role}.md"
 
     if [ ! -f "$role_file" ]; then
-        echo -e "${RED}⚠️  team/${role}.md 없음 → Codex 역할 지침을 만들지 않습니다 (MEMBER_NAMES 오타 확인)${NC}" >&2
+        echo -e "${RED}⚠️  team/${role}.md 없음 → Codex 역할 지침을 만들지 않습니다 (members.conf 오타 확인)${NC}" >&2
         return 1
     fi
 
